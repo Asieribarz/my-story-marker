@@ -131,12 +131,13 @@ arc: {from: fearful, to: resolute}
 
 ## 5. Per-call contracts
 
-Three call types, each with its own system prompt.
+Four call types, each with its own system prompt. They are enumerated as agents in section 12.2.
 
 | Call | Input | Output | Frequency |
 |---|---|---|---|
 | Bible | Premise, `story`, `organization`, `bible` bounds | Rules, characters, settings, beat sheet | Once |
 | Page | Assembled context (section 6) | Prose of one page | `pages_total`, plus retries |
+| Consistency | The finished page, its sheets, rules and objective | Structured verdict | Once per page attempt |
 | Audit | Beat sheet, state log, arcs | Report content | Once |
 
 **TR-07.** The page call shall receive the page objective and hook as data, never as an invitation to reinterpret them. The beat sheet is authoritative; the page call has no licence to change it. Deviations go through FR-18, which is an orchestrator-mediated rewrite of the remaining entries.
@@ -268,3 +269,109 @@ Every FR is covered. FR-12 to FR-14 remain the weakest link: they are the only c
 | TI-05 | Consistency check as a separate call (TR-09) not yet costed | Adds one call per page, roughly doubling call count. Mirrors OI-05 | Open |
 | TI-06 | Behaviour when a premise cannot sustain `organization.pages_total` pages | Phase A has no rejection branch. Mirrors OI-04 | Open |
 | TI-07 | Digest quality is unmeasured; a lossy digest is a silent failure | Compression loss is the main risk the new design introduces | Open |
+| TI-08 | The manuscript assembler (12.3) has no governing requirement | The deliverable a reader actually wants is built by a component no FR mandates | Open |
+| TI-09 | Implementation language and runtime not fixed; section 12 assumes Python 3.11+ | File names in 12.3 are indicative until this closes | Open |
+
+---
+
+## 12. Build inventory
+
+Everything that has to be **created in order to build the system**, as distinct from what the system produces when it runs (functional specification §3). This section is the contract for an implementer: a build that produces these artefacts, and no others, is complete.
+
+### 12.1 Summary
+
+| Kind | Count | Status |
+|---|---|---|
+| Configuration files | 1 | Exists |
+| Prompt templates | 4 | To build |
+| Orchestrator modules | 13 | To build |
+| Test modules | 5 | To build |
+| Agents (model call types) | 4 | To build, as templates + wrapper |
+| Skills, plugins, external services | **0** | See 12.6 |
+
+Language and runtime are assumed to be Python 3.11 or later (TI-09). File names below are indicative; responsibilities and boundaries are not.
+
+### 12.2 Agents
+
+Four call types. Each is a system prompt plus an input contract, not a persistent process. Whether they are realised as plain API calls or as declared agent definitions is an implementation choice; the contracts are identical either way.
+
+| # | Agent | Temperature | Input | Output | Template | Implements |
+|---|---|---|---|---|---|---|
+| 1 | Bible | `model.temperature` | Premise, `story`, `organization`, `bible` bounds | Rules, character and setting sheets, beat sheet | `prompts/bible.md` | FR-01 to FR-05 |
+| 2 | Page | `model.temperature` | Assembled context (§6) | Prose of one page, nothing else | `prompts/page.md` | FR-10, FR-14 |
+| 3 | Consistency | 0 | The finished page, its sheets, the rules, its objective | Structured verdict with per-check evidence | `prompts/consistency.md` | FR-12 to FR-14, TR-09 |
+| 4 | Audit | 0 | Beat sheet, state log, declared arcs | Report content | `prompts/audit.md` | FR-19 |
+
+**Call volume at the default configuration:** 1 + 20 + 20 + 1 = **42 calls minimum**, plus one Page call and one Consistency call per retry. Agent 3 is what doubles the count, and is the subject of TI-05.
+
+Agents 2 and 3 must never be merged into one call. That separation is the mechanism that retires the principal risk of version 1.x (TR-09).
+
+### 12.3 Orchestrator modules
+
+| Module | Responsibility | Implements | Depends on |
+|---|---|---|---|
+| `run.py` | Entry point. Arguments, run directory, phase sequencing | — | all |
+| `config_loader.py` | Parse `config.json`, invariants I-1 to I-6, copy into run dir | FR-20, FR-21, TR-01, TR-02 | — |
+| `schemas.py` | Shapes of the beat entry, the state record and the config | TR-04 | — |
+| `agents.py` | Model call wrapper: template rendering, temperature per call type, retry on transport error | TR-07, TR-08, TR-10 | config_loader |
+| `phase_a.py` | Bible call, A6 gate, invariant I-7, write bible to disk | FR-01 to FR-06 | agents, schemas |
+| `context.py` | `assemble(N)`: selective loading, digests, recent summaries, bridge | FR-07 to FR-09, FR-26, TR-11, TR-12 | state, digest |
+| `phase_b.py` | Page loop, retry budget, flagging, page file writes | FR-15, FR-17, FR-22, TR-15, TR-16 | context, agents, validators |
+| `validators.py` | Length and roster checks, in code. No model involvement | FR-10, FR-11, FR-25 | schemas |
+| `consistency.py` | Agent 3 invocation and verdict parsing | FR-12 to FR-14, TR-09 | agents |
+| `state.py` | Append to `deltas.jsonl`, replay, thread ledger, atomic writes | FR-15, FR-16, TR-05 | schemas |
+| `digest.py` | Build and write the chapter digest at each chapter close | FR-23 | state |
+| `resume.py` | Resume point, idempotency, refusal across a changed `organization` | FR-24, TR-17 to TR-19 | state, config_loader |
+| `phase_c.py` | Thread and arc audit, chapter balance, flag ratio, Agent 4 | FR-19 | state, agents |
+| `manuscript.py` | Join page files in order into the reader-facing deliverable | **none — see TI-08** | — |
+
+### 12.4 Prompt templates
+
+Held as files, not as strings in code, so that a prompt change is reviewable as a diff. Every configuration value reaches them by interpolation; none is written literally (FR-20).
+
+| File | For | Must state |
+|---|---|---|
+| `prompts/bible.md` | Agent 1 | Output formats of §4, identifier scheme, act split and chapter grouping |
+| `prompts/page.md` | Agent 2 | Prose only, honour objective and hook, target length, no structural markup |
+| `prompts/consistency.md` | Agent 3 | The enumerated checks, each answered with the evidence before the verdict |
+| `prompts/audit.md` | Agent 4 | Report shape, what counts as an unclosed thread or an incomplete arc |
+
+### 12.5 Tests
+
+The build is not complete without these, because three requirements are only meaningful as executable checks.
+
+| File | Covers |
+|---|---|
+| `tests/test_config_invariants.py` | I-1 to I-6, including the abort path (FR-21) |
+| `tests/test_context_assembly.py` | FR-08 and FR-09: only declared sheets, no prior page text beyond the bridge |
+| `tests/test_validators.py` | FR-10 and FR-11 against fixture pages that pass and fail each band |
+| `tests/test_resume.py` | FR-24: idempotency, and refusal to resume across a changed `organization` |
+| `tests/fixtures/` | A miniature bible and three page fixtures, sized for a 4-page configuration |
+
+**The acceptance test for FR-20** is not a unit test: change the `organization` block, re-run, and confirm a story of the new shape with no edit to code or templates.
+
+### 12.6 Explicitly not built
+
+Listed so that an implementer does not invent them:
+
+- **No skills and no plugins.** The system is an orchestrator and four prompts.
+- **No database.** State is files (functional specification §4).
+- **No external services** beyond the model endpoint.
+- **No user interface and no authentication.** The entry point is a command line.
+- **No streaming or live monitoring.** Version 1.x needed it to catch drift; the orchestrator now catches drift by measurement.
+
+### 12.7 Build order
+
+Dependency order, so that each stage is testable before the next exists:
+
+```
+config_loader + schemas   →   state + digest   →   context
+        ↓                                              ↓
+     agents          →      validators + consistency   ↓
+        ↓                          ↓                   ↓
+     phase_a          →          phase_b          →  phase_c
+                                    ↓
+                        resume · manuscript · run
+```
+
+A vertical slice — `config_loader`, `agents`, `phase_a` — is runnable on its own and produces a complete bible, which is the first point at which the design can be judged against real output.
