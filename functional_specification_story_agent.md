@@ -3,7 +3,7 @@
 
 | | |
 |---|---|
-| **Version** | 2.0 |
+| **Version** | 2.1 |
 | **Date** | 15 September 2026 |
 | **Solution type** | Orchestrated agent, one model call per page, state on disk |
 | **System deliverable** | Adventure story of `organization.pages_total` pages |
@@ -66,6 +66,8 @@ All control and organization parameters live in **`config.json`**. This document
 
 | Artefact | Location | Written in |
 |---|---|---|
+| Configuration copy | `paths.runs_dir` | Start-up, before the first call |
+| Premise expansion | `paths.premise` | Phase A |
 | World rules | `paths.world_rules` | Phase A |
 | Character sheets, one file each | `paths.characters_dir` | Phase A |
 | Setting sheets, one file each | `paths.settings_dir` | Phase A |
@@ -74,7 +76,10 @@ All control and organization parameters live in **`config.json`**. This document
 | State log | `paths.state_log` | Phase B |
 | Chapter digests | `paths.chapter_digests_dir` | Phase B, at each chapter close |
 | Context traces | `paths.runs_dir` | Phase B, diagnostic only |
+| Assembled manuscript | `paths.manuscript` | Phase C |
 | Closing report | `paths.report` | Phase C |
+
+The manuscript is the reader-facing deliverable. Everything else is either input to it, a record of how it was made, or an audit of it.
 
 ---
 
@@ -85,6 +90,8 @@ State is held in files, in three categories that behave differently and must not
 ### 4.1 Fixed state — the story bible
 
 Written once in Phase A, immutable thereafter except through the procedure in FR-18. Human-readable and human-editable, because an author will want to revise a character before the pages are written.
+
+**Premise expansion** (`paths.premise`): the central conflict, the theme, the tone as interpreted for this story, and the tentative ending. It is the material from which the rules, the cast and the beat sheet are derived, so it is persisted rather than discarded: without it, a later reader of the bible cannot tell why the story was shaped as it was.
 
 **Character sheet** (`paths.characters_dir`, one Markdown file per character, structured header plus prose body):
 
@@ -101,11 +108,17 @@ Written once in Phase A, immutable thereafter except through the procedure in FR
 
 **World rules** (`paths.world_rules`): a closed list of between `bible.world_rules_min` and `bible.world_rules_max` statements about what is possible and what is forbidden.
 
-**Beat sheet** (`paths.beats`, structured data rather than prose, because it is looked up by page number on every call): one entry per page, each carrying page number, chapter, act, objective, closing hook, and the ids of the characters and settings that take part.
+**Beat sheet** (`paths.beats`, structured data rather than prose, because it is looked up by page number on every call): one entry per page, each carrying page number, chapter, chapter title, act, anchor flag, objective, closing hook, and the ids of the characters and settings that take part.
+
+**Anchor pages.** The pages listed in `organization.anchor_pages` carry a reversal: on an anchor page the story changes direction and cannot return to its previous course. An ordinary page advances the situation; an anchor page turns it. The distinction is enforced on the objective, not on the prose: the objective of an anchor page shall state what changes direction, and the A6 gate rejects a beat sheet whose anchor pages are given objectives that merely continue the preceding action. With the default configuration, pages 5, 10 and 16 carry the entry into the complication, the central reversal and the crisis before the resolution.
+
+**Chapter titles.** Each chapter receives a title in Phase A, stored on every beat entry of that chapter. Titles head their sections in the assembled manuscript and give each chapter digest a subject.
 
 ### 4.2 Mutable state
 
 **State log** (`paths.state_log`): one record appended per completed page, carrying the page summary line, the updated current state of each character that appeared, and threads opened or closed. Append-only, so the history of the run is auditable and an interrupted write costs at most the last record.
+
+**Thread register.** Threads are narrative promises, and unlike characters and settings they come into existence during Phase B, not Phase A. A thread identifier is minted by the orchestrator at the moment the thread opens, and the record that opens it is therefore also the record of its opening page. The register is not a separate file: it is the projection obtained by replaying the state log, which is what keeps the opening page and the identifier from ever disagreeing.
 
 **Chapter digests** (`paths.chapter_digests_dir`): one paragraph per completed chapter, written when the chapter closes. Digests replace individual page summaries for chapters outside the verbatim window (see section 6).
 
@@ -127,8 +140,8 @@ flowchart TD
     A1 --> A2["A2 · World rules"]
     A2 --> A3["A3 · Character sheets<br/>includes arc from start to end"]
     A3 --> A4["A4 · Setting sheets"]
-    A4 --> A5["A5 · Beat sheet<br/>act split · anchor pages<br/>pages grouped into chapters"]
-    A5 --> A6{"A6 · Consistent?<br/>characters used · arcs closed<br/>anchors · chapter boundaries"}
+    A4 --> A5["A5 · Beat sheet<br/>chapters + titles · act split<br/>anchor pages get a reversal"]
+    A5 --> A6{"A6 · Consistent?<br/>characters used · arcs closed<br/>anchors turn · chapters tile"}
     A6 -- NO --> A5
     A6 -- YES --> A7["A7 · Write bible files to disk"]
     A7 --> FB[/"Start Phase B at page 1"/]
@@ -137,13 +150,15 @@ flowchart TD
 | Step | Action |
 |---|---|
 | A0 | Load `config.json` and check the invariants of section 2. When `control.abort_on_invalid_config`, an invalid configuration stops the run before any model call. |
-| A1 | Expand the premise: central conflict, theme, tone, tentative ending. |
+| A1 | Expand the premise into central conflict, theme, tone and tentative ending, and persist it to `paths.premise`. |
 | A2 | Generate the world rules, within the bounds in `bible`. |
 | A3 | Generate the character sheets, including the arc, up to `bible.max_characters`. |
 | A4 | Generate the setting sheets, up to `bible.max_settings`. |
-| A5 | Generate the beat sheet for `organization.pages_total` pages, honouring the act split and the anchor pages, and grouping pages into `organization.chapters` chapters of `organization.pages_per_chapter` pages each. |
-| A6 | Check consistency. On failure, redo A5, up to `control.consistency_gate_max_attempts`. |
+| A5 | Generate the beat sheet for `organization.pages_total` pages: group them into `organization.chapters` chapters of `organization.pages_per_chapter` pages, title each chapter, honour the act split, and give every page in `organization.anchor_pages` an objective that states a reversal. |
+| A6 | Check consistency, including that each anchor page turns the story rather than continuing it. On failure, redo A5, up to `control.consistency_gate_max_attempts`. |
 | A7 | Persist the bible to the locations in `paths`. |
+
+**Phase A is atomic.** The bible is written only once A6 passes, and a run that stops before A7 leaves nothing behind to resume from: the phase is repeated in full. This costs one call to redo and removes the possibility of building pages on a partially written bible.
 
 ### Phase B — Writing cycle (one call per page)
 
@@ -151,7 +166,7 @@ flowchart TD
 flowchart TD
     B0["B0 · Read beat entry for page N"]
     B1["B1 · Load only the declared sheets<br/>at most context.max_sheets_per_page"]
-    B2["B2 · Assemble context<br/>rules · sheets · objective<br/>digests + recent summaries · bridge"]
+    B2["B2 · Assemble context<br/>tone · language · rules · sheets<br/>objective · digests + summaries · bridge"]
     B3["B3 · Model call — write page N"]
     B4{"B4 · Mechanical validation in code<br/>length · roster · structure"}
     B5{"B5 · Consistency validation<br/>appearance · voice · rules · objective"}
@@ -181,7 +196,7 @@ flowchart TD
 |---|---|
 | B0 | Read the beat entry for page N from `paths.beats`. |
 | B1 | Load only the character and setting sheets that entry declares. |
-| B2 | Assemble the context: world rules, loaded sheets, objective of N, chapter digests for closed chapters, page summaries for the last `context.verbatim_summary_window` pages, and the final paragraph of page N-1. |
+| B2 | Assemble the context: `story.tone`, `story.audience` and `story.language`, the world rules, the loaded sheets, the objective of N, chapter digests for closed chapters, page summaries for the last `context.verbatim_summary_window` pages, and the final paragraph of page N-1. |
 | B3 | Issue the model call for page N. |
 | B4 | Validate mechanically, in code. |
 | B5 | Validate consistency. |
@@ -200,10 +215,19 @@ flowchart TD
     C1["C1 · Audit open threads"]
     C2["C2 · Audit character arcs<br/>against the final state from Phase A"]
     C3["C3 · Audit chapter balance<br/>length and act boundaries"]
-    C4["C4 · Closing report<br/>issues and flagged pages"]
+    C4["C4 · Assemble manuscript<br/>pages in order, under chapter titles"]
+    C5["C5 · Closing report<br/>issues and flagged pages"]
     FIN([END])
-    C1 --> C2 --> C3 --> C4 --> FIN
+    C1 --> C2 --> C3 --> C4 --> C5 --> FIN
 ```
+
+| Step | Action |
+|---|---|
+| C1 | Audit open threads by replaying the state log. |
+| C2 | Audit character arcs against the final state declared in Phase A. |
+| C3 | Audit chapter balance: length per chapter, act boundaries, flag ratio. |
+| C4 | Assemble the pages in order into `paths.manuscript`, each chapter introduced by its title. The manuscript is derived: it is rebuilt from `paths.pages_dir` and never edited in place. |
+| C5 | Write the closing report to `paths.report`. |
 
 ---
 
@@ -250,6 +274,15 @@ Requirements reference configuration by path. None restates a literal.
 | FR-24 | Each page shall be persisted in its own file before the next page begins, and a run shall be resumable from the first page without one when `control.resume_enabled`. |
 | FR-25 | Mechanical validation (FR-10, FR-11) shall be executed deterministically by the orchestrator, not reported by the model. |
 | FR-26 | The assembled context of each page shall be written to `paths.runs_dir` as a diagnostic trace, and shall never be read back as state. |
+| FR-27 | Every page listed in `organization.anchor_pages` shall be assigned an objective that states a reversal, and A6 shall reject a beat sheet in which an anchor page merely continues the preceding action. |
+| FR-28 | Each chapter shall receive a title in Phase A, recorded on every beat entry of that chapter. |
+| FR-29 | On closing, the system shall assemble the pages in order into `paths.manuscript`, under their chapter titles. The manuscript shall be derived from `paths.pages_dir` on every assembly and never edited in place. |
+| FR-30 | The prose of every page shall be written in `story.language`. |
+| FR-31 | The context of every page shall carry `story.tone` and `story.audience`. |
+| FR-32 | The premise expansion shall be persisted to `paths.premise` before the world rules are generated. |
+| FR-33 | Failures of the model endpoint shall be retried independently and shall not count against `control.max_retries_per_page`, which governs rejected content only. |
+| FR-34 | Phase A shall be atomic: the bible shall be written only once A6 passes, and an interrupted Phase A shall be repeated in full. |
+| FR-35 | Thread identifiers shall be minted when a thread opens in Phase B, and the record that opens a thread shall be the record of its opening page. |
 
 ---
 
@@ -260,6 +293,8 @@ Requirements reference configuration by path. None restates a literal.
 **Consistency (FR-12 to FR-14).** The page is checked against the loaded sheets, the world rules and its objective. Where this check is delegated to a model it shall be a separate call taking the page as input, never the same call that wrote it.
 
 **Failure branch.** The page is rewritten with the same assembled context. After `control.max_retries_per_page` failures the page is accepted, flagged in the state log, and the run continues. Halting on a local failure produces an unusable deliverable; flagging produces a correctable one.
+
+**Endpoint failure (FR-33).** A timeout, a rate limit or a transport error is not a rejected page: nothing was judged and nothing was wrong with the content. These are retried on their own budget, and never consume `control.max_retries_per_page`. Conflating the two would let a network outage exhaust a page's content retries and get an unread page flagged for review.
 
 **Configuration failure.** Invalid configuration aborts before any model call, and therefore before any cost is incurred.
 
@@ -275,6 +310,8 @@ A run is accepted if it meets all of the following:
 - The closing report reports no open threads and no incomplete arcs.
 - Flagged pages do not exceed `control.max_flagged_ratio` of the total.
 - Reading the pages in order reveals no causal gaps, and chapter boundaries fall at narratively sensible points.
+- Each anchor page turns the story: the situation after it cannot return to what it was before.
+- `paths.manuscript` exists, is written in `story.language`, and contains every page in order under its chapter title.
 - Re-running with a changed `organization` block produces a story of the new shape, with no change to prompts or code.
 
 ---
@@ -301,7 +338,8 @@ A run is accepted if it meets all of the following:
 |---|---|---|---|
 | 1.0 | 2026-09-15 | Initial version: single-prompt solution, scope, state model, flow, FR-01 to FR-19, acceptance criteria and limitations. | Superseded |
 | 1.1 | 2026-09-15 | Functional flow and general diagram converted to Mermaid. Review and change control chapter added. | Superseded |
-| 2.0 | 2026-09-15 | Architecture changed from single prompt to orchestrated calls with state on disk. Control and organization parameters extracted to `config.json`; all requirements now reference it. Chapters introduced as an organizational level. FR-20 to FR-26 added. Context strategy rewritten around two-level compression. Limitations rewritten. | Draft for review |
+| 2.0 | 2026-09-15 | Architecture changed from single prompt to orchestrated calls with state on disk. Control and organization parameters extracted to `config.json`; all requirements now reference it. Chapters introduced as an organizational level. FR-20 to FR-26 added. Context strategy rewritten around two-level compression. Limitations rewritten. | Superseded |
+| 2.1 | 2026-09-15 | Completeness review applied. Anchor pages defined as reversals and enforced at A6. Chapter titles adopted, closing OI-06. Manuscript assembly added as the reader-facing deliverable. Premise expansion and configuration copy added to the output inventory. Tone, audience and language carried into every page context. Endpoint failures separated from content retries. Phase A declared atomic. Thread identifiers moved to Phase B. FR-27 to FR-35 added. | Draft for review |
 
 ### 11.2 Review roles
 
@@ -340,7 +378,8 @@ Changes affecting FR-07, FR-08, FR-09, FR-15 or FR-23 additionally require an ex
 | OI-03 | Assignment of the roles in table 11.2 | Blocks approval of the document | Open |
 | OI-04 | Expected behaviour if the premise is insufficient for `organization.pages_total` pages | Branch not covered by the Phase A flow | Open |
 | OI-05 | Whether consistency validation (FR-12 to FR-14) runs as a separate model call or stays with the writing call | Determines cost per page and the reliability of the check | Open |
-| OI-06 | Whether chapters carry titles, and whether those titles appear in the deliverable | Affects the beat sheet schema and the page files | Open |
+| OI-06 | Whether chapters carry titles, and whether those titles appear in the deliverable | Affects the beat sheet schema and the page files | **Closed in 2.1** — titles generated in Phase A (FR-28), used as manuscript headings (FR-29) |
+| OI-07 | Anchor pages are defined as reversals (FR-27), but A6 has no objective measure of what counts as one | The gate depends on a model judgement that nothing calibrates | Open |
 
 ---
 
@@ -351,7 +390,7 @@ flowchart TD
     INI([START]) --> CFG{"LOAD config.json<br/>validate invariants"}
     CFG -- INVALID --> ABORT([ABORT])
     CFG -- VALID --> GEN["BUILD THE BIBLE<br/>world rules · characters with arc · settings"]
-    GEN --> SEP["BEAT SHEET<br/>act split · anchor pages<br/>pages grouped into chapters"]
+    GEN --> SEP["BEAT SHEET<br/>chapters + titles · act split<br/>anchor pages get a reversal"]
     SEP --> GATE{"CONSISTENT?"}
     GATE -- NO --> SEP
     GATE -- YES --> DISK["WRITE BIBLE TO DISK"]
@@ -367,6 +406,8 @@ flowchart TD
     CH -- NO --> DEC
     DIG --> DEC{"LAST PAGE?"}
     DEC -- "NO · next page" --> CTX
-    DEC -- YES --> FINAL["CLOSING AUDIT<br/>threads · arcs · chapters · report"]
-    FINAL --> FIN([END])
+    DEC -- YES --> FINAL["CLOSING AUDIT<br/>threads · arcs · chapters"]
+    FINAL --> MAN["ASSEMBLE MANUSCRIPT<br/>pages in order, under chapter titles"]
+    MAN --> REP["CLOSING REPORT"]
+    REP --> FIN([END])
 ```

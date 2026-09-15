@@ -53,6 +53,7 @@
   },
 
   "paths": {
+    "premise": "bible/premise.md",
     "world_rules": "bible/rules.md",
     "characters_dir": "bible/characters/",
     "settings_dir": "bible/settings/",
@@ -61,6 +62,7 @@
     "chapter_digests_dir": "state/chapters/",
     "pages_dir": "pages/",
     "runs_dir": "runs/",
+    "manuscript": "story.md",
     "report": "report.md"
   }
 }

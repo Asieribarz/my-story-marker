@@ -3,9 +3,9 @@
 
 | | |
 |---|---|
-| **Version** | 2.0 |
+| **Version** | 2.1 |
 | **Date** | 15 September 2026 |
-| **Implements** | Functional specification v2.0 |
+| **Implements** | Functional specification v2.1 |
 | **Configuration** | `config.json` |
 | **Status** | Draft for review |
 
@@ -76,6 +76,7 @@ Both specifications reference configuration by path. The orchestrator exposes th
 ```
 config.json
 bible/
+  premise.md                conflict, theme, tone, tentative ending
   rules.md                  world rules, one per line
   characters/c1-mara.md     frontmatter + prose
   settings/s2-lighthouse.md frontmatter + prose
@@ -88,6 +89,7 @@ pages/
 runs/2026-09-15T10-00/
   config.json               the configuration that produced this run
   ctx-07.md                 assembled context, diagnostic only
+story.md                    the manuscript, rebuilt from pages/
 report.md
 ```
 
@@ -109,7 +111,8 @@ arc: {from: fearful, to: resolute}
 ```
 
 ```json
-{"page": 7, "chapter": 2, "act": "development", "anchor": false,
+{"page": 7, "chapter": 2, "chapter_title": "The Cold Lamp",
+ "act": "development", "anchor": false,
  "objective": "Mara reaches the lighthouse and finds it abandoned",
  "hook": "the lamp is cold", "characters": ["c1", "c3"], "settings": ["s2"]}
 ```
@@ -121,7 +124,9 @@ arc: {from: fearful, to: resolute}
  "threads_opened":["t4"],"threads_closed":["t2"]}
 ```
 
-**TR-04.** Identifiers (`c1`, `s2`, `t4`) shall be assigned in Phase A and are immutable; every later reference uses the identifier. This makes an FR-11 violation decidable by set membership rather than by matching names that legitimately vary in prose.
+**TR-04.** Character and setting identifiers (`c1`, `s2`) shall be assigned in Phase A and are immutable; every later reference uses the identifier. This makes an FR-11 violation decidable by set membership rather than by matching names that legitimately vary in prose.
+
+**TR-04b.** Thread identifiers (`t4`) are the exception: threads come into existence during Phase B, so the orchestrator mints the identifier at the moment a thread opens, in the same state record (FR-35). Threads are never pre-declared in Phase A, because a beat sheet cannot know which promises the prose will actually make.
 
 **TR-05.** Every write shall be atomic — written to a temporary file and renamed — so that an interrupted run never leaves a half-written page or state record (FR-24).
 
@@ -156,6 +161,7 @@ Deterministic, executed by the orchestrator, no model involvement.
 
 ```
 assemble(N):
+    voice   ← story.tone, story.audience, story.language
     beat    ← beats[N]
     rules   ← read(paths.world_rules)
     sheets  ← [read(s) for s in beat.characters + beat.settings]
@@ -163,8 +169,11 @@ assemble(N):
     digests ← [read(chapters/c) for c in closed chapters before beat.chapter]
     recent  ← summaries of the last context.verbatim_summary_window pages
     bridge  ← final paragraph of pages/(N-1).md   if context.include_bridge_paragraph
-    return render(rules, sheets, beat.objective, beat.hook, digests, recent, bridge)
+    return render(voice, rules, sheets, beat.objective, beat.hook,
+                  beat.anchor, digests, recent, bridge)
 ```
+
+**TR-10b.** `voice` is not decoration. `story.tone` and `story.audience` reach Phase A through the bible call, but without this line they never reach the twenty calls that write the actual prose, and the run produces a correctly structured story in the wrong register (FR-31). `story.language` travels with them for the same reason (FR-30).
 
 **TR-11.** Character states in the context shall come from the **last** record in `deltas.jsonl` that mentions each character, not from the sheet, whose `state` is the Phase A value. The sheet holds what is immutable; the log holds what has happened.
 
@@ -213,10 +222,40 @@ All mechanical checks run in code after each page call (FR-25).
 | Beat coverage | On A6: pages 1…`pages_total` present, each chapter holds `pages_per_chapter` | Block Phase B |
 | Thread ledger | On C1: every `threads_opened` has a later `threads_closed` | Report |
 | Flag ratio | On C3: flagged records ÷ `pages_total` ≤ `control.max_flagged_ratio` | Report |
+| Anchor reversal | On A6: every page in `anchor_pages` has an objective stating a change of direction | Redo A5 |
+
+### 8.1 The consistency verdict
+
+Agent 3 carries FR-12 to FR-14 and is the only check that rests on judgement, so its output is constrained to a fixed shape. The checks are enumerated, ordered and answered individually; there is no overall opinion field, because an overall opinion is what a model gives itself when it is not forced to look at particulars.
+
+| # | Check | Question put to the agent |
+|---|---|---|
+| K1 | Appearance | Does the page contradict any appearance or costume in the loaded sheets? |
+| K2 | Voice | Does any character speak against the traits in their sheet? |
+| K3 | Arc | Does the page place a character beyond or behind their declared arc position? |
+| K4 | World rules | Does anything in the page violate a world rule? |
+| K5 | Objective | Does the page accomplish the objective of its beat entry? |
+| K6 | Hook | Does the page end on its declared hook? |
+
+```json
+{"page": 7, "verdict": "PASS",
+ "checks": [
+   {"id": "K1", "pass": true,  "evidence": "c1 scar on left hand, consistent with sheet"},
+   {"id": "K4", "pass": false, "evidence": "lamp lit without fuel, contradicts r3"}
+ ]}
+```
+
+**TR-14b.** Every check shall carry an `evidence` string quoting or naming what in the page justifies the answer. A bare boolean is not auditable and cannot be reviewed by a person; requiring the agent to name the thing it looked at is the difference between a check and a rubber stamp.
+
+**TR-14c.** `verdict` shall be `FAIL` if any check fails, computed by the orchestrator from the `checks` array rather than taken from the agent. The agent reports observations; the orchestrator draws the conclusion.
+
+**TR-14d.** A response that does not parse against this shape counts as an endpoint failure, not a content failure, and is retried under FR-33. A malformed verdict is no evidence about the page.
 
 **TR-15.** Retries shall reuse the assembled context byte-for-byte, with the failure reason appended. Reassembling invites a different failure.
 
 **TR-16.** After `control.max_retries_per_page`, the page is accepted with `flagged: true` and its reason in the state record. The run never halts on a single page (FR-17).
+
+**TR-16b.** Endpoint failures — timeouts, rate limits, transport errors, unparseable responses — shall be retried on a separate budget and shall never decrement `control.max_retries_per_page` (FR-33).
 
 ---
 
@@ -253,6 +292,14 @@ All mechanical checks run in code after each page call (FR-25).
 | FR-24 | One file per page, atomic writes, resume point | TR-05, TR-17 |
 | FR-25 | Section 8 checks, all in code | TR-15 |
 | FR-26 | Run directory is write-only | TR-06 |
+| FR-27 | `anchor` field on the beat entry; reversal check at the A6 gate | TR-07 |
+| FR-28 | `chapter_title` on every beat entry | TR-04 |
+| FR-29 | `manuscript.py`, rebuilt from `pages/` on every assembly | TR-05 |
+| FR-30, FR-31 | `voice` in `assemble(N)` | TR-10b |
+| FR-32 | Phase A persists the expansion before generating rules | TR-05 |
+| FR-33 | Separate endpoint retry budget | TR-16b, TR-14d |
+| FR-34 | Bible written only after the A6 gate passes | TR-05 |
+| FR-35 | Thread ids minted at opening, in the same state record | TR-04b |
 
 Every FR is covered. FR-12 to FR-14 remain the weakest link: they are the only checks that still depend on a model's judgement, even though TR-09 moves that judgement out of the call that produced the text.
 
@@ -269,7 +316,8 @@ Every FR is covered. FR-12 to FR-14 remain the weakest link: they are the only c
 | TI-05 | Consistency check as a separate call (TR-09) not yet costed | Adds one call per page, roughly doubling call count. Mirrors OI-05 | Open |
 | TI-06 | Behaviour when a premise cannot sustain `organization.pages_total` pages | Phase A has no rejection branch. Mirrors OI-04 | Open |
 | TI-07 | Digest quality is unmeasured; a lossy digest is a silent failure | Compression loss is the main risk the new design introduces | Open |
-| TI-08 | The manuscript assembler (12.3) has no governing requirement | The deliverable a reader actually wants is built by a component no FR mandates | Open |
+| TI-08 | The manuscript assembler (12.3) has no governing requirement | The deliverable a reader actually wants is built by a component no FR mandates | **Closed in 2.1** — FR-29 |
+| TI-10 | The A6 anchor check (FR-27) has no objective measure of what counts as a reversal | The gate depends on a model judgement nothing calibrates. Mirrors OI-07 | Open |
 | TI-09 | Implementation language and runtime not fixed; section 12 assumes Python 3.11+ | File names in 12.3 are indicative until this closes | Open |
 
 ---
@@ -297,9 +345,9 @@ Four call types. Each is a system prompt plus an input contract, not a persisten
 
 | # | Agent | Temperature | Input | Output | Template | Implements |
 |---|---|---|---|---|---|---|
-| 1 | Bible | `model.temperature` | Premise, `story`, `organization`, `bible` bounds | Rules, character and setting sheets, beat sheet | `prompts/bible.md` | FR-01 to FR-05 |
-| 2 | Page | `model.temperature` | Assembled context (§6) | Prose of one page, nothing else | `prompts/page.md` | FR-10, FR-14 |
-| 3 | Consistency | 0 | The finished page, its sheets, the rules, its objective | Structured verdict with per-check evidence | `prompts/consistency.md` | FR-12 to FR-14, TR-09 |
+| 1 | Bible | `model.temperature` | Premise, `story`, `organization`, `bible` bounds | Premise expansion, rules, sheets, beat sheet with chapter titles and anchor reversals | `prompts/bible.md` | FR-01 to FR-05, FR-27, FR-28, FR-32 |
+| 2 | Page | `model.temperature` | Assembled context (§6), tone and language included | Prose of one page, nothing else | `prompts/page.md` | FR-10, FR-14, FR-30, FR-31 |
+| 3 | Consistency | 0 | The finished page, its sheets, the rules, its objective | The verdict shape of §8.1 | `prompts/consistency.md` | FR-12 to FR-14, TR-09 |
 | 4 | Audit | 0 | Beat sheet, state log, declared arcs | Report content | `prompts/audit.md` | FR-19 |
 
 **Call volume at the default configuration:** 1 + 20 + 20 + 1 = **42 calls minimum**, plus one Page call and one Consistency call per retry. Agent 3 is what doubles the count, and is the subject of TI-05.
@@ -323,7 +371,7 @@ Agents 2 and 3 must never be merged into one call. That separation is the mechan
 | `digest.py` | Build and write the chapter digest at each chapter close | FR-23 | state |
 | `resume.py` | Resume point, idempotency, refusal across a changed `organization` | FR-24, TR-17 to TR-19 | state, config_loader |
 | `phase_c.py` | Thread and arc audit, chapter balance, flag ratio, Agent 4 | FR-19 | state, agents |
-| `manuscript.py` | Join page files in order into the reader-facing deliverable | **none — see TI-08** | — |
+| `manuscript.py` | Join page files in order into `paths.manuscript`, under chapter titles | FR-29 | schemas |
 
 ### 12.4 Prompt templates
 
@@ -333,7 +381,7 @@ Held as files, not as strings in code, so that a prompt change is reviewable as 
 |---|---|---|
 | `prompts/bible.md` | Agent 1 | Output formats of §4, identifier scheme, act split and chapter grouping |
 | `prompts/page.md` | Agent 2 | Prose only, honour objective and hook, target length, no structural markup |
-| `prompts/consistency.md` | Agent 3 | The enumerated checks, each answered with the evidence before the verdict |
+| `prompts/consistency.md` | Agent 3 | Checks K1 to K6 of §8.1 and the response shape, each answered with its evidence |
 | `prompts/audit.md` | Agent 4 | Report shape, what counts as an unclosed thread or an incomplete arc |
 
 ### 12.5 Tests
