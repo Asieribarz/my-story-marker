@@ -1,2 +1,2 @@
 # my-story-marker
-# generador de historias de aventura
+generador de historias de aventura
