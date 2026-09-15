@@ -6,7 +6,7 @@
 | **Version** | 2.0 |
 | **Date** | 15 September 2026 |
 | **Implements** | Functional specification v2.0 |
-| **Configuration** | `story-config.json` |
+| **Configuration** | `config.json` |
 | **Status** | Draft for review |
 
 ---
@@ -28,7 +28,7 @@ Moving state to disk retires all three. The cost is an orchestrator that can its
 ## 2. Architecture
 
 ```
-story-config.json          ← single source of control and organization values
+config.json          ← single source of control and organization values
     │
     ▼
 orchestrator ──► model call (Phase A: bible)      ──► bible/*
@@ -39,7 +39,7 @@ orchestrator ──► model call (Phase A: bible)      ──► bible/*
 
 The orchestrator owns the loop, the counters, retry, the stop condition and every file write. The model owns prose and narrative judgement, and nothing else.
 
-**TR-01.** The orchestrator shall read every control and organization value from `story-config.json` at start-up. No such value shall appear as a literal in code or in a prompt template; prompts receive them by interpolation (FR-20).
+**TR-01.** The orchestrator shall read every control and organization value from `config.json` at start-up. No such value shall appear as a literal in code or in a prompt template; prompts receive them by interpolation (FR-20).
 
 **TR-02.** The configuration in force shall be copied into the run directory at start-up, so that a completed run carries the parameters that produced it.
 
@@ -67,14 +67,14 @@ I-7 is checked after the beat sheet exists, at the A6 gate, not at start-up.
 
 Both specifications reference configuration by path. The orchestrator exposes the parsed config to prompt templates under the same names, so `{{organization.pages_total}}` in a template and `organization.pages_total` in the specification denote one value with one definition.
 
-**TR-03.** Changing the shape of a story shall require editing `story-config.json` only. A change to `organization` that leaves prompts and code untouched is the acceptance test for FR-20, and is listed as an acceptance criterion in §9 of the functional specification.
+**TR-03.** Changing the shape of a story shall require editing `config.json` only. A change to `organization` that leaves prompts and code untouched is the acceptance test for FR-20, and is listed as an acceptance criterion in §9 of the functional specification.
 
 ---
 
 ## 4. File layout and formats
 
 ```
-story-config.json
+config.json
 bible/
   rules.md                  world rules, one per line
   characters/c1-mara.md     frontmatter + prose
@@ -225,7 +225,7 @@ All mechanical checks run in code after each page call (FR-25).
 
 **TR-18.** Resume shall be idempotent: a page file that exists is never regenerated, and a state record whose page already has a record is never appended twice. The state log is keyed by page number, and a replay that finds duplicates uses the last record and reports the anomaly.
 
-**TR-19.** A resumed run shall verify that the configuration in `paths.runs_dir` matches the current `story-config.json`, and refuse to resume across a changed `organization` block. Half a story of one shape and half of another is worse than restarting.
+**TR-19.** A resumed run shall verify that the configuration in `paths.runs_dir` matches the current `config.json`, and refuse to resume across a changed `organization` block. Half a story of one shape and half of another is worse than restarting.
 
 ---
 

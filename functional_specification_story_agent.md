@@ -7,7 +7,7 @@
 | **Date** | 15 September 2026 |
 | **Solution type** | Orchestrated agent, one model call per page, state on disk |
 | **System deliverable** | Adventure story of `organization.pages_total` pages |
-| **Configuration** | `story-config.json` |
+| **Configuration** | `config.json` |
 | **Status** | Draft for review |
 
 ---
@@ -28,7 +28,7 @@ Version 1.x specified a single-prompt solution in which the transcript itself se
 
 ## 2. Configuration
 
-All control and organization parameters live in **`story-config.json`**. This document references them by path (`organization.pages_total`, `page.target_words`) and deliberately restates no literal value. A parameter that appears in a requirement below and not in the config file is a defect in one of the two.
+All control and organization parameters live in **`config.json`**. This document references them by path (`organization.pages_total`, `page.target_words`) and deliberately restates no literal value. A parameter that appears in a requirement below and not in the config file is a defect in one of the two.
 
 | Group | Contains |
 |---|---|
@@ -136,7 +136,7 @@ flowchart TD
 
 | Step | Action |
 |---|---|
-| A0 | Load `story-config.json` and check the invariants of section 2. When `control.abort_on_invalid_config`, an invalid configuration stops the run before any model call. |
+| A0 | Load `config.json` and check the invariants of section 2. When `control.abort_on_invalid_config`, an invalid configuration stops the run before any model call. |
 | A1 | Expand the premise: central conflict, theme, tone, tentative ending. |
 | A2 | Generate the world rules, within the bounds in `bible`. |
 | A3 | Generate the character sheets, including the arc, up to `bible.max_characters`. |
@@ -243,7 +243,7 @@ Requirements reference configuration by path. None restates a literal.
 | FR-17 | The system shall stop on completing page `organization.pages_total` and not before. |
 | FR-18 | If a deviation from the beat sheet arises during Phase B, the system shall update the remaining entries in `paths.beats` before continuing. |
 | FR-19 | The closing report shall list unclosed threads, incomplete arcs, chapter imbalances and flagged pages. |
-| FR-20 | All control and organization parameters shall be read from `story-config.json`. No such value shall be written literally in a prompt or in code. |
+| FR-20 | All control and organization parameters shall be read from `config.json`. No such value shall be written literally in a prompt or in code. |
 | FR-21 | The system shall validate the configuration invariants of section 2 before the first model call, and shall abort on failure when `control.abort_on_invalid_config`. |
 | FR-22 | The system shall group pages into `organization.chapters` chapters of `organization.pages_per_chapter` pages, and each beat entry shall declare its chapter. |
 | FR-23 | On closing a chapter, the system shall write its digest, which replaces that chapter's individual page summaries in later contexts. |
@@ -285,7 +285,7 @@ A run is accepted if it meets all of the following:
 
 **Compression loss.** A chapter digest is lossy by construction. A detail introduced in chapter 1 and needed in chapter 5 survives only if it reached a character sheet, a thread or the digest. Mitigation: threads are the designated carrier for anything that must be paid off later.
 
-**Configuration drift.** Because the specifications defer to `story-config.json`, a change there silently changes the system's behaviour and its acceptance criteria. Mitigation: the config file is versioned with the run, and the invariants of section 2 are checked on every run.
+**Configuration drift.** Because the specifications defer to `config.json`, a change there silently changes the system's behaviour and its acceptance criteria. Mitigation: the config file is versioned with the run, and the invariants of section 2 are checked on every run.
 
 **Orchestration surface.** The retired design had no code and therefore no code defects. This one has file I/O, resume logic and validation code, each of which can fail on its own. That cost is accepted in exchange for determinism where determinism matters.
 
@@ -301,7 +301,7 @@ A run is accepted if it meets all of the following:
 |---|---|---|---|
 | 1.0 | 2026-09-15 | Initial version: single-prompt solution, scope, state model, flow, FR-01 to FR-19, acceptance criteria and limitations. | Superseded |
 | 1.1 | 2026-09-15 | Functional flow and general diagram converted to Mermaid. Review and change control chapter added. | Superseded |
-| 2.0 | 2026-09-15 | Architecture changed from single prompt to orchestrated calls with state on disk. Control and organization parameters extracted to `story-config.json`; all requirements now reference it. Chapters introduced as an organizational level. FR-20 to FR-26 added. Context strategy rewritten around two-level compression. Limitations rewritten. | Draft for review |
+| 2.0 | 2026-09-15 | Architecture changed from single prompt to orchestrated calls with state on disk. Control and organization parameters extracted to `config.json`; all requirements now reference it. Chapters introduced as an organizational level. FR-20 to FR-26 added. Context strategy rewritten around two-level compression. Limitations rewritten. | Draft for review |
 
 ### 11.2 Review roles
 
@@ -318,18 +318,18 @@ A run is accepted if it meets all of the following:
 |---|---|---|
 | V-01 | Every element of the Annex A diagram is covered by at least one numbered requirement | |
 | V-02 | Every requirement is atomic, verifiable and written in the imperative | |
-| V-03 | No requirement restates a value that belongs in `story-config.json` | |
+| V-03 | No requirement restates a value that belongs in `config.json` | |
 | V-04 | Every acceptance criterion in section 9 admits a yes or no answer | |
 | V-05 | The state model in section 4 covers all data the flow reads or writes | |
 | V-06 | The limitations in section 10 do not contradict any requirement in section 7 | |
 | V-07 | No [PENDING] markers remain unresolved or without an associated open issue | |
-| V-08 | Every configuration path referenced in this document exists in `story-config.json` | |
+| V-08 | Every configuration path referenced in this document exists in `config.json` | |
 
 ### 11.4 Change procedure
 
 Every change after approval is recorded as an open issue in 11.5, assessed for impact on the affected requirements, applied, versioned in 11.1, and re-checked against 11.3.
 
-Changes affecting FR-07, FR-08, FR-09, FR-15 or FR-23 additionally require an explicit review of section 6, because those are the requirements that sustain the context strategy. Changes to the `organization` block of `story-config.json` require re-validation of the invariants in section 2.
+Changes affecting FR-07, FR-08, FR-09, FR-15 or FR-23 additionally require an explicit review of section 6, because those are the requirements that sustain the context strategy. Changes to the `organization` block of `config.json` require re-validation of the invariants in section 2.
 
 ### 11.5 Open issues
 
@@ -348,7 +348,7 @@ Changes affecting FR-07, FR-08, FR-09, FR-15 or FR-23 additionally require an ex
 
 ```mermaid
 flowchart TD
-    INI([START]) --> CFG{"LOAD story-config.json<br/>validate invariants"}
+    INI([START]) --> CFG{"LOAD config.json<br/>validate invariants"}
     CFG -- INVALID --> ABORT([ABORT])
     CFG -- VALID --> GEN["BUILD THE BIBLE<br/>world rules · characters with arc · settings"]
     GEN --> SEP["BEAT SHEET<br/>act split · anchor pages<br/>pages grouped into chapters"]
