@@ -3,7 +3,7 @@
 
 | | |
 |---|---|
-| **Version** | 2.2 |
+| **Version** | 2.3 |
 | **Date** | 16 September 2026 |
 | **Solution type** | Orchestrated agent, one model call per page, state on disk |
 | **System deliverable** | Adventure story of `organization.pages_total` pages |
@@ -39,7 +39,7 @@ All control and organization parameters live in **`config.json`**. This document
 | `bible` | Bounds on world rules, characters and settings |
 | `control` | Retries, continuity repairs, flag ceiling, gate attempts, resume |
 | `model` | Model id, temperature, output ceiling |
-| `paths` | Location of every artefact the system reads or writes |
+| `paths` | `stories_root`, plus the location of every artefact within a story workspace |
 
 ### 2.1 Authoritative and derived values
 
@@ -53,8 +53,11 @@ From version 2.2 the file holds authoritative inputs only. Everything dependent 
 | `organization.chapters` *or* `organization.pages_per_chapter` | `derived.chapter_sizes` |
 | `organization.act_proportions` | `derived.acts`, `derived.act_spans` |
 | `organization.anchor_pages` set to `"auto"` | `derived.anchor_pages` |
+| The story id, a run argument | `derived.story_root` |
 
 Requirements and prompts reference a derived name exactly as they reference a configuration path.
+
+The story id is the one authoritative value that does not live in `config.json`, and deliberately so. It identifies a single novel, and `config.json` is shared by all of them: a per-story value written into the shared file would have to be edited before every run, which is the same class of defect as a literal in a prompt.
 
 ### 2.2 Derivation rules
 
@@ -63,6 +66,8 @@ Requirements and prompts reference a derived name exactly as they reference a co
 **Acts.** `act_proportions` are apportioned over `pages_total` by largest remainder, ties resolved in declaration order, with every act receiving at least one page. Acts occupy consecutive spans in declaration order.
 
 **Anchor pages.** When `anchor_pages` is `"auto"`, the anchors are the first, middle and last page of the development act: the entry into the complication, the central reversal, and the crisis before the resolution. An explicit list may be given instead, and is used unchanged.
+
+**Story workspace.** `derived.story_root` is `paths.stories_root` joined with the story id. Every other path under `paths` is resolved relative to it, so `paths.pages_dir` of the story `the-cold-lamp` means `stories/the-cold-lamp/pages/`. The story id is given as a run argument; when it is omitted it is derived by slugifying the premise. If the workspace that results already holds a different premise, the run does not start and asks for an explicit id rather than choosing a name of its own (FR-44).
 
 **Precedence.** When both `chapters` and `pages_per_chapter` are given and they disagree, `chapters` wins. The superseded value is reported and never silently discarded (FR-37).
 
@@ -78,8 +83,11 @@ The configuration is invalid, and the run does not start, unless all of these ho
 4. `bible.world_rules_min ≤ bible.world_rules_max`
 5. `page.length_tolerance` lies in `(0, 1)`
 6. `bible.max_characters ≥ context.max_characters_per_page`, and `bible.max_settings ≥ context.max_settings_per_page`
+7. `derived.story_root` resolves inside `paths.stories_root`, and every other path under `paths` resolves inside `derived.story_root`
 
 A value superseded by derivation is not an invalid configuration: it is reported, and the run proceeds (FR-37).
+
+Invariant 7 is what makes the workspace a boundary rather than a convention. A path that escapes it — by being absolute, or by traversing upwards — would let one story write into another, which is the failure the workspace exists to prevent.
 
 ---
 
@@ -90,6 +98,7 @@ A value superseded by derivation is not an invalid configuration: it is reported
 | Item | Mandatory | Source |
 |---|---|---|
 | Premise (1-2 sentences) | Yes | Run argument |
+| Story id | No | Run argument, else derived from the premise (section 2.2) |
 | Tone | No | `story.tone` |
 | Target audience | No | `story.audience` |
 | Structure (pages, chapters, acts) | No | `organization`, section 2.2 |
@@ -112,6 +121,26 @@ A value superseded by derivation is not an invalid configuration: it is reported
 | Closing report | `paths.report` | Phase C |
 
 The manuscript is the reader-facing deliverable. Everything else is either input to it, a record of how it was made, or an audit of it.
+
+### 3.1 The story workspace
+
+Every location in the table above is relative to `derived.story_root`. A story owns everything it produces, and owns nothing else:
+
+```
+config.json                      shared by every story, read-only to a run
+specs/
+stories/
+  the-cold-lamp/                 one novel, complete in itself
+    bible/  pages/  state/
+    story.md  report.md
+    runs/2026-09-16T10-00/       one invocation against this story
+  the-salt-road/
+    ...
+```
+
+This is what makes a second novel safe. Writing `the-salt-road` cannot touch `the-cold-lamp`, because no path a run resolves lies outside its own workspace (invariant 7). Each workspace holds the bible its story was written from, the pages, the state log, the manuscript, the report and the traces of every invocation — enough to read it, audit it, or resume it, with no reference to any other story.
+
+The only thing shared is `config.json`, which a run reads and never writes. The copy it takes at start-up goes inside the workspace, so a story also records the parameters that produced it even after the shared file has moved on.
 
 ---
 
@@ -181,7 +210,7 @@ flowchart TD
 
 | Step | Action |
 |---|---|
-| A0 | Load `config.json` and check the invariants of section 2. When `control.abort_on_invalid_config`, an invalid configuration stops the run before any model call. |
+| A0 | Load `config.json`, derive the story workspace from the story id, and check the invariants of section 2.3. If the workspace already holds a premise, it must match the premise of this run: if it does not, the run stops here (FR-44). When `control.abort_on_invalid_config`, an invalid configuration also stops the run before any model call. |
 | A1 | Expand the premise into central conflict, theme, tone and tentative ending. The expansion is the input to A2 to A5, and is staged rather than written (FR-32, FR-34). |
 | A2 | Generate the world rules, within the bounds in `bible`. |
 | A3 | Generate the character sheets, including the arc, up to `bible.max_characters`. |
@@ -332,6 +361,10 @@ Requirements reference configuration by path. None restates a literal.
 | FR-39 | On closing a chapter, and before writing its digest, the system shall audit that chapter's pages against the fact ledger and the preceding digests for contradictions. |
 | FR-40 | A continuity defect found by FR-39 shall be repaired by rewriting the page at fault and appending a superseding state record, up to `control.max_continuity_repairs` per run, and every repair shall be reported. |
 | FR-41 | A page inside `context.verbatim_summary_window` shall keep its individual summary in the assembled context even when its chapter has been digested. |
+| FR-42 | Each story shall occupy its own workspace at `derived.story_root`, and every path under `paths` other than `stories_root` shall be resolved relative to that workspace. |
+| FR-43 | The story id shall be taken from the run argument, and derived from the premise when that argument is absent. |
+| FR-44 | The system shall not write into a workspace whose persisted premise differs from the premise of the current run. It shall stop before the first model call and report the conflict. |
+| FR-45 | A run shall write nothing outside its own workspace, and shall leave every other workspace byte-for-byte unchanged. |
 
 ---
 
@@ -366,6 +399,8 @@ A run is accepted if it meets all of the following:
 - Changing any single value in `organization` — page count, chapter count, chapter length or act proportions — produces a story of the new shape, with no other edit to the configuration, to prompts or to code.
 - No value supplied in `config.json` is ignored without being reported.
 - Continuity repairs do not exceed `control.max_continuity_repairs`, and every one is recorded in the closing report.
+- Writing a second story leaves every file of every earlier story unchanged, and the earlier manuscripts still read exactly as they did.
+- A workspace, taken on its own, contains everything needed to read, audit or resume its story.
 
 ---
 
@@ -383,6 +418,10 @@ A run is accepted if it meets all of the following:
 
 **Cost per run.** The number of calls now scales with `organization.pages_total`, and retries add calls rather than tokens. A larger structure costs proportionally more.
 
+**Workspaces accumulate and nothing collects them.** Every story keeps its bible, its pages, its state log, its manuscript and the traces of every invocation, for as long as the directory exists. That is the point — no story is destroyed by the next one — but there is no retention rule, no archive step and no way to discard a story through the system. Deleting one is a manual act, and the specification says nothing about when it is appropriate (OI-09).
+
+**A shared configuration outlives the stories written under it.** Each workspace keeps the copy of `config.json` that produced it, so an old story remains explicable. But the shared file will have moved on, and re-running an old story under the current configuration may produce a different shape from the one on disk. Mitigation: FR-44 stops a run whose premise does not match, and TR-19 refuses to resume across a changed derived shape.
+
 ---
 
 ## 11. Review and change control
@@ -395,7 +434,8 @@ A run is accepted if it meets all of the following:
 | 1.1 | 2026-09-15 | Functional flow and general diagram converted to Mermaid. Review and change control chapter added. | Superseded |
 | 2.0 | 2026-09-15 | Architecture changed from single prompt to orchestrated calls with state on disk. Control and organization parameters extracted to `config.json`; all requirements now reference it. Chapters introduced as an organizational level. FR-20 to FR-26 added. Context strategy rewritten around two-level compression. Limitations rewritten. | Superseded |
 | 2.1 | 2026-09-15 | Completeness review applied. Anchor pages defined as reversals and enforced at A6. Chapter titles adopted, closing OI-06. Manuscript assembly added as the reader-facing deliverable. Premise expansion and configuration copy added to the output inventory. Tone, audience and language carried into every page context. Endpoint failures separated from content retries. Phase A declared atomic. Thread identifiers moved to Phase B. FR-27 to FR-35 added. | Superseded |
-| 2.2 | 2026-09-16 | Applied from the findings of the first full run (`report.md`, D3 to D8). Configuration reworked from five interdependent values to authoritative inputs plus derivation (2.1 to 2.3), so that any single value can be edited without invalidating the file. Character and setting context ceilings separated. The verbatim summary window given precedence over digests. Chapter digests bounded. Chapter-close continuity audit and bounded repair path added for defects in committed pages. FR-32 and FR-34 reconciled through staged Phase A writes. FR-08, FR-11, FR-22, FR-23 and FR-27 reworded; FR-36 to FR-41 added. | Draft for review |
+| 2.2 | 2026-09-16 | Applied from the findings of the first full run (`report.md`, D3 to D8). Configuration reworked from five interdependent values to authoritative inputs plus derivation (2.1 to 2.3), so that any single value can be edited without invalidating the file. Character and setting context ceilings separated. The verbatim summary window given precedence over digests. Chapter digests bounded. Chapter-close continuity audit and bounded repair path added for defects in committed pages. FR-32 and FR-34 reconciled through staged Phase A writes. FR-08, FR-11, FR-22, FR-23 and FR-27 reworded; FR-36 to FR-41 added. | Superseded |
+| 2.3 | 2026-09-16 | Story isolation. Until this version every path was a fixed single-story path, so a second novel overwrote the first, appended to its state log, and — with resume enabled and the previous pages still present — could be skipped entirely in favour of reassembling the old manuscript. Each story now owns a workspace at `derived.story_root`, and all paths resolve inside it. Story id added as a run argument, invariant 7 and FR-42 to FR-45 added, section 3.1 added. Specifications moved to `specs/`. | Draft for review |
 
 ### 11.2 Review roles
 
@@ -420,6 +460,7 @@ A run is accepted if it meets all of the following:
 | V-08 | Every configuration path referenced in this document exists in `config.json` | |
 | V-09 | Every value in `config.json` is authoritative, derived, or reported as superseded; none is silently ignored | |
 | V-10 | Editing any single `organization` value on its own leaves the configuration valid | |
+| V-11 | Every path a run resolves lies inside `derived.story_root`, and no requirement names a location outside it | |
 
 ### 11.4 Change procedure
 
@@ -439,6 +480,7 @@ Changes affecting FR-07, FR-08, FR-09, FR-15 or FR-23 additionally require an ex
 | OI-06 | Whether chapters carry titles, and whether those titles appear in the deliverable | Affects the beat sheet schema and the page files | **Closed in 2.1** — titles generated in Phase A (FR-28), used as manuscript headings (FR-29) |
 | OI-07 | Anchor pages are defined as reversals (FR-27), but A6 has no objective measure of what counts as one | The gate depends on a model judgement that nothing calibrates. In the first run it was implemented as a lexical test for reversal vocabulary, which would pass an objective that merely used the words | **Open — blocking for any unattended run**, because it is the one gate whose failure is silent |
 | OI-08 | What counts as a fact asserted by a page (FR-38) is undefined | An over-broad ledger costs tokens on every audit; an over-narrow one misses the contradictions the audit exists to catch | Open |
+| OI-09 | No way to discard or regenerate a story through the system, and no retention rule for workspaces | FR-44 stops a run whose premise conflicts, which is correct but leaves rewriting a premise from scratch with no path other than deleting files by hand | Open |
 
 ---
 

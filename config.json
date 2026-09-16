@@ -1,6 +1,6 @@
 {
-  "config_version": "2.2",
-  "description": "Single source of control and organization parameters. The specifications reference this file by path and restate no literal value. Everything under `organization` is an authoritative input; the shape of the story (chapter sizes, act spans, anchor pages) is derived from these by the rules in functional specification section 2.2 and is never stored here.",
+  "config_version": "2.3",
+  "description": "Single source of control and organization parameters, shared by every story. The specifications reference this file by path and restate no literal value. Everything under `organization` is an authoritative input; the shape of the story (chapter sizes, act spans, anchor pages) is derived from these by the rules in functional specification section 2.2 and is never stored here. Except for `paths.stories_root`, every path under `paths` is resolved relative to the workspace of the story being written, never to the repository root: this file holds no value belonging to any one story.",
 
   "organization": {
     "pages_total": 20,
@@ -56,6 +56,7 @@
   },
 
   "paths": {
+    "stories_root": "stories/",
     "premise": "bible/premise.md",
     "world_rules": "bible/rules.md",
     "characters_dir": "bible/characters/",
