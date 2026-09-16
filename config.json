@@ -1,17 +1,17 @@
 {
-  "config_version": "2.0",
-  "description": "Single source of control and organization parameters. The functional and technical specifications reference this file; neither restates a literal value.",
+  "config_version": "2.2",
+  "description": "Single source of control and organization parameters. The specifications reference this file by path and restate no literal value. Everything under `organization` is an authoritative input; the shape of the story (chapter sizes, act spans, anchor pages) is derived from these by the rules in functional specification section 2.2 and is never stored here.",
 
   "organization": {
     "pages_total": 20,
     "chapters": 5,
-    "pages_per_chapter": 4,
-    "acts": {
-      "setup": 4,
-      "development": 12,
-      "resolution": 4
+    "pages_per_chapter": null,
+    "act_proportions": {
+      "setup": 0.20,
+      "development": 0.60,
+      "resolution": 0.20
     },
-    "anchor_pages": [5, 10, 16]
+    "anchor_pages": "auto"
   },
 
   "page": {
@@ -26,8 +26,10 @@
   },
 
   "context": {
-    "max_sheets_per_page": 3,
+    "max_characters_per_page": 3,
+    "max_settings_per_page": 2,
     "verbatim_summary_window": 8,
+    "chapter_digest_max_words": 200,
     "include_bridge_paragraph": true
   },
 
@@ -40,6 +42,7 @@
 
   "control": {
     "max_retries_per_page": 2,
+    "max_continuity_repairs": 2,
     "max_flagged_ratio": 0.10,
     "consistency_gate_max_attempts": 3,
     "abort_on_invalid_config": true,
