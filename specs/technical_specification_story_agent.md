@@ -3,9 +3,9 @@
 
 | | |
 |---|---|
-| **Version** | 2.2 |
+| **Version** | 2.3 |
 | **Date** | 16 September 2026 |
-| **Implements** | Functional specification v2.2 |
+| **Implements** | Functional specification v2.3 |
 | **Configuration** | `config.json` |
 | **Status** | Draft for review |
 
@@ -22,6 +22,10 @@ Each technical requirement (TR-xx) traces to a functional requirement (FR-xx) in
 Version 1.x specified a single-prompt harness in which the transcript was the memory. Its blocking defect was arithmetic: a complete run needed ≈25 000 output tokens **in one response**, so feasibility depended entirely on a single model parameter, and no amount of prompt engineering could move it. Two further properties made it hard to operate — a run could not be resumed, and mechanical validation was the model's report on its own work rather than a measurement.
 
 Moving state to disk retires all three. The cost is an orchestrator that can itself be wrong, and page-to-page continuity that must now be engineered rather than assumed.
+
+### 1.3 Change from version 2.2
+
+Every path in version 2.2 was a fixed single-story path, so the repository held one novel and a second one destroyed it. Version 2.3 gives each story a workspace and resolves every path inside it. Section 9 records the failure mode in full, because it was silent rather than noisy and that is what made it dangerous.
 
 ### 1.2 Change from version 2.1
 
@@ -65,6 +69,7 @@ Checked before the first model call. Failure aborts when `control.abort_on_inval
 | I-6 | every path in `paths` is writable | Failure discovered after tokens are spent |
 | I-7 | `context.max_characters_per_page ≥` characters declared by any beat, and the same for settings | Context silently truncating a declared character |
 | I-8 | `bible.max_characters ≥ context.max_characters_per_page`, and the same for settings | A page whose cast ceiling can never be filled |
+| I-9 | `derived.story_root` resolves inside `paths.stories_root`, and every other path resolves inside `derived.story_root` | One story writing into another |
 
 I-7 is checked after the beat sheet exists, at the A6 gate, not at start-up.
 
@@ -75,7 +80,9 @@ I-7 is checked after the beat sheet exists, at the A6 gate, not at start-up.
 Implements FR-36 and FR-37, by the rules of functional specification §2.2.
 
 ```
-derive(organization):
+derive(organization, story_id, premise):
+    root ← join(paths.stories_root, story_id or slugify(premise))
+    assert root is inside paths.stories_root              # I-9
     P  ← organization.pages_total
     C  ← organization.chapters
           else ceil(P / organization.pages_per_chapter)
@@ -89,8 +96,12 @@ derive(organization):
     act_spans     ← consecutive spans over acts, in declaration order
     anchor_pages  ← organization.anchor_pages
                      if "auto": first, middle, last page of act "development"
-    return chapter_sizes, acts, act_spans, anchor_pages
+    return root, chapter_sizes, acts, act_spans, anchor_pages
 ```
+
+**TR-03d.** Every path under `paths` except `stories_root` shall be resolved against `derived.story_root` at load time, once, and the orchestrator shall use only resolved paths thereafter (FR-42). Resolving lazily at each call site is how one of them eventually gets used unresolved, and an unresolved path lands in the repository root, outside every workspace.
+
+**TR-03e.** Resolution shall reject an absolute path and any path that traverses above the workspace, before the first write. I-9 is a boundary check, not a tidiness check: it is the only thing standing between two stories.
 
 **TR-03b.** Derived values shall be computed at load time and never written back to `config.json`. A derived value stored in the file is a value that can go stale, which is the defect derivation exists to remove.
 
@@ -107,24 +118,31 @@ Both specifications reference configuration by path. The orchestrator exposes th
 ## 4. File layout and formats
 
 ```
-config.json
-bible/
-  premise.md                conflict, theme, tone, tentative ending
-  rules.md                  world rules, one per line
-  characters/c1-mara.md     frontmatter + prose
-  settings/s2-lighthouse.md frontmatter + prose
-  beats.json                one entry per page, looked up by page number
-state/
-  deltas.jsonl              append-only, one record per completed page
-  chapters/02.md            digest, written when chapter 2 closes
-pages/
-  07.md                     frontmatter + prose
-runs/2026-09-15T10-00/
-  config.json               the configuration that produced this run
-  ctx-07.md                 assembled context, diagnostic only
-story.md                    the manuscript, rebuilt from pages/
-report.md
+config.json                     shared by every story; a run reads it, never writes it
+specs/
+stories/                        paths.stories_root
+  the-cold-lamp/                derived.story_root — one novel
+    bible/
+      premise.md                conflict, theme, tone, tentative ending
+      rules.md                  world rules, one per line
+      characters/c1-mara.md     frontmatter + prose
+      settings/s2-lighthouse.md frontmatter + prose
+      beats.json                one entry per page, looked up by page number
+    state/
+      deltas.jsonl              append-only, one record per completed page
+      chapters/02.md            digest, written when chapter 2 closes
+    pages/
+      07.md                     frontmatter + prose
+    runs/2026-09-16T10-00/
+      config.json               the configuration that produced this invocation
+      ctx-07.md                 assembled context, diagnostic only
+    story.md                    the manuscript, rebuilt from pages/
+    report.md
+  the-salt-road/
+    ...
 ```
+
+Everything below a workspace is reached through a resolved path (TR-03d), so the layout inside one is identical for every story and nothing above it is writable.
 
 **Format per category.** Fixed state is Markdown with frontmatter, because a person edits it: machine-checkable fields in the header, prose where prose belongs. The beat sheet is JSON, because its only job is lookup by page number. Mutable state is JSON Lines, because it is append-only and a truncated write loses at most the final record.
 
@@ -321,6 +339,8 @@ Agent 3 carries FR-12 to FR-14 and is the only check that rests on judgement, so
 
 **TR-18.** Resume shall be idempotent: a page file that exists is never regenerated, and a state record whose page already has a record is never appended twice. The state log is keyed by page number, and a replay that finds duplicates uses the last record and reports the anomaly.
 
+**TR-19-0.** Before any of the following, the orchestrator shall compare the premise persisted at `paths.premise` with the premise of the current run, and stop if they differ (FR-44). This check precedes the resume logic and is the reason a second novel can no longer consume the first: with the old fixed paths, a completed story left every page file in place, TR-17 therefore found no resume point, Phase B wrote nothing, and Phase C reassembled the previous manuscript under a new premise without a single error. A workspace alone does not prevent that — it only makes the collision visible — so the premise comparison is what actually stops it.
+
 **TR-19.** A resumed run shall verify that the configuration in `paths.runs_dir` matches the current `config.json`, and refuse to resume across a changed `organization` block or a changed derived shape. Comparing the derived values and not only the authoritative ones matters: two different `organization` blocks can derive the same shape, and should resume, while one edited value can change every chapter boundary. Half a story of one shape and half of another is worse than restarting.
 
 ---
@@ -362,6 +382,10 @@ Agent 3 carries FR-12 to FR-14 and is the only check that rests on judgement, so
 | FR-39 | Continuity agent at chapter close, before the digest | TR-04c |
 | FR-40 | `supersedes` field; repair runs through the ordinary page path | TR-04c, TR-18 |
 | FR-41 | `recent` retained across digested chapters in `assemble(N)` | TR-11 |
+| FR-42 | `derived.story_root`; all paths resolved against it at load time | TR-03d, TR-03e |
+| FR-43 | Story id from the run argument, else slugified from the premise | TR-03d |
+| FR-44 | Premise comparison before resume | TR-19-0 |
+| FR-45 | Resolution rejects absolute and traversing paths (I-9) | TR-03e |
 
 Every FR is covered. FR-12 to FR-14 remain the weakest link: they are the only checks that still depend on a model's judgement, even though TR-09 moves that judgement out of the call that produced the text.
 
@@ -381,6 +405,8 @@ Every FR is covered. FR-12 to FR-14 remain the weakest link: they are the only c
 | TI-08 | The manuscript assembler (12.3) has no governing requirement | The deliverable a reader actually wants is built by a component no FR mandates | **Closed in 2.1** — FR-29 |
 | TI-10 | The A6 anchor check (FR-27) has no objective measure of what counts as a reversal | Implemented in the first run as a lexical test for reversal vocabulary, which would pass an objective that merely used the words. Mirrors OI-07 | **Open — blocking for any unattended run** |
 | TI-11 | The schema of `facts` (FR-38) is undefined | An over-broad ledger costs tokens on every chapter-close audit; an over-narrow one misses the contradictions the audit exists to catch. Mirrors OI-08 | Open |
+| TI-12 | Slugification of a premise into a story id is unspecified: length, character set, collision behaviour | Two premises can slugify to one id, and FR-44 would then stop a legitimate new story instead of a collision | Open |
+| TI-13 | No specified path to discard or regenerate a story; workspaces have no retention rule | Rewriting a premise requires deleting files by hand. Mirrors OI-09 | Open |
 | TI-09 | Implementation language and runtime not fixed; section 12 assumes Python 3.11+ | File names in 12.3 are indicative until this closes | Open |
 
 ---
@@ -395,7 +421,7 @@ Everything that has to be **created in order to build the system**, as distinct 
 |---|---|---|
 | Configuration files | 1 | Exists |
 | Prompt templates | 5 | To build |
-| Orchestrator modules | 15 | To build |
+| Orchestrator modules | 16 | To build |
 | Test modules | 7 | To build |
 | Agents (model call types) | 5 | To build, as templates + wrapper |
 | Skills, plugins, external services | **0** | See 12.6 |
@@ -438,6 +464,7 @@ Agents 2 and 3 must never be merged into one call. That separation is the mechan
 | `resume.py` | Resume point, idempotency, refusal across a changed `organization` | FR-24, TR-17 to TR-19 | state, config_loader |
 | `phase_c.py` | Thread and arc audit, chapter balance, flag ratio, Agent 4 | FR-19 | state, agents |
 | `manuscript.py` | Join page files in order into `paths.manuscript`, under chapter titles | FR-29 | schemas |
+| `workspace.py` | Resolve `derived.story_root`, resolve and bound every path (I-9), compare the persisted premise | FR-42 to FR-45 | config_loader |
 
 ### 12.4 Prompt templates
 
