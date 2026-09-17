@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Story Agent</title>
+<link rel="icon" href="qaracter-logo.svg">
+<style>
+/* Brand tokens. Swap --brand for the official Qaracter orange and the whole
+   panel follows; nothing else hard-codes an accent colour. */
+:root {
+  --brand: #F07E13;
+  --brand-soft: #FEF3E7;
+  --bg: #FFFFFF;
+  --surface: #FAFAF9;
+  --line: #E7E5E2;
+  --text: #1A1D21;
+  --muted: #7A7F87;
+  --ok: #2E9E6B;
+  --warn: #C98209;
+  --bad: #D24B3E;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.6 "Segoe UI", Inter, system-ui, sans-serif;
+}
+
+header {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 18px 32px 0;
+}
+header img { height: 30px; }
+header .spacer { flex: 1; }
+header label { font-size: 13px; color: var(--muted); }
+
+nav {
+  display: flex; gap: 28px; padding: 14px 32px 0;
+  border-bottom: 1px solid var(--line);
+}
+nav button {
+  background: none; border: 0; border-bottom: 2px solid transparent;
+  padding: 0 0 12px; font: inherit; font-size: 14px; color: var(--muted);
+  cursor: pointer;
+}
+nav button:hover { color: var(--text); }
+nav button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--brand); }
+
+main { max-width: 1180px; padding: 30px 32px 72px; }
+@media (max-width: 640px) { header, nav, main { padding-left: 18px; padding-right: 18px; } }
+.panel[hidden] { display: none; }
+
+select, input {
+  background: var(--bg); color: var(--text); font: inherit;
+  border: 1px solid var(--line); border-radius: 5px; padding: 6px 9px;
+}
+input:focus, select:focus { outline: 2px solid var(--brand); outline-offset: -1px; border-color: var(--brand); }
+button.act {
+  background: var(--brand); color: #fff; border: 0; border-radius: 5px;
+  padding: 9px 18px; font: inherit; font-weight: 600; cursor: pointer;
+}
+button.act:hover { filter: brightness(0.93); }
+button.ghost {
+  background: none; color: var(--muted); border: 1px solid var(--line);
+  border-radius: 5px; padding: 8px 15px; font: inherit; cursor: pointer;
+}
+button.ghost:hover { color: var(--text); border-color: var(--muted); }
+
+h2.section {
+  margin: 0 0 4px; font-size: 12px; letter-spacing: 1.2px;
+  text-transform: uppercase; color: var(--brand); font-weight: 600;
+}
+p.hint { margin: 0 0 22px; color: var(--muted); font-size: 13px; }
+
+/* Parameters */
+.groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 30px 44px; }
+.group h3 {
+  margin: 0 0 10px; font-size: 13px; font-weight: 600;
+  padding-bottom: 7px; border-bottom: 1px solid var(--line);
+}
+.field {
+  display: grid; grid-template-columns: 1fr 110px; gap: 12px;
+  align-items: center; padding: 5px 0;
+}
+.field.wide { grid-template-columns: 1fr minmax(110px, 1fr); }
+.field label { color: var(--muted); font-size: 13px; word-break: break-word; }
+.field input, .field select { width: 100%; }
+
+.actions {
+  display: flex; gap: 12px; align-items: center;
+  margin-top: 32px; padding-top: 18px; border-top: 1px solid var(--line);
+}
+.status { font-size: 13px; color: var(--muted); }
+.status.ok { color: var(--ok); }
+.status.bad { color: var(--bad); }
+
+.notice {
+  border-left: 2px solid var(--warn); background: var(--surface);
+  padding: 9px 14px; font-size: 13px; margin-bottom: 10px; color: var(--text);
+}
+.notice.bad { border-color: var(--bad); }
+
+/* Dashboard */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+.chip {
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 4px 12px; font-size: 12px; color: var(--muted);
+}
+.chip b { color: var(--text); font-weight: 600; }
+.chip.accent { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
+
+.bar { height: 6px; background: var(--surface); border-radius: 999px; overflow: hidden; }
+.bar > span { display: block; height: 100%; background: var(--brand); }
+.bar-label { margin: 9px 0 26px; font-size: 13px; color: var(--muted); }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 1px;
+  background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.tile { background: var(--bg); padding: 14px 16px; }
+.tile .n { font-size: 27px; font-weight: 600; line-height: 1.2; }
+.tile .k { font-size: 11px; letter-spacing: .7px; text-transform: uppercase; color: var(--muted); }
+.tile.alert .n { color: var(--brand); }
+
+.spark { display: flex; align-items: flex-end; gap: 3px; height: 110px;
+  margin: 30px 0 6px; position: relative; }
+.spark .col { flex: 1; position: relative; z-index: 1;
+  background: var(--bg); border-top: 2px solid var(--muted); }
+.spark .col.in { border-top-color: var(--brand); background: var(--brand-soft); }
+.spark .col.in, .spark .col.out { opacity: .92; }
+.spark .col.out { border-top-color: var(--bad); background: #FBECEA; }
+.spark .band { position: absolute; left: 0; right: 0; z-index: 0; background: var(--surface);
+  border-top: 1px dashed var(--line); border-bottom: 1px dashed var(--line); }
+.spark-axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 30px; }
+th {
+  text-align: left; font-weight: 500; font-size: 11px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .7px; padding: 8px 8px 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+td { padding: 10px 8px 10px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+td:first-child { white-space: nowrap; }
+td.sum { color: var(--muted); }
+.pill {
+  display: inline-block; border-radius: 3px; padding: 1px 7px;
+  font-size: 11px; border: 1px solid var(--line); color: var(--muted);
+}
+.pill.accent { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }
+.pill.bad { border-color: var(--bad); color: var(--bad); }
+.pill.warn { border-color: var(--warn); color: var(--warn); }
+
+/* Novel */
+.reader { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 40px; }
+@media (max-width: 800px) { .reader { grid-template-columns: 1fr; } }
+.toc { position: sticky; top: 20px; align-self: start; max-height: 82vh; overflow: auto; }
+.toc button {
+  display: block; width: 100%; text-align: left; background: none; border: 0;
+  border-left: 2px solid var(--line); padding: 5px 12px; font: inherit;
+  font-size: 13px; color: var(--muted); cursor: pointer;
+}
+.toc button:hover { color: var(--text); }
+.toc button[aria-current="true"] { color: var(--brand); border-left-color: var(--brand); font-weight: 600; }
+.toc .ch { margin-top: 14px; font-size: 11px; letter-spacing: .7px; text-transform: uppercase; color: var(--muted); }
+
+article { max-width: 66ch; font-size: 17px; line-height: 1.75; }
+article h1 { font-size: 26px; font-weight: 600; margin: 0 0 4px; }
+article h2 { font-size: 15px; font-weight: 600; margin: 40px 0 14px; letter-spacing: .3px; }
+article .meta { font-size: 12px; color: var(--muted); margin-bottom: 26px;
+  padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+article p { margin: 0 0 1.1em; }
+</style>
+</head>
+<body>
+
+<header>
+  <img src="qaracter-logo.svg" alt="Qaracter">
+  <div class="spacer"></div>
+  <label for="story">Story</label>
+  <select id="story"></select>
+  <button class="ghost" id="refresh">Refresh</button>
+</header>
+
+<nav role="tablist">
+  <button role="tab" data-tab="params" aria-selected="true">Parameters</button>
+  <button role="tab" data-tab="dash" aria-selected="false">Dashboard</button>
+  <button role="tab" data-tab="novel" aria-selected="false">Novel</button>
+</nav>
+
+<main>
+  <div class="panel" id="tab-params">
+    <h2 class="section">Parameters</h2>
+    <p class="hint">config.json &middot; shared by every story. Paths are not editable here.</p>
+    <div id="config-problems"></div>
+    <form id="config-form" class="groups"></form>
+    <div class="actions">
+      <button class="act" id="save">Save</button>
+      <button class="ghost" id="revert" type="button">Revert</button>
+      <span class="status" id="save-status"></span>
+    </div>
+  </div>
+
+  <div class="panel" id="tab-dash" hidden>
+    <h2 class="section">Progress</h2>
+    <p class="hint" id="dash-hint">Derived shape and per-page evidence, read from the story's artefacts.</p>
+    <div class="chips" id="derived"></div>
+    <div class="bar"><span id="bar" style="width:0%"></span></div>
+    <div class="bar-label" id="bar-label"></div>
+    <div class="tiles" id="tiles"></div>
+    <div class="spark" id="spark"></div>
+    <div class="spark-axis" id="spark-axis"></div>
+    <div id="threads" style="margin-top:20px"></div>
+    <table>
+      <thead><tr><th>Pg</th><th>Ch</th><th>Act</th><th>Words</th><th>State</th><th>Summary</th></tr></thead>
+      <tbody id="pages"></tbody>
+    </table>
+  </div>
+
+  <div class="panel" id="tab-novel" hidden>
+    <h2 class="section">Novel</h2>
+    <p class="hint">The written pages, as they stand in the workspace.</p>
+    <div class="reader">
+      <div class="toc" id="toc"></div>
+      <article id="reader"></article>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (value) => String(value).replace(/[&<>"]/g,
+  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+const LABELS = {
+  organization: "Organization", page: "Page", story: "Story",
+  context: "Context", bible: "Bible", control: "Control", model: "Model",
+};
+let current = null;
+
+/* ---- tabs ---- */
+function selectTab(name) {
+  let known = false;
+  for (const tab of document.querySelectorAll('nav [role="tab"]')) {
+    const on = tab.dataset.tab === name;
+    known = known || on;
+    tab.setAttribute("aria-selected", String(on));
+    $(`tab-${tab.dataset.tab}`).hidden = !on;
+  }
+  if (!known) selectTab("params");
+}
+
+for (const tab of document.querySelectorAll('nav [role="tab"]')) {
+  tab.addEventListener("click", () => {
+    location.hash = tab.dataset.tab;
+    selectTab(tab.dataset.tab);
+  });
+}
+window.addEventListener("hashchange", () => selectTab(location.hash.slice(1)));
+selectTab(location.hash.slice(1) || "params");
+
+/* ---- parameters ---- */
+function fieldFor(group, key, value) {
+  const id = `f-${group}-${key}`;
+  let control, wide = "";
+  if (typeof value === "boolean") {
+    control = `<select id="${id}" data-type="bool">
+      <option value="true" ${value ? "selected" : ""}>true</option>
+      <option value="false" ${!value ? "selected" : ""}>false</option></select>`;
+  } else if (typeof value === "number") {
+    const step = Number.isInteger(value) ? "1" : "0.01";
+    control = `<input id="${id}" data-type="number" type="number" step="${step}" value="${value}">`;
+  } else if (value === null) {
+    control = `<input id="${id}" data-type="auto" value="" placeholder="null">`;
+  } else if (typeof value === "object") {
+    return Object.entries(value)
+      .map(([sub, inner]) => fieldFor(group, `${key}.${sub}`, inner)).join("");
+  } else {
+    control = `<input id="${id}" data-type="auto" value="${esc(value)}">`;
+    wide = " wide";
+  }
+  return `<div class="field${wide}"><label for="${id}">${key}</label>${control}</div>`;
+}
+
+function renderConfig(data) {
+  current = data;
+  $("config-form").innerHTML = data.editable.map((group) => `
+    <div class="group"><h3>${LABELS[group] || group}</h3>
+      ${Object.entries(data.config[group]).map(([k, v]) => fieldFor(group, k, v)).join("")}
+    </div>`).join("");
+  renderProblems(data.problems, data.derived.supersessions);
+}
+
+function renderProblems(problems, supersessions) {
+  $("config-problems").innerHTML = [
+    ...(supersessions || []).map((s) => `<div class="notice">Superseded &middot; ${esc(s)}</div>`),
+    ...(problems || []).map((p) => `<div class="notice bad">Invalid &middot; ${esc(p)}</div>`),
+  ].join("");
+}
+
+function collect() {
+  const edits = {};
+  for (const input of $("config-form").querySelectorAll("input,select")) {
+    const [, group, path] = input.id.split("-");
+    const [key, sub] = path.split(".");
+    const raw = input.value.trim();
+    let value;
+    if (input.dataset.type === "bool") value = input.value === "true";
+    else if (input.dataset.type === "number") value = raw === "" ? null : Number(raw);
+    else if (raw === "" || raw === "null") value = null;
+    else if (!Number.isNaN(Number(raw))) value = Number(raw);
+    else value = raw;
+
+    edits[group] = edits[group] || {};
+    if (sub === undefined) edits[group][key] = value;
+    else {
+      const base = edits[group][key] || { ...current.config[group][key] };
+      base[sub] = value;
+      edits[group][key] = base;
+    }
+  }
+  return edits;
+}
+
+/* ---- dashboard ---- */
+function renderProgress(data) {
+  const d = data.derived, t = data.totals;
+  $("derived").innerHTML =
+    [["pages", t.pages_total],
+     ["chapters", `${d.chapters} · ${d.chapter_sizes.join("/")}`],
+     ["acts", d.act_spans.map((a) => `${a.act} ${a.first}–${a.last}`).join(" · ")],
+     ["anchors", d.anchor_pages.join(", ")],
+     ["word band", `${d.word_band.min}–${d.word_band.max}`]]
+      .map(([k, v]) => `<span class="chip">${k} <b>${esc(v)}</b></span>`).join("") +
+    `<span class="chip accent">derived, never stored</span>`;
+
+  // A workspace written at an earlier configuration has more pages than the
+  // config now asks for. Say so rather than reporting progress beyond 100%.
+  const target = t.beats_planned || t.pages_total;
+  const pct = target ? Math.round((t.pages_written / target) * 100) : 0;
+  $("bar").style.width = `${Math.min(pct, 100)}%`;
+  $("bar-label").innerHTML =
+    `${t.pages_written} of ${target} pages written (${Math.min(pct, 100)}%) · ` +
+    `${t.digests} chapter digests · manuscript ${t.manuscript ? "assembled" : "pending"}` +
+    (t.beats_planned && t.beats_planned !== t.pages_total
+      ? `<br>This workspace holds ${t.beats_planned} beats; config.json now asks for ` +
+        `${t.pages_total} pages. It was written at a different setting.`
+      : "");
+
+  $("tiles").innerHTML = [
+    ["mean words", t.mean_words, false],
+    ["retries", t.retries, t.retries > 0],
+    ["flagged", t.flagged, t.flagged > 0],
+    ["out of band", t.out_of_band, t.out_of_band > 0],
+    ["repairs", t.repairs, t.repairs > 0],
+    ["open threads", t.open_threads.length, t.open_threads.length > 0],
+  ].map(([k, n, alert]) =>
+    `<div class="tile ${alert ? "alert" : ""}"><div class="n">${n}</div><div class="k">${k}</div></div>`
+  ).join("");
+
+  // Word count per page. Length binds from above, so the scale is zoomed to
+  // the band: a full-height bar is the ceiling, and the band is drawn behind.
+  const counts = data.pages.map((p) => p.words);
+  const top = Math.max(d.word_band.max, ...counts, 1) * 1.02;
+  const floor = Math.min(d.word_band.min, ...counts) * 0.97;
+  const scale = (value) => ((value - floor) / (top - floor)) * 100;
+  $("spark").innerHTML =
+    `<div class="band" style="bottom:${scale(d.word_band.min)}%;
+        height:${scale(d.word_band.max) - scale(d.word_band.min)}%"></div>` +
+    data.pages.map((p) =>
+      `<div class="col ${p.in_band ? "in" : "out"}" style="height:${scale(p.words)}%"
+         title="page ${p.page} · ${p.words} words"></div>`).join("");
+  $("spark-axis").innerHTML = data.pages.length
+    ? `<span>page ${data.pages[0].page}</span>
+       <span>band ${d.word_band.min}–${d.word_band.max} words, target ${
+         Math.round((d.word_band.min + d.word_band.max) / 2)}</span>
+       <span>page ${data.pages[data.pages.length - 1].page}</span>` : "";
+
+  $("threads").innerHTML = t.open_threads.length
+    ? `<div class="notice">Threads still open at the last written page: ${esc(t.open_threads.join(", "))}</div>`
+    : "";
+
+  $("pages").innerHTML = data.pages.map((p) => `
+    <tr>
+      <td>${p.page}${p.anchor ? ' <span class="pill accent">anchor</span>' : ""}</td>
+      <td>${p.chapter ?? "–"}</td>
+      <td>${esc(p.act ?? "–")}</td>
+      <td><span class="pill ${p.in_band ? "" : "bad"}">${p.words}</span></td>
+      <td>${p.retries ? `<span class="pill warn">${p.retries} retry</span> ` : ""}${
+            p.flagged ? '<span class="pill bad">flagged</span>' : ""}${
+            !p.retries && !p.flagged ? '<span class="pill">clean</span>' : ""}</td>
+      <td class="sum">${esc(p.summary)}</td>
+    </tr>`).join("") ||
+    `<tr><td colspan="6" class="sum">No page records yet in the state log.</td></tr>`;
+}
+
+/* ---- novel ---- */
+function renderNovel(data) {
+  const pages = data.pages;
+  if (!pages.length) {
+    $("toc").innerHTML = "";
+    $("reader").innerHTML = `<p class="hint">No pages written in this workspace yet.</p>`;
+    return;
+  }
+
+  let toc = "", lastChapter = null;
+  for (const page of pages) {
+    if (page.chapter !== lastChapter) {
+      lastChapter = page.chapter;
+      toc += `<div class="ch">${esc(page.chapter_title || `Chapter ${page.chapter}`)}</div>`;
+    }
+    toc += `<button data-page="${page.page}">Page ${page.page}</button>`;
+  }
+  $("toc").innerHTML = toc;
+
+  const show = (number, scroll) => {
+    const page = pages.find((p) => p.page === number);
+    $("reader").innerHTML = `
+      <h1>${esc(page.chapter_title || `Chapter ${page.chapter}`)}</h1>
+      <div class="meta">Page ${page.page} · ${esc(page.act || "")} ·
+        ${page.words} words${page.anchor ? " · anchor" : ""}${page.flagged ? " · flagged" : ""}</div>
+      ${page.text.split(/\n{2,}/).map((para) => `<p>${esc(para)}</p>`).join("")}`;
+    for (const button of $("toc").querySelectorAll("button")) {
+      button.setAttribute("aria-current", String(Number(button.dataset.page) === number));
+    }
+    if (scroll) $("reader").scrollIntoView({ block: "nearest" });
+  };
+
+  for (const button of $("toc").querySelectorAll("button")) {
+    button.addEventListener("click", () => show(Number(button.dataset.page), true));
+  }
+  show(pages[0].page, false);
+}
+
+/* ---- load ---- */
+async function load() {
+  const config = await (await fetch("/api/config")).json();
+  renderConfig(config);
+  if (!$("story").options.length) {
+    $("story").innerHTML = config.stories.map((s) => `<option>${esc(s)}</option>`).join("");
+  }
+  const story = encodeURIComponent($("story").value);
+
+  const progress = await (await fetch(`/api/progress?story=${story}`)).json();
+  if (progress.error) $("bar-label").textContent = progress.error;
+  else renderProgress(progress);
+
+  const novel = await (await fetch(`/api/manuscript?story=${story}`)).json();
+  if (!novel.error) renderNovel(novel);
+}
+
+$("save").addEventListener("click", async (event) => {
+  event.preventDefault();
+  const status = $("save-status");
+  status.className = "status";
+  status.textContent = "Saving…";
+  const response = await fetch("/api/config", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(collect()),
+  });
+  const result = await response.json();
+  renderProblems(result.problems, result.derived && result.derived.supersessions);
+  status.className = `status ${result.saved ? "ok" : "bad"}`;
+  status.textContent = result.saved ? "Saved to config.json" : "Rejected — nothing written";
+  if (result.saved) load();
+});
+
+$("revert").addEventListener("click", load);
+$("refresh").addEventListener("click", load);
+$("story").addEventListener("change", load);
+load();
+</script>
+</body>
+</html>
