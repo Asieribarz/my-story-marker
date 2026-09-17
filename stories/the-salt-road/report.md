@@ -9,7 +9,7 @@
 | **Premise (run argument)** | A disgraced salt-caravan guide recrosses a drying inland sea to learn why a well-town has stopped lodging its water tally, taking a child who knows the line of cairns by heart and has no voice to say it. |
 | **Story id (run argument)** | `the-salt-road` |
 | **Deliverable** | `story.md` — *The Salt Road*, 10 pages, 3 913 words of prose |
-| **Verdict** | **Accepted with defects.** Nine of ten acceptance criteria met; criterion 6 is not met, and four continuity defects ship unrepaired because `control.max_continuity_repairs` was exhausted at the first chapter close (§6). |
+| **Verdict** | **Accepted with defects.** Nine of ten acceptance criteria met; criterion 6 is not met, and five continuity defects ship unrepaired, three of them hard, because `control.max_continuity_repairs` was exhausted at the first chapter close (§6). |
 
 This run is the first to execute the machinery added in v2.2 and v2.3: the separated cast ceiling, the fact ledger, the chapter-close continuity audit, and the workspace boundary. It is also the first in which the judgement calls went to an endpoint that had not written the material. That single change accounts for most of what follows.
 
@@ -138,17 +138,18 @@ A third finding — that the nine days of page 1 and the eleven of page 3 leave 
 | Pages | Severity | Defect |
 |---|---|---|
 | 5, 4 | **hard** | Page 5 has Sev say "You have been home half a day" inside the same unbroken beat in which page 4 ends, which is the moment of arrival |
+| 6, 4 | soft | The keeper dies of brine sitting over the town's last sealed cistern, and no page says why he would not break the seal |
 | 9, 3 | **hard** | Page 9 finds Cairn Four's Office wax "whole" four days after the party drew the cistern full at page 3. The party has no Office stamp |
 | 9, 10 | **hard** | Page 9 ends on the Kethra nail empty; page 10 takes four Kethra seals off their nails |
 | 6, 5 | soft | Tallow writes three times running across the chapter boundary, against a sheet that forbids repeating a sign |
 
-Each has a one-clause repair, recorded in the run directory. None could be applied.
+Five defects, three of them hard. Each has a one-clause repair, recorded beside the run in `unrepaired-continuity.json`. None could be applied.
 
-**The finding is the budget, not the defects.** Two repairs per run was sized when nothing was looking for a third. An independent auditor reading a fact ledger finds defects at a rate of two to three per chapter close, and they are precisely the defects no per-page check can see: three of the six are contradictions between pages that never appear in the same context. This is the failure class that the previous run hit blind (its D8) and that FR-38 to FR-40 were written to catch. **The mechanism works. The budget does not.** `control.max_continuity_repairs` should scale with `organization.chapters`, or be per chapter close rather than per run.
+**The finding is the budget, not the defects.** Two repairs per run was sized when nothing was looking for a third. An independent auditor reading a fact ledger found defects at all three chapter closes of this run, and they are precisely the defects no per-page check can see: every one of the seven is a contradiction between two pages that never appear in the same assembled context. This is the failure class that the previous run hit blind (its D8) and that FR-38 to FR-40 were written to catch. **The mechanism works. The budget does not.** `control.max_continuity_repairs` should scale with `organization.chapters`, or be per chapter close rather than per run.
 
 **What the audits cleared.** The day-one-to-day-five calendar holds on every page; cask and cistern arithmetic balances outbound against return; the distances agree, two windows of eighty thousand paces against the eighty miles the setting sheet declares; and the child's eleven days at Cairn Nine interlock exactly with her nine days at the Office. A calendar consistent across ten pages is the specific thing the previous run could not achieve, and it was achieved here by repairing page 1 the moment the ledger exposed it.
 
-**Unpaid promises, reported under FR-19.** Two things are set up and never returned to: Oduin's two camels, left in doubt on page 9 and never answered; and the order striking Cairn Four from the line, which convicts nobody and is never withdrawn, so Sev rebuilds a cairn that is still struck off on paper.
+**Unpaid promises, reported under FR-19.** C1 found no unclosed thread, so these are promises the ledger cannot see: Two things are set up and never returned to: Oduin's two camels, left in doubt on page 9 and never answered; and the order striking Cairn Four from the line, which convicts nobody and is never withdrawn, so Sev rebuilds a cairn that is still struck off on paper.
 
 ---
 
