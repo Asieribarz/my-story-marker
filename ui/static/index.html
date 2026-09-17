@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Story Agent Control Panel</title>
+<link rel="icon" href="qaracter-logo.svg">
+<style>
+/* Brand tokens. Swap these three for the official Qaracter values and the
+   whole panel follows; nothing else hard-codes a colour. */
+:root {
+  --brand: #E6007E;
+  --brand-dim: #A8005C;
+  --ink: #0E1117;
+
+  --bg: #0E1117;
+  --panel: #161B24;
+  --panel-2: #1D2430;
+  --line: #2A3342;
+  --text: #E8ECF3;
+  --muted: #94A3B8;
+  --ok: #3DD68C;
+  --warn: #F0B23A;
+  --bad: #F2545B;
+  --radius: 10px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.5 "Segoe UI", Inter, system-ui, sans-serif;
+}
+header {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  padding: 16px 24px; background: var(--panel);
+  border-bottom: 2px solid var(--brand);
+}
+header img { height: 34px; color: var(--text); }
+header .title { font-weight: 600; letter-spacing: .3px; }
+header .title small { display: block; color: var(--muted); font-weight: 400; }
+header .spacer { flex: 1; }
+select, input {
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; font: inherit;
+}
+input:focus, select:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
+
+main { display: grid; grid-template-columns: minmax(340px, 4fr) 6fr; gap: 18px; padding: 18px 24px 40px; }
+@media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
+
+section { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+section > h2 {
+  margin: 0; padding: 14px 18px; font-size: 14px; text-transform: uppercase;
+  letter-spacing: 1.1px; color: var(--muted); border-bottom: 1px solid var(--line);
+}
+.body { padding: 16px 18px; }
+
+.group { margin-bottom: 18px; }
+.group h3 {
+  margin: 0 0 8px; font-size: 12px; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--brand);
+}
+.field { display: grid; grid-template-columns: 1fr 120px; gap: 10px; align-items: center; padding: 4px 0; }
+.field label { color: var(--muted); font-size: 13px; word-break: break-word; }
+.field input, .field select { width: 100%; }
+
+.actions { display: flex; gap: 10px; align-items: center; position: sticky; bottom: 0;
+  background: var(--panel); padding-top: 12px; border-top: 1px solid var(--line); }
+button {
+  background: var(--brand); color: #fff; border: 0; border-radius: 6px;
+  padding: 9px 16px; font: inherit; font-weight: 600; cursor: pointer;
+}
+button:hover { background: var(--brand-dim); }
+button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+.status { font-size: 13px; color: var(--muted); }
+.status.ok { color: var(--ok); }
+.status.bad { color: var(--bad); }
+
+.notice { border-left: 3px solid var(--warn); background: var(--panel-2);
+  padding: 8px 12px; border-radius: 0 6px 6px 0; font-size: 13px; margin-bottom: 10px; }
+.notice.bad { border-color: var(--bad); }
+
+.derived { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px;
+  padding: 4px 11px; font-size: 12px; color: var(--muted); }
+.chip b { color: var(--text); font-weight: 600; }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
+.tile { background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+.tile .n { font-size: 26px; font-weight: 600; }
+.tile .k { font-size: 11px; letter-spacing: .8px; text-transform: uppercase; color: var(--muted); }
+.tile.alert .n { color: var(--bad); }
+
+.bar { height: 10px; background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: 999px; overflow: hidden; margin: 14px 0 6px; }
+.bar > span { display: block; height: 100%; background: var(--brand); }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; color: var(--muted); font-weight: 500; font-size: 11px;
+  text-transform: uppercase; letter-spacing: .8px; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+td { padding: 9px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:hover td { background: var(--panel-2); }
+td.sum { color: var(--muted); }
+.pill { display: inline-block; border-radius: 4px; padding: 1px 7px; font-size: 11px;
+  background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); }
+.pill.anchor { border-color: var(--brand); color: var(--brand); }
+.pill.bad { border-color: var(--bad); color: var(--bad); }
+.pill.warn { border-color: var(--warn); color: var(--warn); }
+.pill.ok { border-color: var(--ok); color: var(--ok); }
+</style>
+</head>
+<body>
+<header>
+  <img src="qaracter-logo.svg" alt="Qaracter">
+  <div class="title">Story Agent Control Panel<small>config.json and run progress</small></div>
+  <div class="spacer"></div>
+  <label class="status" for="story">Story</label>
+  <select id="story"></select>
+  <button class="ghost" id="refresh">Refresh</button>
+</header>
+
+<main>
+  <section>
+    <h2>Parameters &middot; config.json</h2>
+    <div class="body">
+      <div id="config-problems"></div>
+      <form id="config-form"></form>
+      <div class="actions">
+        <button id="save">Save</button>
+        <button class="ghost" id="revert" type="button">Revert</button>
+        <span class="status" id="save-status"></span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Progress</h2>
+    <div class="body">
+      <div id="derived" class="derived"></div>
+      <div class="bar"><span id="bar" style="width:0%"></span></div>
+      <div class="status" id="bar-label"></div>
+      <div class="tiles" id="tiles" style="margin-top:16px"></div>
+      <div id="threads" style="margin-top:14px"></div>
+      <table style="margin-top:18px">
+        <thead><tr><th>Pg</th><th>Ch</th><th>Act</th><th>Words</th><th>State</th><th>Summary</th></tr></thead>
+        <tbody id="pages"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+// Parameter groups the server accepts; `paths` is not editable here on purpose.
+const LABELS = {
+  organization: "Organization", page: "Page", story: "Story",
+  context: "Context", bible: "Bible", control: "Control", model: "Model",
+};
+let current = null;
+
+function fieldFor(group, key, value) {
+  const id = `f-${group}-${key}`;
+  let control;
+  if (typeof value === "boolean") {
+    control = `<select id="${id}" data-type="bool">
+      <option value="true" ${value ? "selected" : ""}>true</option>
+      <option value="false" ${!value ? "selected" : ""}>false</option></select>`;
+  } else if (typeof value === "number") {
+    const step = Number.isInteger(value) ? "1" : "0.01";
+    control = `<input id="${id}" data-type="number" type="number" step="${step}" value="${value}">`;
+  } else if (value === null) {
+    control = `<input id="${id}" data-type="auto" value="" placeholder="null">`;
+  } else if (typeof value === "object") {
+    return Object.entries(value).map(([sub, inner]) =>
+      fieldFor(group, `${key}.${sub}`, inner)).join("");
+  } else {
+    control = `<input id="${id}" data-type="auto" value="${String(value).replace(/"/g, "&quot;")}">`;
+  }
+  return `<div class="field"><label for="${id}">${key}</label>${control}</div>`;
+}
+
+function renderConfig(data) {
+  current = data;
+  $("config-form").innerHTML = data.editable.map((group) => `
+    <div class="group"><h3>${LABELS[group] || group}</h3>
+      ${Object.entries(data.config[group]).map(([k, v]) => fieldFor(group, k, v)).join("")}
+    </div>`).join("");
+  renderProblems(data.problems, data.derived.supersessions);
+}
+
+function renderProblems(problems, supersessions) {
+  const box = $("config-problems");
+  box.innerHTML = [
+    ...(supersessions || []).map((s) => `<div class="notice">Superseded &middot; ${s}</div>`),
+    ...(problems || []).map((p) => `<div class="notice bad">Invalid &middot; ${p}</div>`),
+  ].join("");
+}
+
+function collect() {
+  const edits = {};
+  for (const input of $("config-form").querySelectorAll("input,select")) {
+    const [, group, path] = input.id.split("-");
+    const [key, sub] = path.split(".");
+    let value;
+    const raw = input.value.trim();
+    if (input.dataset.type === "bool") value = input.value === "true";
+    else if (input.dataset.type === "number") value = raw === "" ? null : Number(raw);
+    else if (raw === "" || raw === "null") value = null;
+    else if (!Number.isNaN(Number(raw))) value = Number(raw);
+    else value = raw;
+
+    edits[group] = edits[group] || {};
+    if (sub === undefined) edits[group][key] = value;
+    else {
+      const base = edits[group][key] || { ...current.config[group][key] };
+      base[sub] = value;
+      edits[group][key] = base;
+    }
+  }
+  return edits;
+}
+
+function renderProgress(data) {
+  const d = data.derived, t = data.totals;
+  $("derived").innerHTML = [
+    ["pages", t.pages_total],
+    ["chapters", `${d.chapters} &middot; ${d.chapter_sizes.join("/")}`],
+    ["acts", d.act_spans.map((a) => `${a.act} ${a.first}-${a.last}`).join(" &middot; ")],
+    ["anchors", d.anchor_pages.join(", ")],
+    ["word band", `${d.word_band.min}-${d.word_band.max}`],
+  ].map(([k, v]) => `<span class="chip">${k} <b>${v}</b></span>`).join("") +
+    `<span class="chip">derived, never stored</span>`;
+
+  const pct = t.pages_total ? Math.round((t.pages_written / t.pages_total) * 100) : 0;
+  $("bar").style.width = `${Math.min(pct, 100)}%`;
+  $("bar-label").textContent =
+    `${t.pages_written} of ${t.pages_total} pages written (${pct}%) · ${t.beats_planned} beats planned · ` +
+    `${t.digests} chapter digests · manuscript ${t.manuscript ? "assembled" : "pending"}`;
+
+  $("tiles").innerHTML = [
+    ["mean words", t.mean_words, false],
+    ["retries", t.retries, t.retries > 0],
+    ["flagged", t.flagged, t.flagged > 0],
+    ["out of band", t.out_of_band, t.out_of_band > 0],
+    ["repairs", t.repairs, t.repairs > 0],
+    ["open threads", t.open_threads.length, t.open_threads.length > 0],
+  ].map(([k, n, alert]) =>
+    `<div class="tile ${alert ? "alert" : ""}"><div class="n">${n}</div><div class="k">${k}</div></div>`).join("");
+
+  $("threads").innerHTML = t.open_threads.length
+    ? `<div class="notice">Threads still open at the last written page: ${t.open_threads.join(", ")}</div>` : "";
+
+  $("pages").innerHTML = data.pages.map((p) => `
+    <tr>
+      <td>${p.page}${p.anchor ? ' <span class="pill anchor">anchor</span>' : ""}</td>
+      <td>${p.chapter ?? "-"}</td>
+      <td>${p.act ?? "-"}</td>
+      <td><span class="pill ${p.in_band ? "ok" : "bad"}">${p.words}</span></td>
+      <td>${p.retries ? `<span class="pill warn">${p.retries} retry</span> ` : ""}
+          ${p.flagged ? '<span class="pill bad">flagged</span>' : ""}
+          ${!p.retries && !p.flagged ? '<span class="pill ok">clean</span>' : ""}</td>
+      <td class="sum">${p.summary}</td>
+    </tr>`).join("") ||
+    `<tr><td colspan="6" class="sum">No page records yet in state/deltas.jsonl.</td></tr>`;
+}
+
+async function load() {
+  const story = $("story").value;
+  const config = await (await fetch(`/api/config${story ? `?story=${story}` : ""}`)).json();
+  renderConfig(config);
+  if (!$("story").options.length) {
+    $("story").innerHTML = config.stories.map((s) => `<option>${s}</option>`).join("");
+  }
+  const chosen = $("story").value;
+  const progress = await (await fetch(`/api/progress?story=${chosen}`)).json();
+  if (progress.error) { $("bar-label").textContent = progress.error; return; }
+  renderProgress(progress);
+}
+
+$("save").addEventListener("click", async (event) => {
+  event.preventDefault();
+  const status = $("save-status");
+  status.className = "status";
+  status.textContent = "Saving...";
+  const response = await fetch("/api/config", {
+    method: "PUT", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(collect()),
+  });
+  const result = await response.json();
+  renderProblems(result.problems, result.derived && result.derived.supersessions);
+  status.className = `status ${result.saved ? "ok" : "bad"}`;
+  status.textContent = result.saved ? "Saved to config.json" : "Rejected — nothing written";
+  if (result.saved) load();
+});
+
+$("revert").addEventListener("click", () => load());
+$("refresh").addEventListener("click", () => load());
+$("story").addEventListener("change", () => load());
+load();
+</script>
+</body>
+</html>
