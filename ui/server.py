@@ -104,7 +104,10 @@ def progress(config, story_id):
             "chapter": record.get("chapter"),
             "chapter_title": beat.get("chapter_title"),
             "act": beat.get("act"),
-            "anchor": record["page"] in derived["anchor_pages"],
+            # The beat sheet the pages were written from is authoritative for
+            # this story; the derived anchors describe the current config,
+            # which may no longer be the one the story was written at.
+            "anchor": beat.get("anchor", record["page"] in derived["anchor_pages"]),
             "words": count,
             "in_band": band["min"] <= count <= band["max"],
             "retries": record.get("retries", 0),
@@ -132,6 +135,45 @@ def progress(config, story_id):
             "report": os.path.exists(os.path.join(root, paths["report"])),
         },
     }
+
+
+def manuscript(config, story_id):
+    """The written novel: the assembled manuscript and each page's prose."""
+    root = os.path.join(ROOT, config["paths"]["stories_root"], story_id)
+    paths = config["paths"]
+
+    manuscript_path = os.path.join(root, paths["manuscript"])
+    text = ""
+    if os.path.exists(manuscript_path):
+        with open(manuscript_path, encoding="utf-8") as handle:
+            text = handle.read()
+
+    pages_dir = os.path.join(root, paths["pages_dir"])
+    pages = []
+    if os.path.isdir(pages_dir):
+        for name in sorted(name for name in os.listdir(pages_dir)
+                           if re.fullmatch(r"\d+\.md", name)):
+            with open(os.path.join(pages_dir, name), encoding="utf-8") as handle:
+                raw = handle.read()
+            front, body = {}, raw
+            if raw.startswith("---"):
+                _, block, body = raw.split("---", 2)
+                for line in block.strip().splitlines():
+                    if ":" in line:
+                        key, value = line.split(":", 1)
+                        front[key.strip()] = value.strip()
+            pages.append({
+                "page": int(front.get("page", name[:-3])),
+                "chapter": front.get("chapter"),
+                "chapter_title": front.get("chapter_title"),
+                "act": front.get("act"),
+                "anchor": front.get("anchor") == "true",
+                "words": int(front.get("words", 0) or 0),
+                "flagged": front.get("flagged") == "true",
+                "text": body.strip(),
+            })
+
+    return {"story_id": story_id, "manuscript": text, "pages": pages}
 
 
 def apply_edits(config, edits):
@@ -186,6 +228,15 @@ class Handler(SimpleHTTPRequestHandler):
                     self.send_json({"error": "no story workspace found"}, 404)
                     return
                 self.send_json(progress(config, story))
+                return
+            if route.path == "/api/manuscript":
+                config = read_config()
+                stories = story_ids(config)
+                story = (query.get("story") or stories[:1] or [None])[0]
+                if not story:
+                    self.send_json({"error": "no story workspace found"}, 404)
+                    return
+                self.send_json(manuscript(config, story))
                 return
         except Exception as error:  # surfaced in the UI rather than the console
             self.send_json({"error": "%s: %s" % (type(error).__name__, error)}, 500)

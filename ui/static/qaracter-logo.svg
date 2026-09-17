@@ -1,10 +1,10 @@
 <!-- Placeholder wordmark. Replace this file with the official Qaracter logo,
      keeping the file name: index.html references it by path only. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 48" width="220" height="48" role="img" aria-label="Qaracter">
-  <g fill="none" stroke="#E6007E" stroke-width="4">
-    <circle cx="24" cy="24" r="15"/>
-    <path d="M33 33 L44 44" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 210 44" width="210" height="44" role="img" aria-label="Qaracter">
+  <g fill="none" stroke="#F07E13" stroke-width="3.5">
+    <circle cx="22" cy="22" r="13"/>
+    <path d="M30 30 L40 40" stroke-linecap="round"/>
   </g>
-  <text x="58" y="33" font-family="Segoe UI, Inter, Helvetica, Arial, sans-serif"
-        font-size="26" font-weight="600" letter-spacing="0.5" fill="currentColor">qaracter</text>
+  <text x="52" y="30" font-family="Segoe UI, Inter, Helvetica, Arial, sans-serif"
+        font-size="24" font-weight="600" letter-spacing="0.3" fill="#1A1D21">qaracter</text>
 </svg>
