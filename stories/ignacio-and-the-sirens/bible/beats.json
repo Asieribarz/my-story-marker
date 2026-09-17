@@ -1,0 +1,176 @@
+[
+ {
+  "page": 1,
+  "chapter": 1,
+  "chapter_title": "The Hair-Rope",
+  "act": "setup",
+  "anchor": false,
+  "objective": "Ignacio buys the last of the hair-rope in Cadiz and signs Don Fausto's bond, which requires a living specimen and not a word less.",
+  "hook": "Fausto announces he is sailing with the ship.",
+  "characters": [
+   "c1",
+   "c4",
+   "c5"
+  ],
+  "settings": [
+   "s3"
+  ]
+ },
+ {
+  "page": 2,
+  "chapter": 1,
+  "chapter_title": "The Hair-Rope",
+  "act": "setup",
+  "anchor": false,
+  "objective": "At sea, Brites makes Ignacio say out loud what happened off the Restinga eleven years ago, and Pau hears the story for the first time.",
+  "hook": "the date they will raise the shoal is the anniversary, to the day.",
+  "characters": [
+   "c1",
+   "c2",
+   "c5"
+  ],
+  "settings": [
+   "s1"
+  ]
+ },
+ {
+  "page": 3,
+  "chapter": 1,
+  "chapter_title": "The Hair-Rope",
+  "act": "development",
+  "anchor": true,
+  "objective": "Over the shoal Pau feels the song in his bones, which turns the voyage from an argument about whether she exists into a hunt that cannot be called off: Ignacio puts both boats down.",
+  "hook": "Brites cuts her own plait for rope and does not say why it frightens her.",
+  "characters": [
+   "c1",
+   "c2",
+   "c5"
+  ],
+  "settings": [
+   "s1",
+   "s2"
+  ]
+ },
+ {
+  "page": 4,
+  "chapter": 1,
+  "chapter_title": "The Hair-Rope",
+  "act": "development",
+  "anchor": false,
+  "objective": "The first cast fails; the song takes the boats off their line and Brites goes over the side and is hauled back.",
+  "hook": "she was in the water eleven seconds and cannot say what she saw.",
+  "characters": [
+   "c1",
+   "c2",
+   "c5"
+  ],
+  "settings": [
+   "s2"
+  ]
+ },
+ {
+  "page": 5,
+  "chapter": 2,
+  "chapter_title": "The Half-Hour Glass",
+  "act": "development",
+  "anchor": true,
+  "objective": "The second cast holds, and in the bottom of the boat Ignacio sees the eleven-year-old tear across her forearm: the hunt he has run for a decade reverses into a debt, and the captor is the man who owes her.",
+  "hook": "Fausto turns the glass and starts counting from the moment she leaves the water.",
+  "characters": [
+   "c1",
+   "c2",
+   "c3"
+  ],
+  "settings": [
+   "s2",
+   "s1"
+  ]
+ },
+ {
+  "page": 6,
+  "chapter": 2,
+  "chapter_title": "The Half-Hour Glass",
+  "act": "development",
+  "anchor": false,
+  "objective": "In the tank her voice goes from singing to breath in four turns of the glass; Pau keeps the water changed and Ignacio will not come below.",
+  "hook": "Pau asks the question nobody aboard has asked: what is the proof for, now that they have her.",
+  "characters": [
+   "c1",
+   "c3",
+   "c5"
+  ],
+  "settings": [
+   "s4"
+  ]
+ },
+ {
+  "page": 7,
+  "chapter": 2,
+  "chapter_title": "The Half-Hour Glass",
+  "act": "development",
+  "anchor": false,
+  "objective": "Fausto produces the bond and sets the course for the Guadalquivir and a hall in Seville; Brites tells Ignacio the price of obeying it and he gives no order either way.",
+  "hook": "the bar is raised from the masthead at first light.",
+  "characters": [
+   "c1",
+   "c2",
+   "c4"
+  ],
+  "settings": [
+   "s1",
+   "s4"
+  ]
+ },
+ {
+  "page": 8,
+  "chapter": 3,
+  "chapter_title": "The Brown Line",
+  "act": "development",
+  "anchor": true,
+  "objective": "At the bar Brites refuses the helm and Fausto takes it under the bond, and Ignacio stops arguing about the proof and puts the ship about: from this point he is no longer trying to be believed.",
+  "hook": "the Restinga is four days astern and there is not much left of her to carry back.",
+  "characters": [
+   "c1",
+   "c2",
+   "c4"
+  ],
+  "settings": [
+   "s1",
+   "s5"
+  ]
+ },
+ {
+  "page": 9,
+  "chapter": 3,
+  "chapter_title": "The Brown Line",
+  "act": "resolution",
+  "anchor": false,
+  "objective": "In the glass calm over the shoal Ignacio cuts the hair-rope himself and pays the eleven-year debt with the only thing that was ever worth anything.",
+  "hook": "she goes under without a sound, and the shoal is bright and empty and proves nothing.",
+  "characters": [
+   "c1",
+   "c2",
+   "c3"
+  ],
+  "settings": [
+   "s2"
+  ]
+ },
+ {
+  "page": 10,
+  "chapter": 3,
+  "chapter_title": "The Brown Line",
+  "act": "resolution",
+  "anchor": false,
+  "objective": "La Alondra comes into Cadiz with an empty hold and a forfeit bond, nobody believes a word of it, and Ignacio finds that he no longer needs them to.",
+  "hook": "Pau keeps the cut rope, and the anniversary is a year off.",
+  "characters": [
+   "c1",
+   "c2",
+   "c5"
+  ],
+  "settings": [
+   "s3"
+  ]
+ }
+]

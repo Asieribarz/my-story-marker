@@ -4,7 +4,7 @@
 
   "organization": {
     "pages_total": 10,
-    "chapters": 3,
+    "chapters": 4,
     "pages_per_chapter": null,
     "act_proportions": {
       "setup": 0.20,
@@ -15,7 +15,7 @@
   },
 
   "page": {
-    "target_words": 350,
+    "target_words": 380,
     "length_tolerance": 0.20
   },
 
@@ -44,7 +44,7 @@
     "max_retries_per_page": 2,
     "max_continuity_repairs": 2,
     "max_flagged_ratio": 0.10,
-    "consistency_gate_max_attempts": 5,
+    "consistency_gate_max_attempts": 3,
     "abort_on_invalid_config": true,
     "resume_enabled": true
   },

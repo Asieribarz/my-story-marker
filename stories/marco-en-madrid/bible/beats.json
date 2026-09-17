@@ -1,0 +1,146 @@
+[
+  {
+    "page": 1,
+    "chapter": 1,
+    "chapter_title": "Arrival",
+    "act": "setup",
+    "anchor": false,
+    "objective": "Marco arrives in Madrid with excitement and the signed contract. He meets Elena at the airport. The world is full of possibility.",
+    "characters": [
+      "c1",
+      "c2"
+    ],
+    "settings": [
+      "s1"
+    ],
+    "hook": "What happens when Marco arrives at the architecture firm on his first day?"
+  },
+  {
+    "page": 2,
+    "chapter": 1,
+    "chapter_title": "Arrival",
+    "act": "setup",
+    "anchor": false,
+    "objective": "The firm has folded overnight. Marco's job does not exist. He must return to Elena's apartment and face the reality that his plans are gone.",
+    "characters": [
+      "c1",
+      "c2"
+    ],
+    "settings": [
+      "s1",
+      "s2"
+    ],
+    "hook": "Does Marco tell his family the truth, or does he begin to build a lie?"
+  },
+  {
+    "page": 3,
+    "chapter": 1,
+    "chapter_title": "Arrival",
+    "act": "development",
+    "anchor": true,
+    "objective": "Marco chooses to lie. He tells his mother everything is going well. He takes his first undeclared job at a construction site. The entry into the complication: his life splits into two stories.",
+    "characters": [
+      "c1",
+      "c3",
+      "c4"
+    ],
+    "settings": [
+      "s1",
+      "s2",
+      "s3"
+    ],
+    "hook": "What happens when Marco encounters someone else trapped in the same situation?"
+  },
+  {
+    "page": 4,
+    "chapter": 2,
+    "chapter_title": "Survival",
+    "act": "development",
+    "anchor": false,
+    "objective": "Marco and Javier become work partners and friends. Javier teaches him the survival tactics of undeclared labor. They share cramped housing with others. Marco's money dwindles. He sees no path to legality.",
+    "characters": [
+      "c1",
+      "c4",
+      "c2"
+    ],
+    "settings": [
+      "s3",
+      "s1",
+      "s2"
+    ],
+    "hook": "Will Marco attempt the bureaucratic process, or continue in the shadows?"
+  },
+  {
+    "page": 5,
+    "chapter": 2,
+    "chapter_title": "Survival",
+    "act": "development",
+    "anchor": true,
+    "objective": "Marco tries to navigate the immigration office to explore work visa options. He meets Miguel, a bureaucrat who embodies the system's indifference. The application is rejected for technical reasons. Marco realizes the path to legality is closed to him. Central reversal: he stops trying to become legitimate.",
+    "characters": [
+      "c1",
+      "c5",
+      "c2"
+    ],
+    "settings": [
+      "s4",
+      "s1"
+    ],
+    "hook": "What does Marco do now that he has exhausted the legal path?"
+  },
+  {
+    "page": 6,
+    "chapter": 3,
+    "chapter_title": "Reckoning",
+    "act": "development",
+    "anchor": false,
+    "objective": "Marco stops applying for legal status. He settles into undeclared work, but something shifts—he stops seeing it as temporary. He discovers a small community of other migrants and displaced people. Elena invites him to stay longer. He allows himself to imagine remaining in Madrid, but not as the architect he was supposed to be.",
+    "characters": [
+      "c1",
+      "c2",
+      "c4"
+    ],
+    "settings": [
+      "s1",
+      "s2",
+      "s3"
+    ],
+    "hook": "When will Marco's lie to his family collapse?"
+  },
+  {
+    "page": 7,
+    "chapter": 3,
+    "chapter_title": "Reckoning",
+    "act": "development",
+    "anchor": true,
+    "objective": "Marco's mother arrives in Madrid unexpectedly. She knows he has been lying. In a painful confrontation, Marco admits the truth: the job was never real, he is working illegally, he has failed. His mother does not reject him. She sits with him in the apartment. The crisis before resolution: everything that was hidden is now visible.",
+    "characters": [
+      "c1",
+      "c3",
+      "c2"
+    ],
+    "settings": [
+      "s2"
+    ],
+    "hook": "What choice does Marco make now?"
+  },
+  {
+    "page": 8,
+    "chapter": 3,
+    "chapter_title": "Reckoning",
+    "act": "resolution",
+    "anchor": false,
+    "objective": "Marco and his mother walk through Madrid together. He shows her where he lives, where he works, who his friends are. It is not the Madrid he promised her, but it is honest. He calls his family in Lima with the truth. He does not become a legal architect, but he becomes someone who is real. He remains in Madrid, not because he achieved his goal, but because he has learned to exist without needing one.",
+    "characters": [
+      "c1",
+      "c3",
+      "c2",
+      "c4"
+    ],
+    "settings": [
+      "s1",
+      "s2"
+    ],
+    "hook": null
+  }
+]
