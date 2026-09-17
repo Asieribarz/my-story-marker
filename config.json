@@ -3,8 +3,8 @@
   "description": "Single source of control and organization parameters, shared by every story. The specifications reference this file by path and restate no literal value. Everything under `organization` is an authoritative input; the shape of the story (chapter sizes, act spans, anchor pages) is derived from these by the rules in functional specification section 2.2 and is never stored here. Except for `paths.stories_root`, every path under `paths` is resolved relative to the workspace of the story being written, never to the repository root: this file holds no value belonging to any one story.",
 
   "organization": {
-    "pages_total": 20,
-    "chapters": 5,
+    "pages_total": 10,
+    "chapters": 3,
     "pages_per_chapter": null,
     "act_proportions": {
       "setup": 0.20,
@@ -44,7 +44,7 @@
     "max_retries_per_page": 2,
     "max_continuity_repairs": 2,
     "max_flagged_ratio": 0.10,
-    "consistency_gate_max_attempts": 3,
+    "consistency_gate_max_attempts": 5,
     "abort_on_invalid_config": true,
     "resume_enabled": true
   },
