@@ -1,30 +1,26 @@
 {
-  "config_version": "2.4",
+  "config_version": "2.5",
   "description": "Single source of control and organization parameters, shared by every story. The specifications reference this file by path and restate no literal value. Everything under `organization` is an authoritative input; the shape of the story (chapter sizes, act spans, anchor pages) is derived from these by the rules in functional specification section 2.2 and is never stored here. Except for `paths.stories_root`, every path under `paths` is resolved relative to the workspace of the story being written, never to the repository root: this file holds no value belonging to any one story.",
-
   "organization": {
     "pages_total": 10,
     "chapters": 4,
     "pages_per_chapter": null,
     "act_proportions": {
-      "setup": 0.20,
-      "development": 0.60,
-      "resolution": 0.20
+      "setup": 0.2,
+      "development": 0.6,
+      "resolution": 0.2
     },
     "anchor_pages": "auto"
   },
-
   "page": {
     "target_words": 380,
-    "length_tolerance": 0.20
+    "length_tolerance": 0.2
   },
-
   "story": {
     "tone": "classic adventure",
     "audience": "general reader",
     "language": "en"
   },
-
   "context": {
     "max_characters_per_page": 3,
     "max_settings_per_page": 2,
@@ -32,29 +28,33 @@
     "chapter_digest_max_words": 200,
     "include_bridge_paragraph": true
   },
-
   "bible": {
     "world_rules_min": 4,
     "world_rules_max": 8,
     "max_characters": 6,
     "max_settings": 5
   },
-
   "control": {
     "max_retries_per_page": 2,
     "max_continuity_repairs": 2,
-    "max_flagged_ratio": 0.10,
+    "max_flagged_ratio": 0.1,
     "consistency_gate_max_attempts": 3,
     "abort_on_invalid_config": true,
     "resume_enabled": true
   },
-
+  "learning": {
+    "enabled": true,
+    "max_first_attempt_length_failure_rate": 0.2,
+    "max_calibration_runs": 5,
+    "min_pages_per_observation": 8,
+    "correction_damping": 0.5,
+    "bias_tolerance": 0.03
+  },
   "model": {
     "id": null,
     "temperature": 0.8,
     "max_output_tokens": null
   },
-
   "paths": {
     "stories_root": "stories/",
     "staging_dir": "runs/staging/",
@@ -64,6 +64,7 @@
     "settings_dir": "bible/settings/",
     "beats": "bible/beats.json",
     "state_log": "state/deltas.jsonl",
+    "calibration": "state/calibration.json",
     "chapter_digests_dir": "state/chapters/",
     "pages_dir": "pages/",
     "runs_dir": "runs/",
