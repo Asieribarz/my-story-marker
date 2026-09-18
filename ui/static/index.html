@@ -4,36 +4,60 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Story Agent</title>
-<link rel="icon" href="qaracter-logo.svg">
+<link rel="icon" href="qaracter-logo-dark.svg">
+<link rel="preconnect" href="https://api.fontshare.com" crossorigin>
+<link rel="stylesheet"
+      href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap">
 <style>
-/* Brand tokens. Swap --brand for the official Qaracter orange and the whole
-   panel follows; nothing else hard-codes an accent colour. */
+/* Brand tokens, taken from the Qaracter stylesheet: navy #233441 is the
+   dominant colour and orange #FF7932 the accent, over near-white surfaces.
+   Nothing outside this block hard-codes a colour.
+
+   The accent appears twice on purpose. --brand is the interface orange, the
+   brand value exactly as the site uses it. --data-a is one step darker,
+   because a chart mark has to clear 3:1 against the surface to be read as a
+   quantity and #FF7932 measures 2.6:1; the interface orange keeps its
+   contrast from the text beside it, a bar has nothing beside it. */
 :root {
-  --brand: #F07E13;
-  --brand-soft: #FEF3E7;
+  --brand: #FF7932;
+  --brand-ink: #FF6311;
+  --brand-soft: #FFF1E8;
+  --navy: #233441;
+  --navy-soft: #31465A;
   --bg: #FFFFFF;
-  --surface: #FAFAF9;
-  --line: #E7E5E2;
-  --text: #1A1D21;
-  --muted: #7A7F87;
-  --ok: #2E9E6B;
-  --warn: #C98209;
-  --bad: #D24B3E;
+  --surface: #F5F5F5;
+  --line: #E4E6EB;
+  --text: #233441;
+  --muted: #5A6672;
+  --ok: #1E8A5B;
+  --warn: #B26A00;
+  --bad: #C0392B;
+  /* Chart marks. Two categorical slots, validated for lightness, chroma,
+     colour-vision separation and contrast; a third category is carried by
+     shape and label, never by a third hue. */
+  --data-a: #E85D0C;
+  --data-b: #0050BD;
+  --data-flat: #9AA3AD;
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0; background: var(--bg); color: var(--text);
-  font: 15px/1.6 "Segoe UI", Inter, system-ui, sans-serif;
+  font: 15px/1.6 Satoshi, "Segoe UI", Inter, system-ui, sans-serif;
 }
 
 header {
   display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-  padding: 18px 32px 0;
+  padding: 16px 32px; background: var(--navy); color: #fff;
 }
-header img { height: 30px; }
+header img { height: 28px; }
 header .spacer { flex: 1; }
-header label { font-size: 13px; color: var(--muted); }
+header label { font-size: 13px; color: #B9C3CD; }
+header select, header button.ghost {
+  background: var(--navy-soft); color: #fff; border-color: #45596C;
+}
+header button.ghost:hover { color: #fff; border-color: #7E8FA0; }
+header select:focus { outline-color: var(--brand); }
 
 nav {
   display: flex; gap: 28px; padding: 14px 32px 0;
@@ -119,18 +143,40 @@ p.hint { margin: 0 0 22px; color: var(--muted); font-size: 13px; }
 .tile { background: var(--bg); padding: 14px 16px; }
 .tile .n { font-size: 27px; font-weight: 600; line-height: 1.2; }
 .tile .k { font-size: 11px; letter-spacing: .7px; text-transform: uppercase; color: var(--muted); }
-.tile.alert .n { color: var(--brand); }
+.tile .sub { font-size: 11px; color: var(--muted); }
+.tile.alert .n { color: var(--data-a); }
 
-.spark { display: flex; align-items: flex-end; gap: 3px; height: 110px;
-  margin: 30px 0 6px; position: relative; }
-.spark .col { flex: 1; position: relative; z-index: 1;
-  background: var(--bg); border-top: 2px solid var(--muted); }
-.spark .col.in { border-top-color: var(--brand); background: var(--brand-soft); }
-.spark .col.in, .spark .col.out { opacity: .92; }
-.spark .col.out { border-top-color: var(--bad); background: #FBECEA; }
-.spark .band { position: absolute; left: 0; right: 0; z-index: 0; background: var(--surface);
-  border-top: 1px dashed var(--line); border-bottom: 1px dashed var(--line); }
-.spark-axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+/* Figures: a chart is a titled block with a caption that says what to read. */
+figure { margin: 34px 0 0; }
+figure figcaption { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
+figure .why { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+figure svg { display: block; width: 100%; overflow: visible; }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px;
+  color: var(--muted); margin-top: 10px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.legend i.line { height: 0; width: 14px; border-top: 2px dashed var(--navy); border-radius: 0; }
+
+.tip {
+  position: fixed; z-index: 20; pointer-events: none; opacity: 0;
+  transition: opacity .1s; background: var(--navy); color: #fff;
+  border-radius: 5px; padding: 7px 10px; font-size: 12px; line-height: 1.45;
+  max-width: 260px; box-shadow: 0 6px 20px rgba(35, 52, 65, .22);
+}
+.tip b { color: #FFC7A3; font-weight: 500; }
+.hit { fill: transparent; cursor: default; }
+
+/* Budgets: spent against a ceiling that config.json sets. */
+.meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 18px 30px; margin-top: 12px; }
+.meter .top { display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 13px; margin-bottom: 6px; }
+.meter .top b { font-weight: 600; }
+.meter .track { height: 8px; border-radius: 999px; background: var(--surface);
+  border: 1px solid var(--line); overflow: hidden; }
+.meter .track > span { display: block; height: 100%; background: var(--data-b); }
+.meter.full .track > span { background: var(--bad); }
+.meter .gov { font-size: 11px; color: var(--muted); margin-top: 5px; }
 
 table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 30px; }
 th {
@@ -206,11 +252,51 @@ article p { margin: 0 0 1.1em; }
     <div class="bar"><span id="bar" style="width:0%"></span></div>
     <div class="bar-label" id="bar-label"></div>
     <div class="tiles" id="tiles"></div>
-    <div class="spark" id="spark"></div>
-    <div class="spark-axis" id="spark-axis"></div>
-    <div id="threads" style="margin-top:20px"></div>
+
+    <figure>
+      <figcaption>Page length against the band</figcaption>
+      <div class="why" id="length-why"></div>
+      <div id="length-chart"></div>
+      <div class="legend">
+        <span><i style="background:var(--data-a);border-radius:999px"></i> inside the band</span>
+        <span><i style="background:var(--bad);border-radius:999px"></i> outside it</span>
+        <span><i class="line"></i> target</span>
+        <span><i class="line" style="border-top-style:solid;border-color:var(--data-b)"></i> mean written</span>
+        <span><i style="background:var(--bg);border:2px dashed var(--muted);border-radius:999px"></i> no count logged</span>
+      </div>
+    </figure>
+
+    <figure>
+      <figcaption>Budgets spent</figcaption>
+      <div class="why">Each ceiling comes from <code>control</code> in config.json. A budget
+        read only in the closing report is a budget nobody could act on.</div>
+      <div class="meters" id="meters"></div>
+    </figure>
+
+    <figure>
+      <figcaption>Structural load, and where the defects fell</figcaption>
+      <div class="why" id="load-why"></div>
+      <div id="load-chart"></div>
+      <div class="legend">
+        <span><i style="background:var(--data-b)"></i> jobs this page carries</span>
+        <span><i style="background:var(--data-a)"></i> retries</span>
+        <span><i style="background:var(--navy)"></i> continuity repairs</span>
+      </div>
+    </figure>
+
+    <figure>
+      <figcaption>Threads, from the page that opens to the page that closes</figcaption>
+      <div class="why" id="threads-why"></div>
+      <div id="threads-chart"></div>
+      <div class="legend">
+        <span><i style="background:var(--data-b)"></i> opened and closed</span>
+        <span><i style="background:var(--bad)"></i> still open at the last page</span>
+        <span><i class="line" style="border-color:var(--line)"></i> retired by a repair</span>
+      </div>
+    </figure>
+
     <table>
-      <thead><tr><th>Pg</th><th>Ch</th><th>Act</th><th>Words</th><th>State</th><th>Summary</th></tr></thead>
+      <thead><tr><th>Pg</th><th>Ch</th><th>Act</th><th>Words</th><th>Carries</th><th>State</th><th>Summary</th></tr></thead>
       <tbody id="pages"></tbody>
     </table>
   </div>
@@ -345,51 +431,296 @@ function renderProgress(data) {
         `${t.pages_total} pages. It was written at a different setting.`
       : "");
 
+  const bias = t.length_bias;
   $("tiles").innerHTML = [
-    ["mean words", t.mean_words, false],
-    ["retries", t.retries, t.retries > 0],
-    ["flagged", t.flagged, t.flagged > 0],
-    ["out of band", t.out_of_band, t.out_of_band > 0],
-    ["repairs", t.repairs, t.repairs > 0],
-    ["open threads", t.open_threads.length, t.open_threads.length > 0],
-  ].map(([k, n, alert]) =>
-    `<div class="tile ${alert ? "alert" : ""}"><div class="n">${n}</div><div class="k">${k}</div></div>`
+    ["mean words", t.mean_words, false, `target ${d.word_band.target}`],
+    ["length bias", bias ? `${bias.toFixed(2)}×` : "–", bias > 1.02 || bias < 0.98,
+     bias ? `${t.over_target} of ${t.counted} over target` : ""],
+    ["retries", t.retries, t.retries > 0, "content rejections"],
+    ["repairs", t.repairs, t.repairs > 0, "at chapter close"],
+    ["flagged", t.flagged, t.flagged > 0, "shipped with a defect"],
+    ["open threads", t.open_threads.length, t.open_threads.length > 0,
+     t.open_threads.join(", ") || "all closed"],
+  ].map(([k, n, alert, sub]) =>
+    `<div class="tile ${alert ? "alert" : ""}"><div class="n">${n}</div>
+       <div class="k">${k}</div><div class="sub">${esc(sub || "")}</div></div>`
   ).join("");
 
-  // Word count per page. Length binds from above, so the scale is zoomed to
-  // the band: a full-height bar is the ceiling, and the band is drawn behind.
-  const counts = data.pages.map((p) => p.words);
-  const top = Math.max(d.word_band.max, ...counts, 1) * 1.02;
-  const floor = Math.min(d.word_band.min, ...counts) * 0.97;
-  const scale = (value) => ((value - floor) / (top - floor)) * 100;
-  $("spark").innerHTML =
-    `<div class="band" style="bottom:${scale(d.word_band.min)}%;
-        height:${scale(d.word_band.max) - scale(d.word_band.min)}%"></div>` +
-    data.pages.map((p) =>
-      `<div class="col ${p.in_band ? "in" : "out"}" style="height:${scale(p.words)}%"
-         title="page ${p.page} · ${p.words} words"></div>`).join("");
-  $("spark-axis").innerHTML = data.pages.length
-    ? `<span>page ${data.pages[0].page}</span>
-       <span>band ${d.word_band.min}–${d.word_band.max} words, target ${
-         Math.round((d.word_band.min + d.word_band.max) / 2)}</span>
-       <span>page ${data.pages[data.pages.length - 1].page}</span>` : "";
-
-  $("threads").innerHTML = t.open_threads.length
-    ? `<div class="notice">Threads still open at the last written page: ${esc(t.open_threads.join(", "))}</div>`
-    : "";
+  renderLength(data);
+  renderMeters(data.budgets);
+  renderLoad(data);
+  renderThreads(data);
 
   $("pages").innerHTML = data.pages.map((p) => `
     <tr>
       <td>${p.page}${p.anchor ? ' <span class="pill accent">anchor</span>' : ""}</td>
       <td>${p.chapter ?? "–"}</td>
       <td>${esc(p.act ?? "–")}</td>
-      <td><span class="pill ${p.in_band ? "" : "bad"}">${p.words}</span></td>
+      <td><span class="pill ${p.in_band ? "" : "bad"}">${p.words}</span>
+          <span class="sub">${p.over_target > 0 ? `+${p.over_target}` : p.over_target}</span></td>
+      <td class="sum">${p.roles.length ? esc(p.roles.join(", ")) : "–"}</td>
       <td>${p.retries ? `<span class="pill warn">${p.retries} retry</span> ` : ""}${
+            p.repairs ? `<span class="pill warn">${p.repairs} repair</span> ` : ""}${
             p.flagged ? '<span class="pill bad">flagged</span>' : ""}${
-            !p.retries && !p.flagged ? '<span class="pill">clean</span>' : ""}</td>
+            !p.retries && !p.repairs && !p.flagged ? '<span class="pill">clean</span>' : ""}</td>
       <td class="sum">${esc(p.summary)}</td>
     </tr>`).join("") ||
-    `<tr><td colspan="6" class="sum">No page records yet in the state log.</td></tr>`;
+    `<tr><td colspan="7" class="sum">No page records yet in the state log.</td></tr>`;
+}
+
+/* ---- charts ----
+   Inline SVG on a 1000-unit grid, scaled by the container. Every chart carries
+   its own hover layer: a chart you cannot interrogate is a picture. */
+const W = 1000;
+
+function tip(html) {
+  const node = $("tip");
+  return {
+    enter: (event) => { node.innerHTML = html; node.style.opacity = "1"; move(event); },
+    leave: () => { node.style.opacity = "0"; },
+  };
+  function move(event) {
+    const box = node.getBoundingClientRect();
+    const x = Math.min(event.clientX + 14, window.innerWidth - box.width - 8);
+    node.style.left = `${x}px`;
+    node.style.top = `${Math.max(8, event.clientY - box.height - 12)}px`;
+  }
+}
+
+function hover(svg) {
+  // Attached after the markup is in the DOM: the hit rectangles carry an index
+  // and the handlers are bound from it.
+  for (const target of svg.querySelectorAll("[data-tip]")) {
+    const handlers = tip(target.dataset.tip);
+    target.addEventListener("mouseenter", handlers.enter);
+    target.addEventListener("mousemove", handlers.enter);
+    target.addEventListener("mouseleave", handlers.leave);
+  }
+}
+
+/** A bar with its data-end rounded and its base square on the axis. */
+function bar(x, y, w, h, r = 4) {
+  const radius = Math.min(r, w / 2, Math.max(h, 0));
+  if (h <= 0.5) return "";
+  return `M${x},${y + h} L${x},${y + radius} Q${x},${y} ${x + radius},${y}
+          L${x + w - radius},${y} Q${x + w},${y} ${x + w},${y + radius}
+          L${x + w},${y + h} Z`;
+}
+
+function mount(id, svg) {
+  $(id).innerHTML = svg;
+  hover($(id).querySelector("svg"));
+}
+
+function renderLength(data) {
+  const pages = data.pages, band = data.derived.word_band, t = data.totals;
+  const counts = pages.filter((p) => p.words > 0).map((p) => p.words);
+  $("length-why").innerHTML = pages.length
+    ? `Written mean ${t.mean_words} against a target of ${band.target}. ` +
+      (t.length_bias > 1
+        ? `Every page is measured against the band, but the finding is the direction: ` +
+          `${t.over_target} of ${t.counted} pages came in above target.`
+        : `The band is symmetric; the failures historically are not.`) +
+      (t.uncounted.length
+        ? ` Page ${t.uncounted.join(", ")} carries no word count in the state record, so it is
+            neither placed on the scale nor averaged into the mean.`
+        : "") +
+      // The band is the one config.json asks for now. A workspace written at
+      // another setting is being judged against a target it never had.
+      (t.beats_planned && t.beats_planned !== t.pages_total
+        ? ` This workspace was written at a different configuration, so the target it is
+            measured against here is not the one it was asked for.`
+        : "")
+    : "No pages written yet.";
+  if (!counts.length) { $("length-chart").innerHTML = ""; return; }
+
+  const H = 230, L = 78, R = 8, T = 12, B = 30;
+  // The scale is built from the band and the counted pages only. A record with
+  // no count would otherwise drag the floor to zero and flatten the whole
+  // chart against its ceiling.
+  const top = Math.max(band.max, ...counts) * 1.04;
+  const floor = Math.min(band.min, ...counts) * 0.94;
+  const y = (v) => T + (1 - (v - floor) / (top - floor)) * (H - T - B);
+  const step = (W - L - R) / pages.length;
+  const w = Math.min(step - 6, 46);
+
+  // A dot, not a bar. The scale is zoomed to the band so that a 30-word
+  // difference is visible at all, and a bar on a baseline that is not zero
+  // encodes a length it does not have.
+  const marks = pages.map((p, i) => {
+    const x = L + i * step + step / 2;
+    if (p.words <= 0) {
+      // Not zero words: no words logged. Drawn hollow on the target line and
+      // labelled, so a gap in the log never reads as a short page.
+      return `<circle cx="${x}" cy="${y(band.target)}" r="5.5" fill="var(--bg)"
+                      stroke="var(--muted)" stroke-width="2" stroke-dasharray="2 2"/>`;
+    }
+    const fill = p.in_band ? "var(--data-a)" : "var(--bad)";
+    return `<line x1="${x}" x2="${x}" y1="${y(band.target)}" y2="${y(p.words)}"
+                  stroke="${fill}" stroke-width="2" opacity=".45"/>
+            <circle cx="${x}" cy="${y(p.words)}" r="5.5" fill="${fill}"
+                    stroke="var(--bg)" stroke-width="2"/>`;
+  }).join("");
+
+  const hits = pages.map((p, i) => {
+    const label = p.words > 0
+      ? `page ${p.page} &middot; <b>${p.words} words</b><br>` +
+        `${p.over_target > 0 ? `+${p.over_target}` : p.over_target} against target ${band.target}` +
+        `${p.in_band ? "" : " &middot; outside the band"}` +
+        `${p.retries ? `<br>${p.retries} retry` : ""}${p.repairs ? ` &middot; ${p.repairs} repair` : ""}`
+      : `page ${p.page} &middot; <b>no word count logged</b><br>` +
+        `the state record carries no length, so this page is outside the measurement`;
+    return `<rect class="hit" x="${L + i * step}" y="${T}" width="${step}" height="${H - T - B}"
+              data-tip="${esc(label)}"/>`;
+  }).join("");
+
+  // Target and mean can land within a few words of each other; nudge the
+  // second label rather than printing one on top of the other.
+  const clash = Math.abs(y(band.target) - y(t.mean_words)) < 13;
+  const gridline = (v, color, dash, label, nudge = 0) => `
+    <line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="${color}"
+          stroke-width="2" stroke-dasharray="${dash}"/>
+    <text x="${L - 8}" y="${y(v) + 4 + nudge}" text-anchor="end" font-size="11"
+          fill="${color}">${label}</text>`;
+
+  mount("length-chart", `
+    <svg viewBox="0 0 ${W} ${H}" role="img"
+         aria-label="Words written per page against the accepted band">
+      <rect x="${L}" y="${y(band.max)}" width="${W - L - R}" height="${y(band.min) - y(band.max)}"
+            fill="var(--surface)"/>
+      <line x1="${L}" x2="${W - R}" y1="${y(floor)}" y2="${y(floor)}" stroke="var(--line)" stroke-width="1"/>
+      ${marks}
+      ${gridline(band.target, "var(--navy)", "5 4", `target ${band.target}`)}
+      ${gridline(t.mean_words, "var(--data-b)", "0", `mean ${t.mean_words}`,
+                 clash ? (t.mean_words > band.target ? -12 : 12) : 0)}
+      <text x="${L}" y="${H - 10}" font-size="11" fill="var(--muted)">page ${pages[0].page}</text>
+      <text x="${(W + L) / 2}" y="${H - 10}" font-size="11" fill="var(--muted)" text-anchor="middle"
+        >band ${band.min}–${band.max} words</text>
+      <text x="${W - R}" y="${H - 10}" font-size="11" fill="var(--muted)" text-anchor="end"
+        >page ${pages[pages.length - 1].page}</text>
+      ${hits}
+    </svg>`);
+}
+
+function renderMeters(budgets) {
+  $("meters").innerHTML = (budgets || []).map((b) => {
+    const pct = b.ceiling ? Math.min(100, Math.round((b.spent / b.ceiling) * 100)) : 0;
+    const full = b.ceiling && b.spent >= b.ceiling;
+    return `<div class="meter ${full ? "full" : ""}">
+      <div class="top"><span>${esc(b.key)}</span>
+        <span><b>${b.spent}</b> of ${b.ceiling} ${esc(b.unit)}</span></div>
+      <div class="track"><span style="width:${pct}%"></span></div>
+      <div class="gov">${esc(b.governs)}${full ? " &middot; spent" : ""}</div>
+    </div>`;
+  }).join("");
+}
+
+function renderLoad(data) {
+  const pages = data.pages;
+  const loaded = pages.filter((p) => p.roles.length > 1);
+  $("load-why").innerHTML = pages.length
+    ? `A page can be asked to turn the story, close a chapter and cross an act boundary at once. ` +
+      (loaded.length
+        ? `Here ${loaded.map((p) => `page ${p.page}`).join(", ")} carries more than one job.`
+        : `No page carries more than one job at this configuration.`)
+    : "No pages written yet.";
+  if (!pages.length) { $("load-chart").innerHTML = ""; return; }
+
+  const H = 170, L = 48, R = 8, T = 12, B = 30;
+  const top = Math.max(2, ...pages.map((p) => Math.max(p.roles.length, p.retries, p.repairs)));
+  const y = (v) => T + (1 - v / top) * (H - T - B);
+  const step = (W - L - R) / pages.length;
+  const w = Math.min((step - 10) / 3, 14);
+
+  const series = [
+    ["roles", "var(--data-b)", (p) => p.roles.length],
+    ["retries", "var(--data-a)", (p) => p.retries],
+    ["repairs", "var(--navy)", (p) => p.repairs],
+  ];
+  const marks = pages.map((p, i) => series.map(([, fill, get], s) => {
+    const x = L + i * step + (step - w * 3 - 4) / 2 + s * (w + 2);
+    return bar(x, y(get(p)), w, y(0) - y(get(p)), 3) ? `<path d="${bar(x, y(get(p)), w, y(0) - y(get(p)), 3)}" fill="${fill}"/>` : "";
+  }).join("")).join("");
+
+  const hits = pages.map((p, i) => {
+    const label = `page ${p.page}<br><b>${p.roles.length ? esc(p.roles.join(" + ")) : "no structural job"}</b>` +
+      `<br>${p.retries} retry &middot; ${p.repairs} repair`;
+    return `<rect class="hit" x="${L + i * step}" y="${T}" width="${step}" height="${H - T - B}"
+              data-tip="${esc(label)}"/>`;
+  }).join("");
+
+  const ticks = Array.from({ length: top + 1 }, (_, v) =>
+    `<text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--muted)">${v}</text>
+     <line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/>`
+  ).join("");
+
+  mount("load-chart", `
+    <svg viewBox="0 0 ${W} ${H}" role="img"
+         aria-label="Structural jobs, retries and repairs per page">
+      ${ticks}${marks}
+      ${pages.map((p, i) => `<text x="${L + i * step + step / 2}" y="${H - 10}" font-size="11"
+          fill="var(--muted)" text-anchor="middle">${p.page}</text>`).join("")}
+      ${hits}
+    </svg>`);
+}
+
+function renderThreads(data) {
+  const lives = data.threads || [], retired = data.retired_threads || [];
+  const last = data.pages.length ? data.pages[data.pages.length - 1].page : 0;
+  const open = lives.filter((l) => l.closed === null);
+  $("threads-why").innerHTML =
+    (lives.length
+      ? `${lives.length} threads, ${open.length ? `${open.length} still open` : "all closed"}. `
+      : "No threads recorded yet. ") +
+    (retired.length
+      ? `${retired.join(", ")} ${retired.length > 1 ? "were" : "was"} minted by a page record that a ` +
+        `continuity repair later replaced: the thread went with the prose, but the identifier ` +
+        `never returns to the pool, so the sequence keeps a hole the log cannot explain.`
+      : "");
+  if (!lives.length && !retired.length) { $("threads-chart").innerHTML = ""; return; }
+
+  const rows = lives.length + retired.length;
+  const rowH = 22, T = 10, B = 26, L = 48, R = 8;
+  const H = T + rows * rowH + B;
+  const first = 1, span = Math.max(last - first, 1);
+  const x = (page) => L + ((page - first) / span) * (W - L - R);
+
+  const bars = lives.map((life, i) => {
+    const y = T + i * rowH + 4;
+    const to = life.closed === null ? last : life.closed;
+    const width = Math.max(x(to) - x(life.opened), 6);
+    const openEnd = life.closed === null;
+    return `
+      <rect x="${x(life.opened)}" y="${y}" width="${width}" height="10" rx="5"
+            fill="${openEnd ? "var(--bad)" : "var(--data-b)"}" opacity="${openEnd ? 1 : .9}"/>
+      <text x="${L - 8}" y="${y + 9}" text-anchor="end" font-size="11"
+            fill="var(--muted)">${esc(life.id)}</text>
+      <rect class="hit" x="${L}" y="${y - 4}" width="${W - L - R}" height="${rowH}"
+            data-tip="${esc(`<b>${life.id}</b><br>opens on page ${life.opened}` +
+              (openEnd ? `<br>still open at page ${last}` : `<br>closes on page ${life.closed}`))}"/>`;
+  }).join("");
+
+  const gone = retired.map((id, i) => {
+    const y = T + (lives.length + i) * rowH + 4;
+    return `
+      <line x1="${L}" x2="${W - R}" y1="${y + 5}" y2="${y + 5}" stroke="var(--line)"
+            stroke-width="2" stroke-dasharray="3 5"/>
+      <text x="${L - 8}" y="${y + 9}" text-anchor="end" font-size="11"
+            fill="var(--muted)">${esc(id)}</text>
+      <text x="${L + 6}" y="${y + 9}" font-size="11" fill="var(--warn)"
+        >retired by a continuity repair — identifier never reused</text>
+      <rect class="hit" x="${L}" y="${y - 4}" width="${W - L - R}" height="${rowH}"
+            data-tip="${esc(`<b>${id}</b><br>minted, then superseded by a repair.` +
+              " Replay prefers the superseding record, so the thread is gone and the number stays spent.")}"/>`;
+  }).join("");
+
+  mount("threads-chart", `
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Thread lifetimes across the pages">
+      ${bars}${gone}
+      <text x="${L}" y="${H - 8}" font-size="11" fill="var(--muted)">page ${first}</text>
+      <text x="${W - R}" y="${H - 8}" font-size="11" fill="var(--muted)" text-anchor="end"
+        >page ${last}</text>
+    </svg>`);
 }
 
 /* ---- novel ---- */
@@ -469,5 +800,6 @@ $("refresh").addEventListener("click", load);
 $("story").addEventListener("change", load);
 load();
 </script>
+<div class="tip" id="tip" role="status" aria-live="polite"></div>
 </body>
 </html>

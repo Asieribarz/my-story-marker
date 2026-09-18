@@ -56,6 +56,65 @@ def read_jsonl(path):
     return records
 
 
+def thread_key(thread):
+    """Sort t1, t2, t10 by their number rather than by their spelling."""
+    digits = re.sub(r"\D", "", str(thread))
+    return (int(digits) if digits else 0, str(thread))
+
+
+def thread_lives(deltas, standing):
+    """Every thread, with the page that opened it and the page that closed it.
+
+    Replay prefers a superseding record (TR-04c), so a thread minted by a
+    record that a later continuity repair replaced vanishes from the register
+    along with the prose that opened it. Minting is monotonic, so the
+    identifier never returns to the pool and the sequence is left with a hole
+    that the log cannot account for on its own. Those are reported as retired
+    rather than silently skipped: a gap nobody explains is indistinguishable
+    from a thread that was genuinely lost.
+    """
+    opened, closed = {}, {}
+    for record in standing:
+        for thread in record.get("threads_opened", []):
+            opened.setdefault(thread, record["page"])
+        for thread in record.get("threads_closed", []):
+            closed.setdefault(thread, record["page"])
+
+    minted = set()
+    for record in deltas:
+        minted.update(record.get("threads_opened", []))
+
+    lives = [
+        {"id": thread, "opened": page, "closed": closed.get(thread)}
+        for thread, page in sorted(opened.items(), key=lambda item: thread_key(item[0]))
+    ]
+    retired = sorted(minted - set(opened), key=thread_key)
+    return lives, retired
+
+
+def structural_roles(page, derived, anchor):
+    """What this page is being asked to do at once.
+
+    Each role is a demand the beat sheet places on one page: turning the story,
+    closing a chapter, opening one, crossing an act boundary. They are computed
+    from the derivation, never stored. Where several land together the page is
+    carrying several jobs, and that is worth seeing next to where the retries
+    fell.
+    """
+    roles = []
+    if anchor:
+        roles.append("anchor")
+    for span in derived["chapter_spans"]:
+        if page == span["last"]:
+            roles.append("chapter close")
+        if page == span["first"] and page != 1:
+            roles.append("chapter open")
+    for span in derived["act_spans"]:
+        if page == span["first"] and page != 1:
+            roles.append("act %s" % span["act"])
+    return roles
+
+
 def progress(config, story_id):
     """Everything the progress pane shows, read from the story's own artefacts."""
     derived = derivation.derive(config, story_id)
@@ -80,25 +139,25 @@ def progress(config, story_id):
 
     band = derived["word_band"]
 
-    open_threads = []
-    for record in deltas:
-        for thread in record.get("threads_opened", []):
-            open_threads.append(thread)
-        for thread in record.get("threads_closed", []):
-            if thread in open_threads:
-                open_threads.remove(thread)
-
     # A chapter-close repair appends a second record for a page it corrects
     # (FR-39, `supersedes`). The later record is the one that stands.
     latest = {}
+    repairs_by_page = {}
     for record in deltas:
+        if record["page"] in latest:
+            repairs_by_page[record["page"]] = repairs_by_page.get(record["page"], 0) + 1
         latest[record["page"]] = record
+
+    standing = sorted(latest.values(), key=lambda r: r["page"])
+    lives, retired_threads = thread_lives(deltas, standing)
+    open_threads = [life["id"] for life in lives if life["closed"] is None]
 
     beat_by_page = {beat["page"]: beat for beat in beats}
     pages = []
-    for record in sorted(latest.values(), key=lambda r: r["page"]):
+    for record in standing:
         beat = beat_by_page.get(record["page"], {})
         count = record.get("words", 0)
+        anchor = beat.get("anchor", record["page"] in derived["anchor_pages"])
         pages.append({
             "page": record["page"],
             "chapter": record.get("chapter"),
@@ -107,29 +166,62 @@ def progress(config, story_id):
             # The beat sheet the pages were written from is authoritative for
             # this story; the derived anchors describe the current config,
             # which may no longer be the one the story was written at.
-            "anchor": beat.get("anchor", record["page"] in derived["anchor_pages"]),
+            "anchor": anchor,
             "words": count,
             "in_band": band["min"] <= count <= band["max"],
+            "over_target": count - band["target"],
             "retries": record.get("retries", 0),
+            "repairs": repairs_by_page.get(record["page"], 0),
+            "roles": structural_roles(record["page"], derived, anchor),
             "flagged": bool(record.get("flagged")),
             "summary": record.get("summary", ""),
         })
+
+    control = config["control"]
+    # A state record with no word count is not a page of zero words: it is a
+    # page whose length was never logged. Averaging it in would report a mean
+    # the run never wrote, so it is counted separately and named.
+    counted = [p for p in pages if p["words"] > 0]
+    mean = round(sum(p["words"] for p in counted) / len(counted)) if counted else 0
+    repairs = len(deltas) - len(pages)
 
     return {
         "story_id": story_id,
         "derived": derived,
         "pages": pages,
+        "threads": lives,
+        "retired_threads": retired_threads,
+        # Each budget is a ceiling from config.json against what this run spent.
+        # A budget read only at the end is a budget nobody can act on.
+        "budgets": [
+            {"key": "retries", "spent": sum(p["retries"] for p in pages),
+             "ceiling": control["max_retries_per_page"] * max(len(pages), 1),
+             "unit": "attempts", "governs": "control.max_retries_per_page, per page"},
+            {"key": "repairs", "spent": repairs,
+             "ceiling": control["max_continuity_repairs"],
+             "unit": "repairs", "governs": "control.max_continuity_repairs, per run"},
+            {"key": "flagged", "spent": sum(1 for p in pages if p["flagged"]),
+             "ceiling": round(control["max_flagged_ratio"] * max(len(pages), 1), 2),
+             "unit": "pages", "governs": "control.max_flagged_ratio of pages written"},
+        ],
         "totals": {
             "pages_total": config["organization"]["pages_total"],
             "pages_written": len(pages) or written,
             "page_files": written,
-            "repairs": len(deltas) - len(pages),
+            "repairs": repairs,
             "beats_planned": len(beats),
             "digests": len(digests),
             "retries": sum(page["retries"] for page in pages),
             "flagged": sum(1 for page in pages if page["flagged"]),
             "out_of_band": sum(1 for page in pages if not page["in_band"]),
-            "mean_words": round(sum(p["words"] for p in pages) / len(pages)) if pages else 0,
+            "mean_words": mean,
+            # What the run wrote against what it was asked for. Both measured
+            # runs came in above target, and every length retry was a page over
+            # the ceiling, so the direction of this number is the finding.
+            "length_bias": round(mean / band["target"], 3) if counted and band["target"] else None,
+            "over_target": sum(1 for p in counted if p["over_target"] > 0),
+            "counted": len(counted),
+            "uncounted": [p["page"] for p in pages if p["words"] <= 0],
             "open_threads": open_threads,
             "manuscript": os.path.exists(os.path.join(root, paths["manuscript"])),
             "report": os.path.exists(os.path.join(root, paths["report"])),

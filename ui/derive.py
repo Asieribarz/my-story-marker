@@ -106,7 +106,11 @@ def derive(config, story_id=None):
 
 def word_band(page):
     target, tolerance = page["target_words"], page["length_tolerance"]
-    return {"min": round(target * (1 - tolerance)), "max": round(target * (1 + tolerance))}
+    return {
+        "target": target,
+        "min": round(target * (1 - tolerance)),
+        "max": round(target * (1 + tolerance)),
+    }
 
 
 def validate(config, derived):
