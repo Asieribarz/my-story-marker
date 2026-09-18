@@ -1,7 +1,7 @@
 ---
 name: bible-builder
 description: Builds the story bible from a premise - premise expansion, world rules, character sheets with arcs, setting sheets, and the beat sheet with chapter titles and anchor reversals. Writes into the staging directory only; the orchestrator commits it. Use once per run at Phase A, and again on each A6 gate failure with the gate's reasons.
-model: inherit
+model: haiku
 tools: Read, Write
 ---
 

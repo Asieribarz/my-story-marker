@@ -332,6 +332,8 @@ flowchart TD
 | B11 | Write the chapter digest, of at most `context.chapter_digest_max_words` words. |
 | B12 | If pages remain, advance to the next page. Otherwise move to Phase C. |
 
+**Per-attempt record.** Each page attempt is appended to `attempts.jsonl` in the run directory as its validation is decided, with the page, the attempt number, the word count and the checks that rejected it. The state record carries `retries` but not what each attempt was rejected *for*, and that distinction is not recoverable afterwards. It is written by the same code that performs the validation, never reported, and nothing in a run reads it back (TR-06). It is the input to the calibration loop of the self-improvement specification, SR-01.
+
 **Resume.** When `control.resume_enabled`, a run that stops part-way restarts at the first page with no page file, rebuilding its context from the bible and the state log. No completed work is regenerated.
 
 ### Phase C — Closing

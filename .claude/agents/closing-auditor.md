@@ -1,7 +1,7 @@
 ---
 name: closing-auditor
 description: Writes the closing report at Phase C from audit results the orchestrator computed - open threads, incomplete arcs, chapter imbalance, flagged pages, superseded config values, continuity repairs. Judges narrative severity; never recomputes the numbers. Use once per run, after the manuscript is assembled.
-model: inherit
+model: haiku
 tools: Read
 ---
 

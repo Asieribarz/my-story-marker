@@ -1,7 +1,7 @@
 ---
 name: consistency-checker
 description: The gate between a written page and the state log. Answers the seven consistency checks K1 to K7 against the finished page - appearance, voice, arc, world rules, objective, hook, off-stage mention - each with its evidence. Never rewrites. Use on every page attempt, always as an invocation separate from the one that wrote the page.
-model: inherit
+model: haiku
 tools: Read
 ---
 

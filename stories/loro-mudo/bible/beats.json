@@ -1,0 +1,90 @@
+[
+  {
+    "page": 1,
+    "chapter": 1,
+    "chapter_title": "The Silent Gift",
+    "act": "setup",
+    "anchor": false,
+    "objective": "Sofía receives urgent warnings from El Loro about her neighbor Tomás and decides to confront him about his suspicious behavior toward her.",
+    "hook": "The parrot's intensity frightens Sofía more than usual—its agitation is unprecedented, suggesting danger far beyond what she has known.",
+    "characters": ["sophia", "loro", "tomas"],
+    "settings": ["apartment", "park"]
+  },
+  {
+    "page": 2,
+    "chapter": 1,
+    "chapter_title": "The Silent Gift",
+    "act": "setup",
+    "anchor": false,
+    "objective": "Julia discovers Sofía missing and finds El Loro distressed; she realizes her sister has vanished and the parrot is their only link to what happened.",
+    "hook": "El Loro repeats Sofía's name obsessively, refuses to eat, and the cage door is mysteriously unlocked—signs pointing to something catastrophic.",
+    "characters": ["julia", "loro"],
+    "settings": ["apartment", "park"]
+  },
+  {
+    "page": 3,
+    "chapter": 1,
+    "chapter_title": "The Silent Gift",
+    "act": "development",
+    "anchor": true,
+    "objective": "Detective Ramírez investigates the disappearance but dismisses Julia's story about the parrot's warnings; he notices details that intrigue him despite his skepticism.",
+    "hook": "Ramírez observes bruising on Julia's arm, notices inconsistencies in the neighborhood timeline, and grows suspicious—something about this case breaks the usual pattern and demands attention.",
+    "characters": ["julia", "ramirez", "loro"],
+    "settings": ["station", "apartment"]
+  },
+  {
+    "page": 4,
+    "chapter": 1,
+    "chapter_title": "The Silent Gift",
+    "act": "development",
+    "anchor": false,
+    "objective": "Julia brings El Loro to behavioral scientist Dr. Chen, who discovers the parrot's vocalizations contain structured patterns unlike normal bird speech and records clear instances of language.",
+    "hook": "Dr. Chen's equipment captures audio of the parrot producing complex, intentional sounds—the parrot becomes evidence, not merely a pet.",
+    "characters": ["julia", "loro", "chen"],
+    "settings": ["apartment", "lab"]
+  },
+  {
+    "page": 5,
+    "chapter": 2,
+    "chapter_title": "The Witness Speaks",
+    "act": "development",
+    "anchor": true,
+    "objective": "Ramírez and Dr. Chen set up surveillance to capture El Loro's communications while investigating Tomás, who begins destroying evidence and acting nervously.",
+    "hook": "Surveillance video shows Tomás leaving his house at night with bags, attempting to flee; Ramírez's suspicion crystallizes into certainty.",
+    "characters": ["ramirez", "chen", "loro"],
+    "settings": ["lab", "tomas_house"]
+  },
+  {
+    "page": 6,
+    "chapter": 2,
+    "chapter_title": "The Witness Speaks",
+    "act": "development",
+    "anchor": false,
+    "objective": "Under interrogation, Tomás's story crumbles when confronted with contradictions about his whereabouts on the night Sofía vanished.",
+    "hook": "El Loro's voice suddenly echoes through the police station via recording—a sound Tomás recognizes—and his composure shatters as he realizes he has been caught.",
+    "characters": ["ramirez", "tomas"],
+    "settings": ["station"]
+  },
+  {
+    "page": 7,
+    "chapter": 2,
+    "chapter_title": "The Witness Speaks",
+    "act": "development",
+    "anchor": true,
+    "objective": "El Loro's recorded phrase matches a confession Tomás made weeks ago, captured incidentally on audio; the parrot's evidence becomes incontrovertible proof.",
+    "hook": "Tomás breaks down and reveals where Sofía was taken; time is running out to reach her alive.",
+    "characters": ["ramirez", "tomas", "chen"],
+    "settings": ["station", "lab"]
+  },
+  {
+    "page": 8,
+    "chapter": 2,
+    "chapter_title": "The Witness Speaks",
+    "act": "resolution",
+    "anchor": false,
+    "objective": "Using Tomás's confession as a guide, the team finds Sofía; El Loro reunites with its owner, restoring voice to the voiceless and truth to the world.",
+    "hook": "Sofía recovers; she can hear El Loro again, and its story is finally believed by everyone—the bond that saved her is now celebrated rather than hidden.",
+    "characters": ["sophia", "loro", "julia"],
+    "settings": ["apartment"]
+  }
+]

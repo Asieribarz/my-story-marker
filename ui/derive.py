@@ -155,6 +155,21 @@ def validate(config, derived):
     if bible["max_settings"] < context["max_settings_per_page"]:
         problems.append("2.3.6 bible.max_settings must be at least context.max_settings_per_page.")
 
+    learning = config.get("learning")
+    if learning is not None:
+        # Self-improvement specification 3, checked on the same path and before
+        # the first model call (FR-21).
+        if not 0 < learning["max_first_attempt_length_failure_rate"] < 1:
+            problems.append(
+                "SI-3 learning.max_first_attempt_length_failure_rate must lie in (0, 1)."
+            )
+        for key in ("max_calibration_runs", "min_pages_per_observation",
+                    "max_length_block_words"):
+            if not isinstance(learning[key], int) or learning[key] < 1:
+                problems.append("SI-3 learning.%s must be an integer of at least 1." % key)
+        if not str(learning.get("epoch_label", "")).strip():
+            problems.append("SI-3 learning.epoch_label must be a non-empty string.")
+
     for key, value in config["paths"].items():
         if key == "stories_root":
             continue

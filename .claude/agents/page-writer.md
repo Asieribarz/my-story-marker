@@ -53,9 +53,9 @@ file; anything else you emit corrupts the file layout.
    The beat sheet is authoritative and you have no licence to reinterpret it (TR-07). If the
    objective cannot be reached from the context you were given, write the page as close to it as the
    context allows and say so after the prose — do not invent the missing material.
-2. **Write to the target length, not past it.** The band is symmetric but the failures are not: of
-   the seven retries in the measured run, six were length failures and every one was over the
-   ceiling. Aim at the target and stop.
+2. <!-- calibrated:length v1 -->
+   **Write to the target length, not past it.** Aim at the target and stop.
+   <!-- /calibrated -->
 3. **An anchor page turns the story.** If this page is flagged as an anchor, the situation after it
    cannot return to what it was before. An ordinary page advances; this one changes direction.
 4. **Write in `story.language`,** in the tone and for the audience you were given.

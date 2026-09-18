@@ -308,13 +308,16 @@ assemble(N):
     recent  ← summaries of the last context.verbatim_summary_window pages,
               kept even where their chapter is digested          # FR-41
     bridge  ← final paragraph of pages/(N-1).md   if context.include_bridge_paragraph
+    length  ← derived.word_band                                 # target and band, no instruction
     return render(voice, rules, chars, sets, beat.objective, beat.hook,
-                  beat.anchor, digests, recent, bridge)
+                  beat.anchor, digests, recent, bridge, length)
 ```
 
 **TR-10b.** `voice` is not decoration. `story.tone` and `story.audience` reach Phase A through the bible call, but without this line they never reach the twenty calls that write the actual prose, and the run produces a correctly structured story in the wrong register (FR-31). `story.language` travels with them for the same reason (FR-30).
 
 **TR-10c.** The two sheet ceilings shall be enforced separately. A single shared budget makes the cast size of every scene a function of how many settings the beat declares: at a budget of three, any page with a setting is a two-hander. The first run was written entirely in two-handers for exactly this reason, and nothing in either specification predicted it.
+
+**TR-10d.** The `Length` section shall carry `derived.word_band` — the target and the accepted band — and **no instruction**. What the writer is to do with those numbers is rule 2 of `page-writer.md` and is written there only. Until this version the section carried both, so the rule existed in two places that could disagree, and the one in the payload was invisible to any review of the agent definition. It is also what makes the calibration of the self-improvement specification measurable: a rewritten rule cannot be measured while an un-rewritten copy of it arrives in every call (self-improvement §8.1, SI-01).
 
 **TR-11.** Character states in the context shall come from the **last** record in `deltas.jsonl` that mentions each character, not from the sheet, whose `state` is the Phase A value. The sheet holds what is immutable; the log holds what has happened.
 
@@ -517,7 +520,7 @@ Everything that has to be **created in order to build the system**, as distinct 
 | Kind | Count | Status |
 |---|---|---|
 | Configuration files | 1 | Exists |
-| Agent definitions | 5 | **Exist** — `.claude/agents/`, see 12.2 |
+| Agent definitions | 6 | **Exist** — `.claude/agents/`, see 12.2 |
 | Prompt templates | 0 | Folded into the agent definitions, see 12.4 |
 | Orchestrator modules | 16 | To build |
 | Test modules | 8 | To build |
@@ -538,6 +541,7 @@ and a call is issued by delegating to one (TR-20). The wiring is in §5; this ta
 | 3 | `consistency-checker` | `.claude/agents/consistency-checker.md` | Read | nothing | FR-11 to FR-14, TR-09 |
 | 4 | `continuity-auditor` | `.claude/agents/continuity-auditor.md` | Read | nothing | FR-39 |
 | 5 | `closing-auditor` | `.claude/agents/closing-auditor.md` | Read | nothing | FR-19 |
+| 6 | `length-calibrator` | `.claude/agents/length-calibrator.md` | Read | nothing | self-improvement L6 |
 
 Temperature is absent from this table because a declared definition cannot carry it (TR-10, TI-14).
 `page-writer` and `consistency-checker` hold a Read tool they are forbidden to use beyond the paths
@@ -611,8 +615,9 @@ The build is not complete without these, because three requirements are only mea
 
 Listed so that an implementer does not invent them:
 
-- **No skills and no plugins.** The system is an orchestrator and five agent definitions. An agent definition is not a plugin: it is the prompt of one call type, in the form the runtime reads it, and it replaces a template that code would otherwise render.
+- **No skills and no plugins.** The system is an orchestrator and six agent definitions. An agent definition is not a plugin: it is the prompt of one call type, in the form the runtime reads it, and it replaces a template that code would otherwise render.
 - **No agent that owns state.** No agent writes the bible, a page, the state log, a digest, the manuscript or the report. Only `bible-builder` writes at all, into staging, and the orchestrator commits (TR-22, TR-24).
+- **No agent that owns the calibration loop.** `length-calibrator` returns a candidate wording and writes nothing; the measurement, the decision and the file replacement are code (self-improvement SR-09, SR-12). The loop runs between runs and adds no step to one.
 - **No agent-to-agent delegation.** Every invocation is issued by the orchestrator. An agent that could invoke another would own part of the loop, and the loop is the thing this design keeps in code.
 - **No database.** State is files (functional specification §4).
 - **No external services** beyond the model endpoint.

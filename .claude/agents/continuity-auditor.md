@@ -1,7 +1,7 @@
 ---
 name: continuity-auditor
 description: Audits a closing chapter against the fact ledger and the digests of earlier chapters, finding contradictions that per-page validation cannot see because it never sees two pages at once. Names the page at fault. Use at every chapter close, before the digest is written, and again after each repair.
-model: inherit
+model: haiku
 tools: Read
 ---
 

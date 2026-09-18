@@ -3,9 +3,9 @@
 
 | | |
 |---|---|
-| **Version** | 1.0 |
+| **Version** | 2.0 |
 | **Date** | 18 September 2026 |
-| **Governs** | One quantity: the target word count stated in the assembled context of a page call |
+| **Governs** | One quantity: the wording of the length instruction in `page-writer.md` |
 | **Depends on** | Functional specification v2.4, technical specification v2.4, `config.json` |
 | **Status** | Draft for review |
 
@@ -14,9 +14,10 @@
 ## 1. Scope
 
 This document specifies a loop that runs **between** runs. Each run writes what it measured about its
-own page lengths; the next run reads those measurements and states a different target in the context
-it assembles. The loop is bounded, it stops on a measured criterion, and it stops unconditionally
-after a fixed number of attempts whether or not that criterion is ever met.
+own page lengths; when that measurement is worse than the criterion, the length instruction handed to
+the writing call is rewritten and the next run is written under the new wording. The loop is bounded,
+it stops on a measured criterion, and it stops unconditionally after a fixed number of runs whether or
+not that criterion is ever met.
 
 It is a third document rather than a section of the other two because it describes a different unit of
 work. The functional and technical specifications describe **one run**, from a premise to a manuscript.
@@ -25,14 +26,33 @@ precisely so that nothing does. This loop is the first mechanism that carries an
 to the next, and putting it inside a document whose every requirement is scoped to a single run would
 hide the one property most in need of review.
 
+**One run is one iteration.** A story is written from beginning to end under one wording, measured, and
+only then may the wording change. Nothing is rewritten part-way through a run: the pages of one story
+are not comparable to each other — page one is written with no digest, no summaries and no bridge,
+page ten with all three — so a wording judged on the first half of a story and a wording judged on the
+second half would differ by position as much as by phrasing, and the loop could not tell which.
+
 ### 1.1 What is calibrated
 
-One thing: **the target stated in the `Length` section of the assembled context**, on the first attempt
-at each page. Not the band, not the beat sheet, not an agent definition, not any other parameter.
+One thing: **the wording of rule 2 of `.claude/agents/page-writer.md`**, the instruction that tells the
+writing call what to do with the word count it is given. Not the target, not the band, not the beat
+sheet, not any other rule of that file, not any other agent definition.
 
-The choice is not arbitrary. Of every value handed to the writing call, this is the one with measured
-evidence against it across three workspaces, the one whose failures all fall in the same direction,
-and the one that can be corrected from the system's own output without a human deciding anything.
+The block is delimited in the file, and the delimiters are what bound the loop:
+
+```markdown
+2. <!-- calibrated:length v1 -->
+   **Write to the target length, not past it.** Aim at the target and stop.
+   <!-- /calibrated -->
+```
+
+The choice of this quantity is not arbitrary. Of everything handed to the writing call, length is the
+one failure with measured evidence across workspaces, the one whose failures fall in a single
+direction, and the one whose correction can be judged from the system's own output.
+
+**The number is not calibrated, and never was in this version.** `page.target_words` and
+`page.length_tolerance` remain the operator's, unchanged by any run. What changes is the sentence that
+tells the writer what to do with them.
 
 ### 1.2 What this document does not contain
 
@@ -44,11 +64,28 @@ constrained by every one of them.
 
 ### 1.3 The boundary this loop must not cross
 
-Calibration changes a **number in a payload**. It does not change a prompt. The instruction that tells
-the writer what to do with that number lives in `page-writer.md`, and that file is where the writing
-call's behaviour is defined; a loop able to edit it would be a system rewriting its own instructions
-with no reviewer in between. Under FR-47 the number arrives as a value and the agent file carries
-none, which is what makes this separation available at all.
+A loop that edits an agent definition is a system rewriting its own instructions. Version 1.0 refused
+that outright and calibrated a number instead. This version permits it, and therefore has to say what
+stands in the place of the reviewer that the refusal provided. Five things do, and they are the whole
+of the argument:
+
+1. **The surface is delimited and tiny.** The loop may replace the text between the markers of 1.1 and
+   nothing else in the file. Every other rule, the input contract, the output contract and the
+   frontmatter are outside its reach — including the rules the guards of 2.3 depend on, so the loop
+   cannot lower the bar it is being measured against.
+2. **Every candidate is validated in code before it is written** (5.4), and an invalid candidate stops
+   the loop rather than being applied.
+3. **The wording that is in force is committed to version control.** A run written under a wording
+   that exists only on disk is not reproducible from a commit, which is a worse defect than the one
+   this loop is trying to remove.
+4. **Every wording tried, and what it measured, is written down** (4.4) and is readable by a person
+   without running anything.
+5. **The loop is bounded by `learning.max_calibration_runs` runs** and stops whether or not it
+   converges (5.5).
+
+**The number still never appears in the file.** Under FR-47 the target and the band arrive in the
+invocation payload as values, and rule 5.4 refuses a candidate that carries a digit. This is what
+keeps FR-20 true of a prompt the loop is allowed to edit: the rule is in the file, the number never is.
 
 ---
 
@@ -75,35 +112,38 @@ right length on its second attempt proves only that the writer can read a compla
 is the only one that measures the instruction as written, and the only one whose cost the loop can
 remove: every retry is a page call that did not need to happen.
 
-### 2.2 The control signal
+**What counts as a length failure.** A first attempt whose word count falls outside the band derived
+from `page.target_words` and `page.length_tolerance`, whether the validation recorded the rejection or
+the count simply fell outside. Both are the same event, and reading it from the count as well as from
+the rejection makes the metric computable from a run whose validation was not fully logged.
 
-The rate is the **stopping criterion**. It is not what the correction is computed from. The correction
-is computed from the **bias**:
+### 2.2 The rate is the trigger, and the bias is a diagnostic
 
-```
-bias = mean words written over pages that carry a word count
-       ----------------------------------------------------
-       page.target_words
-```
+The rate is what the loop acts on: above the ceiling, the wording is rewritten; at or below it, the
+loop stops.
 
-**Why two quantities and not one.** The rate saturates. Once the tolerance band is wide enough to
-absorb the overshoot, the rate is zero while the distribution still sits hard against the ceiling, and
-a controller reading a saturated signal has nothing to act on. This is not hypothetical: at the
-current configuration all three existing workspaces show a first-attempt length rate of zero, with a
-bias between 1.03 and 1.09, not one page of ten below target in the most recent run, and one page
-landing exactly on the ceiling with no margin. The rate says converged; the distribution says the band
-is doing the work the target is supposed to do, and that any future tightening of the tolerance will
-bring the retries straight back.
+The **bias** — mean words written over pages that carry a count, divided by `page.target_words` — is
+recorded in every observation and in every report, and triggers nothing. It is there because the rate
+saturates: once the band is wide enough to absorb the overshoot, the rate is zero while the
+distribution still sits hard against one edge, and a reader looking only at the rate cannot see that a
+future tightening of the tolerance would bring the retries straight back. The bias is how a person
+sees that coming. It is not a control signal in this version, and the loop never computes a correction
+from it.
 
-A loop watching only the rate would therefore be correct and useless. A loop watching only the bias
-would chase a number nobody is paying for. It needs both, and they do different jobs.
+### 2.3 The guards
 
-### 2.3 What is deliberately not measured here
+Two quantities are measured, reported, and **never optimised**: the share of pages whose first attempt
+was rejected by a consistency check (K1 to K7), and the number of continuity repairs the run performed.
 
-Consistency rejections (K1 to K7) and continuity repairs are not part of this metric. They are
-judgements about content, they are not caused by the length instruction, and folding them into one
-number would produce a controller that moves the word count in response to a character speaking out of
-voice.
+They exist because a wording can damage what a number could not. A rule that said to hit the word
+count and let nothing else matter would drive the rate to zero and wreck the prose, and an optimiser
+told to minimise the rate would find it. The guards are how a reader sees that happen. A wording whose
+rate improved while a guard worsened has not improved anything, and 5.5 requires that outcome to be
+reported rather than read as success.
+
+They are not folded into the metric: they are judgements about content, they are not caused by the
+length instruction, and one number combining them would produce a loop that rewrote the length rule
+because a character spoke out of voice.
 
 ---
 
@@ -115,17 +155,18 @@ document names them by path and states no literal (FR-20).
 | Path | Governs |
 |---|---|
 | `learning.enabled` | Whether calibration runs at all |
-| `learning.max_first_attempt_length_failure_rate` | The stopping criterion of 2.1 |
-| `learning.max_calibration_runs` | The iteration cap, per epoch (4.3) |
+| `learning.max_first_attempt_length_failure_rate` | The ceiling of 2.1, and the stopping criterion |
+| `learning.max_calibration_runs` | The iteration cap, per epoch (4.5) |
 | `learning.min_pages_per_observation` | The shortest run that may contribute an observation |
-| `learning.correction_damping` | How much of the measured bias one iteration corrects (5.2) |
-| `learning.bias_tolerance` | How close to 1 the bias must be for the loop to consider itself done |
+| `learning.max_length_block_words` | The ceiling on the size of the calibrated block (5.4) |
+| `learning.epoch_label` | The operator's name for the current campaign (4.5) |
+| `paths.loops_dir` | Where the reports of 4.4 are rendered |
 
 **Invariants.** The configuration is invalid, and the run does not start, unless
-`learning.max_first_attempt_length_failure_rate` and `learning.bias_tolerance` lie in `(0, 1)`,
-`learning.correction_damping` lies in `(0, 1]`, and `learning.max_calibration_runs` and
-`learning.min_pages_per_observation` are each at least 1. These extend the list in functional
-specification §2.3 and are checked on the same path, before the first model call (FR-21).
+`learning.max_first_attempt_length_failure_rate` lies in `(0, 1)`, `learning.max_calibration_runs`,
+`learning.min_pages_per_observation` and `learning.max_length_block_words` are each at least 1, and
+`learning.epoch_label` is a non-empty string. These extend the list in functional specification §2.3
+and are checked on the same path, before the first model call (FR-21).
 
 ---
 
@@ -146,92 +187,142 @@ One record per run, written at `paths.calibration` inside that run's own workspa
 
 | Field | Meaning |
 |---|---|
-| `epoch` | `page.target_words` and `page.length_tolerance` as this run read them |
-| `asked` | the target the `Length` section actually carried, which is the calibrated value and not necessarily the configured one |
+| `epoch` | the target, the tolerance, the epoch label, and the variant and digest of the wording in force |
+| `asked` | the target the `Length` section carried |
 | `band` | the accepted band the FR-10 check used |
 | `pages` | pages written, each counted once |
 | `first_attempt_length_failures` | the numerator of 2.1 |
-| `mean_words` | the mean over pages that carry a word count |
-| `bias` | as defined in 2.2 |
+| `length_failure_pages` | which pages they were, so a reader can go and look |
+| `rate` | as defined in 2.1 |
+| `mean_words`, `bias` | the diagnostic of 2.2 |
+| `first_attempt_consistency_rejections`, `continuity_repairs` | the guards of 2.3 |
+| `instruction` | the wording that produced this run, in full |
 
 A state record with no word count is not a page of zero words: it is a page whose length was never
 logged. It is excluded from `mean_words` and named in the observation, never averaged in.
 
-### 4.2 The ledger is a projection, not a file
+### 4.2 The per-attempt record
+
+The metric of 2.1 requires what the state record of functional §4.2 does not carry: **what each
+attempt was rejected for**. From `retries: 2` it is impossible to tell whether the first attempt was
+too long, contradicted a world rule, or gave a character the wrong arithmetic.
+
+One record per page attempt is therefore appended while the run is orchestrated, at
+`<run directory>/attempts.jsonl`:
+
+```json
+{"page": 7, "attempt": 1, "words": 412, "rejected_by": ["length"]}
+```
+
+`rejected_by` is empty when the attempt was accepted, and otherwise names the mechanical check
+(`length`, `roster`, `structure`) or the consistency checks (`K1` to `K7`) that rejected it. It is
+appended by the same code that performs the validation, never typed from memory: what the loop
+measures must be what the validation decided.
+
+The run directory is write-only as state (TR-06). These records are read by the loop, which runs
+between runs and not during one, so nothing in a run ever reads them back.
+
+### 4.3 The ledger is a projection, not a file
 
 The **calibration ledger** is obtained by reading the observation of every workspace under
-`paths.stories_root` and keeping those whose `epoch` matches the current configuration. Nothing writes
+`paths.stories_root` and keeping those whose epoch matches the current configuration. Nothing writes
 it.
 
 This mirrors the thread register of functional §4.2, which is likewise a replay projection rather than
 a stored file, and for the same reason: a ledger held as a shared file would be a value two runs could
-disagree about, and it would be the first thing in this design to live outside a story workspace. A
-run writes one observation, inside its own workspace, and touches no other (FR-45). Reading across
-workspaces is permitted; writing across them is not, and that asymmetry is the whole of what keeps
+disagree about. A run writes one observation, inside its own workspace, and touches no other (FR-45).
+Reading across workspaces is permitted; writing across them is not, and that asymmetry is what keeps
 this loop compatible with story isolation.
 
-### 4.3 The epoch, and why the cap needs one
+### 4.4 The loop reports
 
-The iteration cap counts observations **in the current epoch only**. When an operator edits
-`page.target_words` or `page.length_tolerance`, every earlier observation describes a system that no
-longer exists: the ledger for the new epoch is empty and the cap is full again.
+`paths.loops_dir` holds one Markdown file per wording tried, and a summary across all of them. It sits
+beside `paths.stories_root` at the repository root and is the only path in the file besides that one
+which is not resolved against a story workspace.
 
-Without an epoch the cap would be spent once and for all, and the loop could never be re-armed by the
-very change that most needs measuring — which, per 2.2, is a tightening of the tolerance.
+That is deliberate and it is bounded: what is written there is a **rendering**, rebuilt from the
+observations held in the workspaces, never a source of truth. Deleting the folder and rebuilding it
+must reproduce it exactly. The relationship is the one the manuscript has to `pages/`: derived,
+rebuilt, never edited in place (FR-29).
+
+Each variant's file carries the wording that was in force, every run written under it with its pages,
+failures, rate and bias, the verdict against the ceiling, and the guards. The summary carries every
+variant in order with its mean rate, so that the whole campaign is one table.
+
+### 4.5 The epoch, and why the cap needs one
+
+The iteration cap counts observations **in the current epoch only**. The epoch is the target, the
+tolerance, the wording in force, and `learning.epoch_label`.
+
+When an operator edits `page.target_words` or `page.length_tolerance`, every earlier observation
+describes a system that no longer exists. When the loop rewrites the instruction, the same is true and
+more strongly: the ledger for the new wording is empty by construction, which is what makes each
+variant's measurement its own.
+
+`learning.epoch_label` is what lets an operator declare a fresh campaign without deleting a
+measurement. Observations of an earlier campaign stay on disk, stay readable, and fall out of the
+ledger by name rather than by deletion — reported as excluded, with the reason (SR-10). Without it,
+re-arming the loop after it converged would mean destroying the evidence that it converged.
 
 ---
 
 ## 5. The loop
 
-### 5.1 Where it touches the run
+### 5.1 One iteration
 
-Two steps, both in code, both additions to the flow of functional §5. Neither is a delegation and
-neither has an agent: reading a ledger, taking a ratio and clamping it are arithmetic, and a
-correction produced by a model judgement could not be replayed — while its output goes into every page
-call of the run that follows.
-
-| Step | Phase | Action |
+| Step | Performed by | Action |
 |---|---|---|
-| **A0b** | after A0 | Read the calibration ledger, compute the asked target, report it (5.4) |
-| **C6** | after C5 | Write this run's calibration observation |
+| **L0** | code | Read the wording in force and the ledger for the current epoch. If the loop is stopped by 5.5, say which condition and do nothing further |
+| **L1** | orchestrator | Write one complete story from the next premise, in its own workspace, under the wording in force. The orchestration is unchanged: the phases, the agents and the per-page loop are exactly those of functional §5 |
+| **L2** | code | Append one record per page attempt as validation decides it (4.2) |
+| **L3** | code | Compute the observation and write it into that workspace (4.1) |
+| **L4** | code | Render the reports (4.4) |
+| **L5** | code | Compare the rate against `learning.max_first_attempt_length_failure_rate`. At or below: stop, converged. Above: continue |
+| **L6** | `length-calibrator` | One delegation: given the wording in force, the measurement, and every wording already tried, return a candidate wording and nothing else |
+| **L7** | code | Validate the candidate (5.4). Valid: replace the block, bump the variant, and go to L1 with the next premise. Invalid: stop and report |
 
-C6 sits after the closing report so that the report describes the run, not the loop.
+**L1 is the only step that is not arithmetic, and L6 is the only judgement the loop itself makes.**
+Everything else is counting, comparison and file writing, and is executed rather than asserted — which
+is the same division the rest of the system is built on (technical §2). A loop whose own numbers were
+reported by a model would be evidence about nothing.
 
-### 5.2 The correction
+### 5.2 The criterion
 
-```
-if the loop is stopped (5.3):
-    asked = page.target_words
-else:
-    bias  = mean of the bias over the observations in the current epoch
-    asked = page.target_words / bias ** learning.correction_damping
-    asked = clamp(asked, into the band derived from page.target_words
-                         and page.length_tolerance)
-```
+The loop is trying to reach a run whose rate is at or below
+`learning.max_first_attempt_length_failure_rate`. That is the whole of the objective. The bias, the
+guards and the mean word count are reported at every step and decide nothing.
 
-Three properties are required, and each removes a failure this arithmetic would otherwise have:
+### 5.3 What the loop may never change
 
-- **Damped.** A full correction on a sample of one run overshoots, and the next run corrects back the
-  other way. `learning.correction_damping` is what makes the sequence converge rather than oscillate.
-- **Clamped.** The asked target never leaves the accepted band. An unclamped correction can formally
-  ask for a page that the FR-10 check would reject on arrival, which is a controller asking for a
-  failure.
-- **Averaged over the epoch, not over the last run.** One run is one sample of a noisy quantity.
+The wording between the markers, and nothing else. Not the band, not `config.json`, not the beat
+sheet, not a character sheet, not any other rule of `page-writer.md`, not any other agent definition,
+not the payload, and not the orchestration. A change to the set of things this loop may touch is a
+change to this document, reviewed under §9.
 
-**The band never moves.** It is derived from the operator's configuration and it is the requirement;
-only the number the writer is asked to aim at changes. Moving both would lower the bar and measure
-nothing.
+### 5.4 Validation of a candidate
 
-### 5.3 Termination
+Checked in code, with no model call, before the candidate is written. Any failure stops the loop; a
+candidate is never partially applied.
 
-The loop is stopped, and the asked target equals `page.target_words` from then on, when any of these
-holds:
+| # | Check | The failure it prevents |
+|---|---|---|
+| C-1 | The candidate is not empty | A deleted instruction is the trivial way to stop failing a check about an instruction |
+| C-2 | The candidate contains no digit | A configuration literal in an agent definition (FR-20, V-13). A number in a prompt reads as helpful, which is why this is the easiest rule here to break |
+| C-3 | The candidate contains no template placeholder | An agent definition is not rendered; values arrive by payload (FR-47) |
+| C-4 | The candidate still refers to length | A rule that no longer mentions length is not a length rule |
+| C-5 | The candidate is within `learning.max_length_block_words` | The writer's definition heads every page payload as a cacheable prefix (TR-13); an unbounded block raises the cost of every call in every run |
+| C-6 | The candidate carries no markers of its own | A nested block cannot be replaced again |
+| C-7 | The candidate differs from the wording in force | A loop that re-applies the wording it just measured is not iterating |
+
+### 5.5 Termination
+
+The loop stops, and the wording in force stays as it is, when any of these holds:
 
 1. `learning.enabled` is false;
 2. the ledger for the current epoch holds `learning.max_calibration_runs` observations;
 3. the most recent observation shows a rate at or below
-   `learning.max_first_attempt_length_failure_rate` **and** a bias within `learning.bias_tolerance`
-   of 1.
+   `learning.max_first_attempt_length_failure_rate`;
+4. the candidate returned at L6 fails any check of 5.4.
 
 Condition 2 is the fixed bound. It is checked before condition 3, it does not depend on the
 measurement converging, and it is the reason this loop cannot run forever. Reaching it without
@@ -239,49 +330,47 @@ satisfying condition 3 is a legitimate outcome, not an error — and it must be 
 silent, in the manner of a superseded configuration value (FR-37). A loop that quietly gave up would
 leave the operator believing a calibration was still in progress.
 
-### 5.4 What is reported
+A stop under condition 3 whose guards worsened against the first run of the campaign is reported as a
+**qualified** convergence, naming which guard moved and by how much. The loop still stops; what it
+must not do is call that outcome a clean success.
 
-Where the asked target differs from `page.target_words`, the difference, the bias it came from and the
-position of the run in the calibration sequence are reported at start-up and in the closing report.
+### 5.6 What is reported
+
+At every step, and in the reports of 4.4: the wording in force, the rate against the ceiling, the
+bias, the guards, the position in the campaign, and the condition of 5.5 that currently holds.
 
 This is not decoration. A run under calibration is **not reproducible from `config.json` alone**: two
-runs at one configuration can be asked for different targets, because the second read the first's
-observation. That is an acceptable cost of a loop that learns, but only if every run says what it was
-asked for. `learning.enabled` set to false is what makes a clean measurement run possible, and the
-existing workspaces must be understood as uncalibrated by construction rather than by declaration.
-
-### 5.5 What the loop may never change
-
-The asked target, and nothing else. Not the band, not `config.json`, not the beat sheet, not a
-character sheet, not an agent definition, and not the wording of any instruction. A change to the set
-of things this loop may touch is a change to this document, reviewed under §9.
+runs at one configuration can be written under different wordings, because the second ran after the
+first was measured. That is an acceptable cost of a loop that learns, but only if every run records
+which wording produced it — which is what the `epoch` of the observation is for, and why the wording
+itself is copied into the observation in full.
 
 ---
 
 ## 6. The metric command
 
-A command that answers, from the artefacts on disk and with no model call: **what is the rate, and
-where is it going.**
+A command that answers, from the artefacts on disk and with no model call: **what is the rate, which
+wording produced it, and where is the campaign.**
 
 ```
-story-metric length [--story <id>] [--json]
+python -m calibration.cli status
+python -m calibration.cli record  <story> --run <dir> --page N --attempt N --words N --rejected ...
+python -m calibration.cli measure <story> --attempts <file>
+python -m calibration.cli report
+python -m calibration.cli apply   --instruction <file>
 ```
 
 | Output | Source |
 |---|---|
-| Per workspace: pages, first-attempt length failures, rate, asked, mean words, bias | that workspace's calibration observation (4.1) |
-| Across the current epoch: the rate and bias of each observation in order, and the mean bias | the ledger projection (4.2) |
-| The loop's position: observations made, the cap, and which condition of 5.3 currently holds | the ledger and `config.json` |
+| The wording in force, its variant and digest, and the band | `page-writer.md` and `config.json` |
+| Per workspace: pages, first-attempt length failures, rate, mean words, bias, guards | that workspace's observation (4.1) |
+| Across the campaign: every variant in order with its runs and mean rate | the ledger projection (4.3) |
+| The position in the campaign and which condition of 5.5 holds | the ledger and `config.json` |
 | Any workspace excluded from the ledger, named, with the reason | comparison of `epoch` against `config.json` |
 
-`--json` emits the same content as data, so the metric can be tracked over time by something other
-than a reader.
-
-The command recomputes nothing the run already measured; it reads observations and reports them. Where
-a workspace predates this specification and has no observation, the command reports what that
-workspace **can** still support — pages, mean words and bias, all recoverable from the state log — and
-states that the rate is unavailable for it. That degraded mode is required rather than optional: at
-the time of writing it is the only mode any existing workspace can satisfy, for the reason in §8.
+The command recomputes nothing a model decided; it reads records and reports them. Where a workspace
+predates this specification and has no observation, the command reports what that workspace **can**
+still support and states that the rate is unavailable for it.
 
 ---
 
@@ -289,47 +378,50 @@ the time of writing it is the only mode any existing workspace can satisfy, for 
 
 | ID | Requirement |
 |---|---|
-| SR-01 | The system shall record, per page attempt, whether that attempt was rejected and by which check, so that the metric of 2.1 is computable from the state log. |
+| SR-01 | The system shall record, per page attempt, whether that attempt was rejected and by which check, at `<run directory>/attempts.jsonl`, so that the metric of 2.1 is computable from artefacts on disk. |
 | SR-02 | On closing a run that wrote at least `learning.min_pages_per_observation` pages, the system shall write the calibration observation of 4.1 to `paths.calibration`. A shorter run shall be reported but shall contribute no observation. |
 | SR-03 | The calibration ledger shall be obtained by reading the observation of each workspace under `paths.stories_root` and retaining those whose epoch matches the current configuration. It shall not be stored. |
-| SR-04 | The target stated in the `Length` section of the assembled context shall be the value computed in 5.2, and shall lie inside the band derived from `page.target_words` and `page.length_tolerance`. |
+| SR-04 | The calibrated block shall be delimited in `page-writer.md`, and the loop shall replace the text between the delimiters and no other byte of that file or of any other agent definition. |
 | SR-05 | No run shall write `config.json`, and no learned value shall be stored in it. |
-| SR-06 | Calibration shall stop under any condition of 5.3, and condition 2 shall be evaluated before condition 3. |
-| SR-07 | Reaching `learning.max_calibration_runs` without satisfying the measured criterion shall be reported as an unconverged termination, with the observations made, and the system shall continue to write stories at `page.target_words`. |
-| SR-08 | Where the asked target differs from `page.target_words`, the difference, the bias and the position in the calibration sequence shall be reported at start-up and in the closing report. |
-| SR-09 | Calibration shall change no value other than the asked target, and shall not modify any agent definition. |
+| SR-06 | Calibration shall stop under any condition of 5.5, and condition 2 shall be evaluated before condition 3. |
+| SR-07 | Reaching `learning.max_calibration_runs` without satisfying the measured criterion shall be reported as an unconverged termination, with every wording tried and its rate, and the system shall continue to write stories under the wording in force. |
+| SR-08 | Every observation shall record the wording that produced it, in full, and the variant and digest of that wording. |
+| SR-09 | A candidate wording shall be validated by the checks of 5.4 in code before it is written, and a candidate that fails any of them shall stop the loop rather than be applied. |
 | SR-10 | The command of §6 shall report the metric without invoking a model, and shall name any workspace it excluded from the ledger and why. |
-| SR-11 | A page whose state record carries no word count shall be excluded from `mean_words` and named, and shall never be averaged in as a page of zero words. |
-| SR-12 | Calibration steps A0b and C6 shall be executed in code by the orchestrator, with no delegation. |
+| SR-11 | A page whose record carries no word count shall be excluded from `mean_words` and named, and shall never be averaged in as a page of zero words. |
+| SR-12 | Steps L0 and L2 to L5 and L7 shall be executed in code with no delegation; only L1 and L6 are delegated. |
+| SR-13 | The reports of 4.4 shall be a rendering of the observations, rebuildable from them exactly, and shall never be read as state. |
+| SR-14 | The wording in force shall be committed to version control before the run that uses it is begun. |
+| SR-15 | The guards of 2.3 shall be recorded in every observation and reported in every report, and shall never enter the metric of 2.1. A convergence whose guards worsened shall be reported as qualified (5.5). |
+| SR-16 | One run shall be written under exactly one wording. No wording shall change part-way through a run. |
+| SR-17 | Each iteration shall be written into its own story workspace, from its own premise. |
 
 ---
 
-## 8. Dependency: the metric is not recordable today
+## 8. Dependencies
 
-**SR-01 is a prerequisite, not a refinement, and it is the one thing that blocks building the rest.**
+### 8.1 The payload must not restate the rule
 
-The state record defined in functional §4.2 carries a `retries` count. It does not carry what each
-attempt was rejected *for*. From `retries: 2` it is impossible to tell whether the first attempt was
-too long, contradicted a world rule, or gave a character the wrong arithmetic — and the metric of 2.1
-needs exactly that distinction.
+The `Length` section of the assembled context has carried both the numbers and an exhortation —
+the target, the band, and a sentence repeating what rule 2 already says. While it does, the loop is
+measuring a rewritten rule with an un-rewritten copy of the old one arriving in every call.
 
-This is not a theoretical gap. In the most recent run both of one page's retries were consistency
-failures, K4 and K3, and none was a length failure; that fact survives only because a human wrote it
-into the closing report in prose. Replayed from the state log alone, that page is indistinguishable
-from a page that overran the band twice.
+**The `Length` section shall carry the target and the band and no instruction.** The number arrives by
+payload, the rule lives in the agent definition, and neither restates the other. This is a change to
+technical §6, which does not yet describe the section at all, and it is recorded there as SI-01.
 
-Two consequences follow, and both are deliberate:
+### 8.2 `assemble(N)` does not describe the section it renders
 
-- the loop cannot be built before the state record carries per-attempt rejection reasons, which is a
-  change to functional §4.2 and to FR-15, made under the procedure of functional §11.4 and not here;
-- the command of §6 must therefore ship with its degraded mode, because until that change lands there
-  is no workspace whose rate it can compute.
+The pseudocode of technical §6 renders voice, rules, sheets, objective, hook, anchor, digests,
+summaries and bridge. It does not render the length instruction, although `page-writer.md` declares
+that it receives one and every run to date has supplied one. The value this loop is written around
+reaches the writer through a path the technical specification does not describe.
 
-**A second, smaller gap.** The `assemble(N)` pseudocode of technical §6 renders voice, rules, sheets,
-objective, hook, anchor, digests, summaries and bridge. It does not render the length instruction —
-although `page-writer.md` declares that it receives one, and every run to date has supplied one. The
-value this document calibrates therefore reaches the writer through a path the technical specification
-does not describe. That is a defect in technical §6 and is recorded as SI-01.
+### 8.3 The per-attempt record is a change to the run
+
+SR-01 is the one requirement here that the orchestration must implement rather than the loop. The run
+otherwise proceeds exactly as functional §5 describes; what is added is that each validation outcome
+is appended as it is decided. No phase, no agent and no gate changes.
 
 ---
 
@@ -339,7 +431,8 @@ does not describe. That is a defect in technical §6 and is recorded as SI-01.
 
 | Version | Date | Changes | Status |
 |---|---|---|---|
-| 1.0 | 2026-09-18 | Initial version. Scope limited to the target stated in the length instruction. Metric and control signal defined, and separated. Learned state introduced as a fourth kind, held per workspace and projected into a ledger. Epoch, damped and clamped correction, and three termination conditions with a fixed cap. Metric command specified, with a degraded mode. SR-01 to SR-12, SI-01 to SI-04. | Draft for review |
+| 1.0 | 2026-09-18 | Initial version. Scope limited to the target stated in the length instruction. Metric and control signal defined and separated. Learned state introduced as a fourth kind. Epoch, damped and clamped correction, three termination conditions. SR-01 to SR-12, SI-01 to SI-04. | Superseded |
+| 2.0 | 2026-09-18 | The calibrated quantity changes from the target to the **wording of rule 2**. The scalar correction of 1.0 §5.2 is withdrawn with `learning.correction_damping` and `learning.bias_tolerance`; the bias becomes a reported diagnostic (2.2). The reviewer that 1.0 §1.3 relied on is replaced by five bounded controls (1.3). Guards added (2.3). Per-attempt record specified, closing the 1.0 blocker (4.2). Loop reports and `paths.loops_dir` added (4.4). Epoch gains `learning.epoch_label` (4.5). Candidate validation C-1 to C-7 (5.4). SR-01 to SR-17. | Draft for review |
 
 ### 9.2 Review roles
 
@@ -357,16 +450,17 @@ does not describe. That is a defect in technical §6 and is recorded as SI-01.
 | SV-01 | Every `learning.*` path referenced here exists in `config.json`, and no `learning` value is unreferenced | |
 | SV-02 | No literal value appears in this document where a configuration path belongs | |
 | SV-03 | The loop terminates within `learning.max_calibration_runs` observations of one epoch whether or not it converges | |
-| SV-04 | No requirement here permits a write outside the current story workspace | |
-| SV-05 | No requirement here permits a run to write `config.json` or to modify an agent definition | |
+| SV-04 | No requirement here permits a write outside the current story workspace, except the rendering of 4.4 | |
+| SV-05 | No requirement here permits a run to write `config.json`, or the loop to modify any part of an agent definition outside the delimiters | |
 | SV-06 | Every requirement of §7 is verifiable from artefacts on disk, without a model call | |
 | SV-07 | Nothing here restates a rule that already exists in the other two specifications | |
-| SV-08 | The metric of 2.1 is computable from the state record as functional §4.2 defines it | |
+| SV-08 | The metric of 2.1 is computable from the per-attempt record of 4.2 | |
+| SV-09 | The reports of 4.4 are reproducible from the observations alone | |
 
 ### 9.4 Change procedure
 
-As functional §11.4. A change here that alters what the loop may touch (5.5), the termination
-conditions (5.3) or the metric (2.1) additionally requires review of §8, because those are the three
+As functional §11.4. A change here that alters what the loop may touch (5.3), the termination
+conditions (5.5) or the metric (2.1) additionally requires review of §8, because those are the three
 places where this document depends on the other two.
 
 A change to `learning` in `config.json` requires re-validation of the invariants in §3.
@@ -375,7 +469,9 @@ A change to `learning` in `config.json` requires re-validation of the invariants
 
 | ID | Issue | Impact | Status |
 |---|---|---|---|
-| SI-01 | `assemble(N)` in technical §6 does not render the length instruction, although the writing agent declares it receives one | The value this document calibrates reaches the writer by a path the technical specification does not describe, so the loop's output has no specified destination | **Open — blocking**, and it is a defect in technical §6 rather than here |
-| SI-02 | The stopping criterion is already satisfied at the current configuration | All three existing workspaces show a first-attempt length rate of zero, so the loop terminates on entry and learns nothing, while the bias sits between 1.03 and 1.09. As specified, this is a guard that re-arms when the target or the tolerance changes rather than a mechanism that improves the present configuration. Whether the bias condition alone should be able to start it is unresolved | Open |
-| SI-03 | A run under calibration is not reproducible from `config.json` alone | Two runs at one configuration can be asked for different targets. SR-08 makes it visible and `learning.enabled` makes it defeasible, but the measurement runs that are this project's only evidence must now be declared uncalibrated rather than being so by construction | Open |
+| SI-01 | The `Length` section of the assembled context restates rule 2 | The loop measures a rewritten rule while an un-rewritten copy arrives in every call. Required by 8.1, and a defect in technical §6 rather than here | **Open — blocking** |
+| SI-02 | The criterion was already met at the wording the campaign starts from | Both pilot runs showed a rate of zero, so the loop terminates on entry and learns nothing. `learning.epoch_label` makes a fresh campaign declarable, but whether a rate of zero at a bias away from one should be treated as converged is unresolved, and 2.2 deliberately leaves the bias unable to answer it | Open |
+| SI-03 | A run under calibration is not reproducible from `config.json` alone | Two runs at one configuration can be written under different wordings. SR-08 and SR-14 make it visible and recoverable; it remains true | Open |
 | SI-04 | Assignment of the roles in 9.2 | Blocks approval of this document | Open |
+| SI-05 | The search over wordings has no convergence argument | A scalar correction was contractive; a text is not. The loop is a bounded search with a ratchet on nothing, so a later variant may be worse than an earlier one. The reports of 4.4 make that visible to a person, and `learning.max_calibration_runs` bounds the cost, but the loop cannot itself prefer the best wording it found | **Open — introduced by version 2.0** |
+| SI-06 | A wording is judged on one run of `organization.pages_total` pages | At the shipped configuration that is a small sample of a noisy quantity, and one unlucky story can retire a good wording. Raising the sample multiplies the cost of the campaign by whole novels | Open |
