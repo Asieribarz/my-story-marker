@@ -1,0 +1,68 @@
+[
+  {
+    "page": 1,
+    "chapter": 1,
+    "chapter_title": "The Passenger",
+    "act": "setup",
+    "anchor": false,
+    "objective": "Kael accepts a lucrative commission from Merchant Paine to ferry a mysterious passenger across the Strait, and receives hidden instructions to prevent the passenger from reaching the far shore.",
+    "hook": "Kael leaves Paine's office with the money and the terrible knowledge of what he has agreed to do.",
+    "characters": ["c1", "c2", "c3"],
+    "settings": ["s1", "s2"]
+  },
+  {
+    "page": 2,
+    "chapter": 1,
+    "chapter_title": "The Passenger",
+    "act": "development",
+    "anchor": true,
+    "objective": "As the ferry enters the Strait, Vex's hidden wound becomes visible—a mortal injury that can only be treated at the far shore sanctuary. Vex is bleeding and will not survive a return to the dock; any course back to the near shore now means Vex dies. The ferry's commitment to forward movement becomes medical necessity, and Kael's commission to prevent arrival becomes an act of murder.",
+    "hook": "Vex's mortality has made itself visible. The ferry cannot turn back now without condemning Vex to death—forward is no longer a choice but a requirement.",
+    "characters": ["c1", "c2", "c4"],
+    "settings": ["s3", "s4"]
+  },
+  {
+    "page": 3,
+    "chapter": 1,
+    "chapter_title": "The Passenger",
+    "act": "development",
+    "anchor": true,
+    "objective": "Vex persuades Kael that their only survival is forward—returning to the near shore means death at Paine's hands; only completing the crossing leads to life.",
+    "hook": "Kael makes a conscious choice: he will deliver Vex safely to the far shore, accepting the cost to himself.",
+    "characters": ["c1", "c2"],
+    "settings": ["s3", "s4"]
+  },
+  {
+    "page": 4,
+    "chapter": 2,
+    "chapter_title": "The Cost",
+    "act": "development",
+    "anchor": false,
+    "objective": "The crossing becomes treacherous; Kael drives the Glass Ferry through dangerous currents while Vex and Orin work together, discovering unexpected trust as they fight the water's force.",
+    "hook": "The boat holds true; they near the far shore, but the shared danger has woven something between them that distance will not unravel.",
+    "characters": ["c1", "c2", "c4"],
+    "settings": ["s3", "s4"]
+  },
+  {
+    "page": 5,
+    "chapter": 2,
+    "chapter_title": "The Cost",
+    "act": "development",
+    "anchor": true,
+    "objective": "The Glass Ferry is failing—the Strait has breached its hull during the passage, and Kael must choose: attempt to reach the far shore knowing the boat will sink, or turn back while he can still safely pilot the ferry. Kael chooses forward and accepts the ferry's certain loss.",
+    "hook": "Kael points the battered boat toward the far shore. The ferry is already dying; he will bring it home one last time.",
+    "characters": ["c1", "c2", "c4"],
+    "settings": ["s3", "s4"]
+  },
+  {
+    "page": 6,
+    "chapter": 2,
+    "chapter_title": "The Cost",
+    "act": "resolution",
+    "anchor": false,
+    "objective": "The Glass Ferry reaches the far shore as it fills with water; Vex escapes into the mist and Kael watches the boat settle into the shallows, knowing he has kept Vex alive at the price of the ferry itself.",
+    "hook": "Kael watches Vex disappear, then watches the water close over the Glass Ferry's cabin—the boat that carried him across the Strait for thirty years has made its final passage.",
+    "characters": ["c1", "c2", "c4"],
+    "settings": ["s3", "s5"]
+  }
+]

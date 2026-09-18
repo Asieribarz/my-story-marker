@@ -2,3 +2,4 @@ runs/
 .run_id
 __pycache__/
 *.pyc
+.tmp/

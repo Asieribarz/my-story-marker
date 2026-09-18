@@ -1,0 +1,25 @@
+{
+  "epoch": {
+    "epoch_label": "campaign-02",
+    "target_words": 380,
+    "length_tolerance": 0.2,
+    "prompt_variant": "v1",
+    "prompt_digest": "973171158780"
+  },
+  "instruction": "**Write to the target length, not past it.** Aim at the target and stop.",
+  "asked": 380,
+  "band": {
+    "min": 304,
+    "max": 456
+  },
+  "pages": 6,
+  "first_attempt_length_failures": 0,
+  "length_failure_pages": [],
+  "rate": 0.0,
+  "mean_words": 402.0,
+  "bias": 1.0578947368421052,
+  "pages_without_word_count": [],
+  "first_attempt_consistency_rejections": 0,
+  "consistency_rate": 0.0,
+  "continuity_repairs": 1
+}

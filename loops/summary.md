@@ -6,6 +6,6 @@ Ceiling: **20.0%**. Stop condition now: **running**.
 
 | Variant | Flows | Mean rate | Mean bias | Instruction |
 |---|---|---|---|---|
-| [`v1`](v1.md) | 2 | 0.0% | 0.953 | **Write to the target length, not past it.** Aim at the target and stop. |
+| [`v1`](v1.md) | 3 | 0.0% | 0.988 | **Write to the target length, not past it.** Aim at the target and stop. |
 
 Each file is a rendering of the calibration observations held in the workspaces under `paths.stories_root`; nothing here is a source of truth, and `python -m calibration.cli report` rebuilds all of it.
