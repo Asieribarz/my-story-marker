@@ -3,9 +3,9 @@
 
 | | |
 |---|---|
-| **Version** | 2.3 |
-| **Date** | 16 September 2026 |
-| **Implements** | Functional specification v2.3 |
+| **Version** | 2.4 |
+| **Date** | 18 September 2026 |
+| **Implements** | Functional specification v2.4 |
 | **Configuration** | `config.json` |
 | **Status** | Draft for review |
 
@@ -23,6 +23,35 @@ Version 1.x specified a single-prompt harness in which the transcript was the me
 
 Moving state to disk retires all three. The cost is an orchestrator that can itself be wrong, and page-to-page continuity that must now be engineered rather than assumed.
 
+### 1.4 Change from version 2.3
+
+Version 2.3 and earlier described the five call types as prompt templates rendered by an
+orchestrator module and posted to a model endpoint. Version 2.4 changes only *how a call is issued*:
+each call type is now a **declared agent definition** under `.claude/agents/`, and the orchestrator
+issues a call by delegating to it. Section 12.2 already permitted this — "whether they are realised
+as plain API calls or as declared agent definitions is an implementation choice" — and this version
+takes that choice and records its consequences.
+
+Nothing about the architecture of the run changes. State is still files, the loop and the counters
+still belong to the orchestrator, the mechanical checks are still code, and Page and Consistency are
+still two separate calls. What changes is that the boundary between the orchestrator and each model
+call is now a real process boundary rather than a function call, which has three effects worth the
+version:
+
+- The prompt for each call type lives in exactly one place, the agent file, and section 5 stops
+  restating it. The five `prompts/*.md` templates of 12.4 are folded into the five agent definitions.
+- A delegated call cannot reach state the orchestrator did not hand it, so the context ceilings of
+  FR-08 become a property of the payload rather than an instruction the writing call is trusted to
+  respect.
+- Each delegation is separately observable. A run is now a tree — one span per invocation, labelled
+  with its call type and its page — instead of a flat sequence of calls, which is what makes the
+  per-page cost and the retry pattern readable after the fact rather than reconstructable from the
+  run directory.
+
+The cost is that two things the templates expressed directly cannot be expressed in an agent
+definition: per-call-type temperature (TR-10) and an empty tool allowlist. Both are recorded as
+TI-14 and TI-15.
+
 ### 1.3 Change from version 2.2
 
 Every path in version 2.2 was a fixed single-story path, so the repository held one novel and a second one destroyed it. Version 2.3 gives each story a workspace and resolves every path inside it. Section 9 records the failure mode in full, because it was silent rather than noisy and that is what made it dangerous.
@@ -39,17 +68,39 @@ Version 2.1 was validated by a complete run, recorded in `report.md`. It produce
 config.json          ← single source of control and organization values
     │
     ▼
-orchestrator ──► model call (Phase A: bible)      ──► bible/*
-             ──► model call (Phase B: page N) ×P  ──► pages/NN.md
-             ──► deterministic validation (code)   ──► state/deltas.jsonl
-             ──► model call (Phase C: report)      ──► report.md
+orchestrator ──► delegate to bible-builder        ──► staging/* ──► bible/*
+             ──► assemble(N) in code                             ──► runs/ctx-NN.md
+             ──► delegate to page-writer       ×P                 ──► pages/NN.md
+             ──► mechanical validation in code                    ──► retry or flag
+             ──► delegate to consistency-checker ×P               ──► retry or flag
+             ──► append state record in code                      ──► state/deltas.jsonl
+             ──► delegate to continuity-auditor  ×chapters        ──► repair or digest
+             ──► thread, arc and balance replay in code           ──► audit results
+             ──► delegate to closing-auditor                       ──► report.md
 ```
 
-The orchestrator owns the loop, the counters, retry, the stop condition and every file write. The model owns prose and narrative judgement, and nothing else.
+The orchestrator owns the loop, the counters, retry, the stop condition, every arithmetic decision
+and every file write outside the staging directory. An agent owns prose and narrative judgement, and
+nothing else.
 
-**TR-01.** The orchestrator shall read every control and organization value from `config.json` at start-up. No such value shall appear as a literal in code or in a prompt template; prompts receive them by interpolation (FR-20).
+**Two kinds of work, and the boundary between them is the design.** What is arithmetic is executed:
+configuration validation and derivation, the A6 gate arithmetic, length and roster checks,
+`assemble(N)`, thread and arc replay, chapter balance, the flag ratio, manuscript assembly. What is
+judgement is delegated: the bible, the prose, the seven consistency checks, the continuity audit, the
+report. A requirement that is *asserted* by an agent rather than *executed* by the orchestrator
+carries no evidence, and the value of the measured run is that its numbers were executed.
+
+**TR-01.** The orchestrator shall read every control and organization value from `config.json` at start-up. No such value shall appear as a literal in code or in an agent definition; agents receive them in the invocation payload (FR-20).
 
 **TR-02.** The configuration in force shall be copied into the run directory at start-up, so that a completed run carries the parameters that produced it.
+
+**TR-20.** Each of the five call types of §5 shall be issued as a delegation to its declared agent definition under `.claude/agents/`, one invocation per call, and an agent definition shall be the only place its call type's prompt is written (FR-46). No two call types shall share an invocation.
+
+**TR-21.** An invocation payload shall carry every configuration and derived value the agent needs, as a value. An agent shall not read `config.json`, shall not resolve a configuration path, and shall not be given a parameter name in place of a parameter value (FR-47). An agent definition may name a configuration path in order to say *which* value governs a rule; the value itself arrives at invocation. This is what keeps FR-20 true of a static prompt file: the rule is in the file, the number never is.
+
+**TR-22.** An agent shall write only inside the directory the payload names, and only where its definition grants a write tool. Of the five, only `bible-builder` writes, and only into `paths.staging_dir` (TR-24). Every other file in the workspace is written by the orchestrator, so nothing an agent emits can corrupt the file layout or escape the workspace (FR-45, I-9).
+
+**TR-23.** Every invocation shall be labelled with its call type and its subject — the page number, the chapter number, or the run — and a retry shall be labelled as such with its attempt number. The label is what makes a run legible as a tree of invocations afterwards; an unlabelled delegation is recoverable only from the run directory, and only by hand.
 
 ---
 
@@ -136,6 +187,7 @@ stories/                        paths.stories_root
     runs/2026-09-16T10-00/
       config.json               the configuration that produced this invocation
       ctx-07.md                 assembled context, diagnostic only
+    runs/staging/               paths.staging_dir — the staged bible, until A7
     story.md                    the manuscript, rebuilt from pages/
     report.md
   the-salt-road/
@@ -192,14 +244,40 @@ arc: {from: fearful, to: resolute}
 
 ## 5. Per-call contracts
 
-Four call types, each with its own system prompt. They are enumerated as agents in section 12.2.
+Five call types, each realised as a declared agent definition under `.claude/agents/`, and **that
+file is where the call's behaviour is defined**: what it judges, what it refuses, how it decides, what
+it may not touch. This section does not restate any of it. What stays here is the wiring — which
+agents exist, what each is handed, and the shape of what it returns — because the flow of functional
+specification §5, the file layout of §4 and the budget of §7 are all written against those shapes.
 
-| Call | Input | Output | Frequency |
-|---|---|---|---|
-| Bible | Premise, `story`, `organization`, `bible` bounds | Rules, characters, settings, beat sheet | Once |
-| Page | Assembled context (section 6) | Prose of one page | `pages_total`, plus retries |
-| Consistency | The finished page, its sheets, rules and objective | Structured verdict | Once per page attempt |
-| Audit | Beat sheet, state log, arcs | Report content | Once |
+To change how a call behaves, change the agent file. To change what it is handed or what it returns,
+change both.
+
+| # | Call | Agent | Input | Returns | Frequency | Definition |
+|---|---|---|---|---|---|---|
+| 1 | Bible | `bible-builder` | Premise, story id, `story`, `bible` bounds, `organization.pages_total`, the derived shape, the staging directory | A manifest; the bible itself is staged on disk | Once, plus one per A6 gate failure | [`bible-builder.md`](../.claude/agents/bible-builder.md) |
+| 2 | Page | `page-writer` | The assembled context of §6, and on a retry the rejection reasons | Prose of one page, nothing else | `pages_total`, plus retries and repairs | [`page-writer.md`](../.claude/agents/page-writer.md) |
+| 3 | Consistency | `consistency-checker` | The finished page, its sheets with current states, the rules, its objective and hook, the bible roster | The `checks` array of §8.1, with evidence per check | Once per page attempt | [`consistency-checker.md`](../.claude/agents/consistency-checker.md) |
+| 4 | Continuity | `continuity-auditor` | The closing chapter's pages, the fact ledger, prior digests, the rules, open threads | Contradictions, each naming one page at fault | Once per chapter close, plus one per repair | [`continuity-auditor.md`](../.claude/agents/continuity-auditor.md) |
+| 5 | Audit | `closing-auditor` | The audit results the orchestrator computed, and the superseded configuration values | The content of the closing report | Once | [`closing-auditor.md`](../.claude/agents/closing-auditor.md) |
+
+**Two model calls are not agents and have no file.** Neither carries narrative authority, and both are
+single-shot extractions owned by the orchestrator:
+
+- the **state record fields** that cannot be computed from the prose — the page summary line, the
+  updated current state of each character that appeared, threads opened and closed, and the facts the
+  page asserts (FR-15, FR-35, FR-38);
+- the **chapter digest** written at chapter close, within `context.chapter_digest_max_words` (FR-23).
+
+They are named here because until this version they were implicit in `state.py` and `digest.py`,
+which made them invisible in the call count of §7.2 (TI-16).
+
+**TR-24.** The bible shall be staged under `paths.staging_dir` and committed to the locations in
+`paths` by the orchestrator, in one operation, only after the A6 gate passes (FR-34). The staging
+directory is the one place in the workspace an agent may write and the orchestrator may read back; a
+run that stops before the commit discards it and repeats Phase A in full. Staging is what makes
+atomicity a mechanism rather than a promise: a delegated call that returned the whole bible as a
+message would have to be trusted to return it intact, and a bible is fifteen files.
 
 **TR-07.** The page call shall receive the page objective and hook as data, never as an invitation to reinterpret them. The beat sheet is authoritative; the page call has no licence to change it. Deviations go through FR-18, which is an orchestrator-mediated rewrite of the remaining entries.
 
@@ -207,7 +285,9 @@ Four call types, each with its own system prompt. They are enumerated as agents 
 
 **TR-09.** The consistency check shall be issued as a separate call taking the finished page as input, never appended to the call that wrote it. A model asked to grade its own output in the same turn approves it. This is the mechanism that retires the principal risk of v1.x, and it is the reason OI-05 must close before approval.
 
-**TR-10.** Temperature shall differ by call type: `model.temperature` for the page call, and 0 for the audit and consistency calls, which are judgements rather than compositions.
+**TR-09b.** Under TR-20 that separation is structural: `page-writer` and `consistency-checker` are two agent definitions and two invocations, and there is no arrangement of the payload that merges them. In the measured run the check ran as a separate pass but within the same session, so the form was satisfied and the substance was not — an outcome `report.md` records and this version removes. The two agents run on the same model by design; what differs is position, not capability.
+
+**TR-10.** Temperature shall differ by call type: `model.temperature` for the page call, and 0 for the audit and consistency calls, which are judgements rather than compositions. A declared agent definition has no temperature field, so under TR-20 this requirement has no mechanism and is unimplemented; it is recorded as TI-14 and is the one thing the delegated form gives up.
 
 ---
 
@@ -269,7 +349,12 @@ Version 2.1 budgeted ≈ 60 tokens per digest and put the worst case at ≈ 1 70
 
 ### 7.2 Per run
 
-At the default configuration: ≈ 40 000 input and ≈ 11 000 output tokens across the 47 calls of §12.2. Total tokens are comparable to v1.x; **peak tokens per call fall from ≈ 25 000 to ≈ 2 500**, and that is what removes the feasibility ceiling. No single model parameter can now make the design impossible. Input scales with `organization.pages_total` × the per-call figure above, so a configuration change is a cost change: doubling the page count doubles the bill.
+The call count is a formula over the configuration, not a number: `1` bible call, plus
+`organization.pages_total` page calls, plus one consistency call per page attempt, plus one
+extraction call and one digest call per page and per chapter respectively (§5), plus
+`organization.chapters` continuity calls, plus `1` audit call — before retries, A6 gate failures and
+continuity repairs, each of which adds calls rather than tokens. At the shape the measured run was
+written to this came to 47 model calls and ≈ 40 000 input and ≈ 11 000 output tokens. Total tokens are comparable to v1.x; **peak tokens per call fall from ≈ 25 000 to ≈ 2 500**, and that is what removes the feasibility ceiling. No single model parameter can now make the design impossible. Input scales with `organization.pages_total` × the per-call figure above, so a configuration change is a cost change: doubling the page count doubles the bill.
 
 **TR-13.** The system prompt and world rules are identical across every page call and shall be placed at the head of the payload so that a cacheable prefix is available. At ~920 tokens across ~20 calls this is the single largest saving available.
 
@@ -299,15 +384,19 @@ All mechanical checks run in code after each page call (FR-25).
 
 Agent 3 carries FR-12 to FR-14 and is the only check that rests on judgement, so its output is constrained to a fixed shape. The checks are enumerated, ordered and answered individually; there is no overall opinion field, because an overall opinion is what a model gives itself when it is not forced to look at particulars.
 
-| # | Check | Question put to the agent |
+| # | Check | Carries |
 |---|---|---|
-| K1 | Appearance | Does the page contradict any appearance or costume in the loaded sheets? |
-| K2 | Voice | Does any character speak against the traits in their sheet? |
-| K3 | Arc | Does the page place a character beyond or behind their declared arc position? |
-| K4 | World rules | Does anything in the page violate a world rule? |
-| K5 | Objective | Does the page accomplish the objective of its beat entry? |
-| K6 | Hook | Does the page end on its declared hook? |
-| K7 | Off-stage mention | Does a character the beat does not declare act or speak, rather than merely being referred to? |
+| K1 | Appearance | FR-12, appearance and costume against the loaded sheets |
+| K2 | Voice | FR-12, speech against the traits in the sheet |
+| K3 | Arc | FR-12, arc position, including acting on knowledge not shown being acquired |
+| K4 | World rules | FR-13 |
+| K5 | Objective | FR-14, first half |
+| K6 | Hook | FR-14, second half |
+| K7 | Off-stage mention | FR-11, the half a word matcher cannot decide (TR-14e) |
+
+The question put to the agent for each check is written in
+[`consistency-checker.md`](../.claude/agents/consistency-checker.md) and nowhere else. What this
+section fixes is the shape of the answer and who draws the conclusion from it.
 
 ```json
 {"page": 7, "verdict": "PASS",
@@ -355,13 +444,13 @@ Agent 3 carries FR-12 to FR-14 and is the only check that rests on judgement, so
 | FR-08 | Sheet loading driven by `beat.characters` / `beat.settings`, capped separately | TR-10c, TR-11 |
 | FR-09 | Only the bridging paragraph crosses from the previous page | TR-12 |
 | FR-10, FR-11 | Length and roster checks in code, plus K7 for the judgement half of FR-11 | TR-14e, TR-15 |
-| FR-12 – FR-14 | Separate consistency call with structured verdict | TR-09, TR-10 |
+| FR-12 – FR-14 | Separate consistency delegation with structured verdict | TR-09, TR-09b, TR-14c |
 | FR-15 | Append to `deltas.jsonl` before the next page | TR-05 |
 | FR-16 | `threads_opened` / `threads_closed` fields | TR-05 |
 | FR-17 | Loop bound by `organization.pages_total`; flag-and-continue | TR-16 |
 | FR-18 | Orchestrator rewrites remaining beat entries | TR-07 |
 | FR-19 | Audit call over beat sheet and state log | TR-10 |
-| FR-20 | Config interpolation into templates; no literals | TR-01, TR-03 |
+| FR-20 | Config values reach agents in the invocation payload; no literals in code or in a definition | TR-01, TR-03, TR-21 |
 | FR-21 | Invariants I-1 to I-8 | TR-01 |
 | FR-22 | `chapter` field on every beat entry, sized by `derived.chapter_sizes` | TR-03b, TR-04 |
 | FR-23 | Digest written at chapter close, length-checked, consumed by `assemble` | TR-12 |
@@ -374,7 +463,7 @@ Agent 3 carries FR-12 to FR-14 and is the only check that rests on judgement, so
 | FR-30, FR-31 | `voice` in `assemble(N)` | TR-10b |
 | FR-32 | Phase A stages the expansion first and commits it with the bible at A7 | TR-05 |
 | FR-33 | Separate endpoint retry budget | TR-16b, TR-14d |
-| FR-34 | Bible written only after the A6 gate passes | TR-05 |
+| FR-34 | Bible staged, then committed by the orchestrator once the A6 gate passes | TR-05, TR-24 |
 | FR-35 | Thread ids minted at opening, in the same state record | TR-04b |
 | FR-36 | `derive()` at load time, §3.1b | TR-03b |
 | FR-37 | Superseded values reported at start-up and in the closing report | TR-03c |
@@ -385,9 +474,13 @@ Agent 3 carries FR-12 to FR-14 and is the only check that rests on judgement, so
 | FR-42 | `derived.story_root`; all paths resolved against it at load time | TR-03d, TR-03e |
 | FR-43 | Story id from the run argument, else slugified from the premise | TR-03d |
 | FR-44 | Premise comparison before resume | TR-19-0 |
-| FR-45 | Resolution rejects absolute and traversing paths (I-9) | TR-03e |
+| FR-45 | Resolution rejects absolute and traversing paths (I-9); only `bible-builder` writes, and only into staging | TR-03e, TR-22, TR-24 |
+| FR-46 | One agent definition per call type under `.claude/agents/`; one invocation per call | TR-20 |
+| FR-47 | Invocation payload carries values, never parameter names; agents never read `config.json` | TR-21 |
+| FR-48 | Invocation labelled with call type and subject, retries with attempt number | TR-23 |
+| FR-49 | No agent writes outside staging; no agent invokes another | TR-22, TR-24 |
 
-Every FR is covered. FR-12 to FR-14 remain the weakest link: they are the only checks that still depend on a model's judgement, even though TR-09 moves that judgement out of the call that produced the text.
+Every FR is covered. FR-12 to FR-14 remain the weakest link: they are the only checks that still depend on a model's judgement, even though TR-09 moves that judgement out of the call that produced the text — and TR-09b now makes that move structural rather than procedural.
 
 ---
 
@@ -407,6 +500,10 @@ Every FR is covered. FR-12 to FR-14 remain the weakest link: they are the only c
 | TI-11 | The schema of `facts` (FR-38) is undefined | An over-broad ledger costs tokens on every chapter-close audit; an over-narrow one misses the contradictions the audit exists to catch. Mirrors OI-08 | Open |
 | TI-12 | Slugification of a premise into a story id is unspecified: length, character set, collision behaviour | Two premises can slugify to one id, and FR-44 would then stop a legitimate new story instead of a collision | Open |
 | TI-13 | No specified path to discard or regenerate a story; workspaces have no retention rule | Rewriting a premise requires deleting files by hand. Mirrors OI-09 | Open |
+| TI-14 | TR-10 has no mechanism under TR-20: a declared agent definition carries no temperature field, so the consistency, continuity and audit calls cannot be pinned to 0 | Three of the five call types are judgements being made at a composition temperature. Cheap to detect and invisible in the output, which is the bad combination | **Open — introduced by version 2.4** |
+| TI-15 | The tool allowlist of an agent definition cannot express no file access, so `page-writer` and `consistency-checker` hold a Read tool they are instructed not to use | The context ceilings of FR-08 and the per-call budget of §7.1 rest on instruction for the two highest-frequency call types. A page written from more context than it was handed is indistinguishable in the prose | **Open — introduced by version 2.4** |
+| TI-16 | The state-record extraction call and the digest call (§5) were implicit in `state.py` and `digest.py` and are absent from every earlier call count | §7.2 understated the run by roughly two calls per page and one per chapter. Now enumerated but still uncosted | Open |
+| TI-17 | The size of a `continuity-auditor` payload is unbounded: it carries a whole chapter verbatim plus the fact ledger | At `derived.chapter_sizes` of four pages this is ≈ 2 000 tokens, but it grows with chapter length while every other payload is bounded. The one call whose cost scales with the wrong parameter | Open |
 | TI-09 | Implementation language and runtime not fixed; section 12 assumes Python 3.11+ | File names in 12.3 are indicative until this closes | Open |
 
 ---
@@ -420,25 +517,32 @@ Everything that has to be **created in order to build the system**, as distinct 
 | Kind | Count | Status |
 |---|---|---|
 | Configuration files | 1 | Exists |
-| Prompt templates | 5 | To build |
+| Agent definitions | 5 | **Exist** — `.claude/agents/`, see 12.2 |
+| Prompt templates | 0 | Folded into the agent definitions, see 12.4 |
 | Orchestrator modules | 16 | To build |
-| Test modules | 7 | To build |
-| Agents (model call types) | 5 | To build, as templates + wrapper |
+| Test modules | 8 | To build |
 | Skills, plugins, external services | **0** | See 12.6 |
 
 Language and runtime are assumed to be Python 3.11 or later (TI-09). File names below are indicative; responsibilities and boundaries are not.
 
 ### 12.2 Agents
 
-Four call types. Each is a system prompt plus an input contract, not a persistent process. Whether they are realised as plain API calls or as declared agent definitions is an implementation choice; the contracts are identical either way.
+Five call types, each a declared agent definition. The choice that §5 of version 2.3 left open is
+taken here: the definitions are files under `.claude/agents/`, they are checked into the repository,
+and a call is issued by delegating to one (TR-20). The wiring is in §5; this table is the inventory.
 
-| # | Agent | Temperature | Input | Output | Template | Implements |
-|---|---|---|---|---|---|---|
-| 1 | Bible | `model.temperature` | Premise, `story`, `organization`, `bible` bounds | Premise expansion, rules, sheets, beat sheet with chapter titles and anchor reversals | `prompts/bible.md` | FR-01 to FR-05, FR-27, FR-28, FR-32 |
-| 2 | Page | `model.temperature` | Assembled context (§6), tone and language included | Prose of one page, nothing else | `prompts/page.md` | FR-10, FR-14, FR-30, FR-31 |
-| 3 | Consistency | 0 | The finished page, its sheets, the rules, its objective | The verdict shape of §8.1 | `prompts/consistency.md` | FR-12 to FR-14, TR-09 |
-| 4 | Continuity | 0 | The closing chapter's pages, the fact ledger, prior digests | Contradictions, each naming the page at fault | `prompts/continuity.md` | FR-39 |
-| 5 | Audit | 0 | Beat sheet, state log, declared arcs | Report content | `prompts/audit.md` | FR-19 |
+| # | Agent | File | Tools | Writes | Implements |
+|---|---|---|---|---|---|
+| 1 | `bible-builder` | `.claude/agents/bible-builder.md` | Read, Write | `paths.staging_dir` only | FR-01 to FR-05, FR-27, FR-28, FR-32 |
+| 2 | `page-writer` | `.claude/agents/page-writer.md` | Read | nothing | FR-10, FR-14, FR-30, FR-31 |
+| 3 | `consistency-checker` | `.claude/agents/consistency-checker.md` | Read | nothing | FR-11 to FR-14, TR-09 |
+| 4 | `continuity-auditor` | `.claude/agents/continuity-auditor.md` | Read | nothing | FR-39 |
+| 5 | `closing-auditor` | `.claude/agents/closing-auditor.md` | Read | nothing | FR-19 |
+
+Temperature is absent from this table because a declared definition cannot carry it (TR-10, TI-14).
+`page-writer` and `consistency-checker` hold a Read tool they are forbidden to use beyond the paths
+their payload names; the allowlist cannot express no file access, so for those two the ceiling of
+FR-08 rests on instruction rather than on mechanism (TI-15).
 
 **Call volume at the default configuration:** 1 + 20 + 20 + 5 + 1 = **47 calls minimum**, plus one Page call and one Consistency call per retry, and one Page call per continuity repair. Agent 3 is what doubles the count, and is the subject of TI-05. Agent 4 costs one call per chapter, so it scales with `organization.chapters` rather than with the page count.
 
@@ -452,31 +556,39 @@ Agents 2 and 3 must never be merged into one call. That separation is the mechan
 | `config_loader.py` | Parse `config.json`, invariants I-1 to I-6 and I-8, copy into run dir | FR-20, FR-21, TR-01, TR-02 | derive |
 | `derive.py` | Chapter sizes, act spans, anchor pages, supersession report | FR-36, FR-37, TR-03b, TR-03c | — |
 | `schemas.py` | Shapes of the beat entry, the state record and the config | TR-04 | — |
-| `agents.py` | Model call wrapper: template rendering, temperature per call type, retry on transport error | TR-07, TR-08, TR-10 | config_loader |
-| `phase_a.py` | Bible call, A6 gate, invariant I-7, write bible to disk | FR-01 to FR-06 | agents, schemas |
+| `delegate.py` | Delegation wrapper: builds the invocation payload from config and derived values, labels the invocation, parses the return shape, retries on transport error. Replaces the template renderer of v2.3 | TR-07, TR-08, TR-20 to TR-23 | config_loader |
+| `phase_a.py` | Bible delegation, A6 gate, invariant I-7, commit the staged bible to disk | FR-01 to FR-06, FR-34 | delegate, schemas, workspace |
 | `context.py` | `assemble(N)`: selective loading, digests, recent summaries, bridge | FR-07 to FR-09, FR-26, TR-11, TR-12 | state, digest |
-| `phase_b.py` | Page loop, retry budget, flagging, page file writes | FR-15, FR-17, FR-22, TR-15, TR-16 | context, agents, validators |
+| `phase_b.py` | Page loop, retry budget, flagging, page file writes | FR-15, FR-17, FR-22, TR-15, TR-16 | context, delegate, validators |
 | `validators.py` | Length and roster checks, in code. No model involvement | FR-10, FR-11, FR-25 | schemas |
-| `consistency.py` | Agent 3 invocation and verdict parsing | FR-12 to FR-14, TR-09 | agents |
+| `consistency.py` | Agent 3 delegation, `checks` parsing, verdict computed from the array | FR-12 to FR-14, TR-09, TR-14c | delegate |
 | `state.py` | Append to `deltas.jsonl`, replay, thread ledger, atomic writes | FR-15, FR-16, TR-05 | schemas |
 | `digest.py` | Build and write the chapter digest at each chapter close, within its word bound | FR-23 | state |
-| `continuity.py` | Chapter-close audit against the fact ledger; repair budget and superseding records | FR-38 to FR-40 | state, agents |
+| `continuity.py` | Chapter-close audit against the fact ledger; repair budget and superseding records | FR-38 to FR-40 | state, delegate |
 | `resume.py` | Resume point, idempotency, refusal across a changed `organization` | FR-24, TR-17 to TR-19 | state, config_loader |
-| `phase_c.py` | Thread and arc audit, chapter balance, flag ratio, Agent 4 | FR-19 | state, agents |
+| `phase_c.py` | Thread and arc audit, chapter balance and flag ratio in code; Agent 5 delegation | FR-19 | state, delegate |
 | `manuscript.py` | Join page files in order into `paths.manuscript`, under chapter titles | FR-29 | schemas |
 | `workspace.py` | Resolve `derived.story_root`, resolve and bound every path (I-9), compare the persisted premise | FR-42 to FR-45 | config_loader |
 
 ### 12.4 Prompt templates
 
-Held as files, not as strings in code, so that a prompt change is reviewable as a diff. Every configuration value reaches them by interpolation; none is written literally (FR-20).
+**None.** The five `prompts/*.md` files of version 2.3 are folded into the five agent definitions of
+12.2, which serve the purpose the templates were held as files for: a prompt change is reviewable as
+a diff, and each call type's prompt exists in exactly one place.
 
-| File | For | Must state |
-|---|---|---|
-| `prompts/bible.md` | Agent 1 | Output formats of §4, identifier scheme, act split and chapter grouping |
-| `prompts/page.md` | Agent 2 | Prose only, honour objective and hook, target length, no structural markup |
-| `prompts/consistency.md` | Agent 3 | Checks K1 to K6 of §8.1 and the response shape, each answered with its evidence |
-| `prompts/continuity.md` | Agent 4 | What counts as a contradiction of fact, and the requirement to name the page at fault |
-| `prompts/audit.md` | Agent 5 | Report shape, what counts as an unclosed thread or an incomplete arc |
+What the templates did by interpolation, the invocation payload now does by value (TR-21). An agent
+definition names a configuration path where it has to say which value governs a rule, and never
+carries the value — which is how a static prompt file stays compliant with FR-20. Twenty pages, a
+4/12/4 act split, 380 words and two retries are as forbidden in an agent definition as they were in
+a template.
+
+| Definition | Must state |
+|---|---|
+| `bible-builder.md` | Output formats of §4, identifier scheme, staging discipline, the A6 acceptance criteria, what makes an anchor objective a reversal |
+| `page-writer.md` | Prose only, honour objective and hook, write to the target length, no structural markup, mention versus staging of a character |
+| `consistency-checker.md` | The question behind each of K1 to K7, the `checks` shape, evidence required per check, no overall verdict |
+| `continuity-auditor.md` | What counts as a contradiction of fact, and the requirement to name exactly one page at fault |
+| `closing-auditor.md` | Report shape, what counts as an unclosed thread or an incomplete arc, and that the numbers are never recomputed |
 
 ### 12.5 Tests
 
@@ -490,6 +602,7 @@ The build is not complete without these, because three requirements are only mea
 | `tests/test_context_assembly.py` | FR-08 and FR-09: only declared sheets, no prior page text beyond the bridge |
 | `tests/test_validators.py` | FR-10 and FR-11 against fixture pages that pass and fail each band |
 | `tests/test_resume.py` | FR-24: idempotency, and refusal to resume across a changed `organization` |
+| `tests/test_payload.py` | FR-47 and TR-21: every payload carries values and no parameter names, and no configuration literal appears in any agent definition |
 | `tests/fixtures/` | A miniature bible and three page fixtures, sized for a 4-page configuration |
 
 **The acceptance test for FR-20 and FR-36** is not a unit test: change *one value* in `organization`, re-run, and confirm a story of the new shape with no other edit to the configuration, to code or to templates. Version 2.1 would have failed this test on every one of its five organization values.
@@ -498,7 +611,9 @@ The build is not complete without these, because three requirements are only mea
 
 Listed so that an implementer does not invent them:
 
-- **No skills and no plugins.** The system is an orchestrator and four prompts.
+- **No skills and no plugins.** The system is an orchestrator and five agent definitions. An agent definition is not a plugin: it is the prompt of one call type, in the form the runtime reads it, and it replaces a template that code would otherwise render.
+- **No agent that owns state.** No agent writes the bible, a page, the state log, a digest, the manuscript or the report. Only `bible-builder` writes at all, into staging, and the orchestrator commits (TR-22, TR-24).
+- **No agent-to-agent delegation.** Every invocation is issued by the orchestrator. An agent that could invoke another would own part of the loop, and the loop is the thing this design keeps in code.
 - **No database.** State is files (functional specification §4).
 - **No external services** beyond the model endpoint.
 - **No user interface and no authentication.** The entry point is a command line.

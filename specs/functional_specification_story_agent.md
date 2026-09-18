@@ -3,9 +3,9 @@
 
 | | |
 |---|---|
-| **Version** | 2.3 |
-| **Date** | 16 September 2026 |
-| **Solution type** | Orchestrated agent, one model call per page, state on disk |
+| **Version** | 2.4 |
+| **Date** | 18 September 2026 |
+| **Solution type** | Orchestrator delegating to five declared agents, one page call per page, state on disk |
 | **System deliverable** | Adventure story of `organization.pages_total` pages |
 | **Configuration** | `config.json` |
 | **Status** | Draft for review |
@@ -16,13 +16,31 @@
 
 The system generates a complete adventure story from a short premise, maintaining consistency of characters, settings and plot throughout the text, organised into chapters and following a setup, development and resolution structure.
 
-The solution is implemented as **a sequence of model calls driven by an orchestrator, with all durable state held as files on disk**. Each page is written in its own call, against a context assembled specifically for that page. Loop, counters, retry and stop condition belong to the orchestrator, not to the prompt.
+The solution is implemented as **an orchestrator that delegates to five declared agents, with all durable state held as files on disk**. Each page is written by its own invocation, against a context the orchestrator assembled specifically for that page. Loop, counters, retry and stop condition belong to the orchestrator, not to any agent.
 
 **Out of scope:** illustration, layout, translation and any user interaction after launch.
 
 ### 1.1 Change from version 1.x
 
 Version 1.x specified a single-prompt solution in which the transcript itself served as memory. That design was retired for three reasons, all recorded in the technical specification: the whole run had to fit in one response (≈25 000 output tokens, a ceiling that blocked approval), a failed run could not be resumed, and validation could only ever be the model reporting on its own work. The file-backed design removes all three. It gives up the property that made version 1.x interesting — proving that a single prompt can sustain loop and state without code — in exchange for a system that can be operated.
+
+### 1.2 Change from version 2.3
+
+Version 2.4 changes who issues a model call, and nothing else about what the system produces. The
+five call types that version 2.3 described as prompt templates are now five **declared agents**, each
+defined in its own file under `.claude/agents/`, and the orchestrator issues a call by delegating to
+one of them (FR-46).
+
+The phases, the artefacts, the state model and the acceptance criteria are unchanged. What the change
+buys is that the boundary between the orchestrator and a model call becomes real: an agent receives a
+payload and can reach nothing else, so the context ceilings of FR-08 stop being an instruction the
+writing call is trusted to honour, and the separation of the page call from the consistency call
+(technical specification TR-09) stops being a procedure and becomes two processes. It also makes each
+call individually observable, which is what turns the cost and retry figures of a run from something
+reconstructed by hand into something recorded.
+
+Section 5 gains a table of who performs each step, because that is the question the phase diagrams
+could not answer before: every step was drawn the same whether it was arithmetic or judgement.
 
 ---
 
@@ -39,7 +57,7 @@ All control and organization parameters live in **`config.json`**. This document
 | `bible` | Bounds on world rules, characters and settings |
 | `control` | Retries, continuity repairs, flag ceiling, gate attempts, resume |
 | `model` | Model id, temperature, output ceiling |
-| `paths` | `stories_root`, plus the location of every artefact within a story workspace |
+| `paths` | `stories_root`, plus the location of every artefact within a story workspace, including `staging_dir` |
 
 ### 2.1 Authoritative and derived values
 
@@ -108,6 +126,7 @@ Invariant 7 is what makes the workspace a boundary rather than a convention. A p
 | Artefact | Location | Written in |
 |---|---|---|
 | Configuration copy | `paths.runs_dir` | Start-up, before the first call |
+| Staged bible | `paths.staging_dir` | Phase A, discarded at A7 |
 | Premise expansion | `paths.premise` | Phase A |
 | World rules | `paths.world_rules` | Phase A |
 | Character sheets, one file each | `paths.characters_dir` | Phase A |
@@ -191,35 +210,74 @@ Written once in Phase A, immutable thereafter except through the procedure in FR
 
 ## 5. Functional flow
 
+### 5.0 Who performs each step
+
+Every step below is performed either **in code by the orchestrator** or **by a delegated agent**, and
+the distinction is not cosmetic: a requirement asserted by an agent carries no evidence, while one
+executed by the orchestrator can be measured and replayed. The first run's numbers are trustworthy
+because the second column of this table was code.
+
+| Step | Performed by | Why there |
+|---|---|---|
+| A0 — load, derive, validate | Orchestrator, in code | Arithmetic and invariants (FR-21, FR-36) |
+| A1 to A5 — the bible | `bible-builder`, in **one** invocation | The bible is one act of design; splitting it into five calls would let the beat sheet be planned without the rules it rests on |
+| A6 — the gate | Split: coverage, chapter tiling and I-7 in code; the anchor-reversal judgement by a delegated call | The arithmetic half is decidable, the reversal half is not (FR-27, OI-07) |
+| A7 — commit the bible | Orchestrator, in code | Atomicity is a file operation, not a judgement (FR-34) |
+| B0 to B2 — beat, sheets, context | Orchestrator, in code | `assemble(N)` is deterministic and is what enforces the FR-08 ceilings |
+| B3 — write page N | `page-writer` | Prose |
+| B4 — mechanical validation | Orchestrator, in code | Length and roster must be measured, never reported (FR-25) |
+| B5 — consistency validation | `consistency-checker`, a separate invocation from B3 | Judgement, and it must not be made by whatever wrote the page (TR-09) |
+| B6 — retry or flag | Orchestrator, in code | Counters and budgets |
+| B7 — page file and state record | Orchestrator, in code, with one extraction call for the summary, states, threads and facts | The write is code; reading facts out of prose is judgement |
+| B9 — continuity audit | `continuity-auditor` | The only judgement that reads across pages (FR-39) |
+| B10 — repair | Orchestrator, through B3 to B7 | A repair is an ordinary page call plus a superseding record (FR-40) |
+| B11 — chapter digest | One orchestrator-owned call, bounded in code | Compression, and the bound is arithmetic (FR-23) |
+| C1 to C3 — closing audits | Orchestrator, in code | Thread replay, arc comparison, chapter balance and the flag ratio are all replay (FR-19) |
+| C4 — assemble manuscript | Orchestrator, in code | Concatenation (FR-29) |
+| C5 — closing report | `closing-auditor`, over results it does not recompute | Judgement about what the measurements mean |
+
+The five agents are defined in `.claude/agents/`, and **each file is where its agent's behaviour is
+defined** — what it judges, what it refuses, what it may not touch. This document does not restate
+any of it; technical specification §5 holds the wiring, and §12.2 the inventory.
+
 ### Phase A — Preparation (once per run)
 
 ```mermaid
 flowchart TD
-    INI([START]) --> A0{"A0 · Load and validate config<br/>invariants of section 2"}
+    INI([START]) --> A0{"A0 · Load and validate config<br/>derive shape · invariants of section 2<br/>in code"}
     A0 -- INVALID --> ABORT([ABORT])
-    A0 -- VALID --> A1["A1 · Expand premise<br/>conflict · theme · tone · ending"]
-    A1 --> A2["A2 · World rules"]
-    A2 --> A3["A3 · Character sheets<br/>includes arc from start to end"]
-    A3 --> A4["A4 · Setting sheets"]
-    A4 --> A5["A5 · Beat sheet<br/>chapters + titles · act split<br/>anchor pages get a reversal"]
-    A5 --> A6{"A6 · Consistent?<br/>characters used · arcs closed<br/>anchors turn · chapters tile"}
-    A6 -- NO --> A5
-    A6 -- YES --> A7["A7 · Commit staged bible to disk"]
+    A0 -- VALID --> DEL1[["Delegate to bible-builder<br/>payload: premise · story · bible bounds<br/>derived shape · staging directory"]]
+
+    subgraph AG1["bible-builder · one invocation"]
+        A1["A1 · Expand premise<br/>conflict · theme · tone · ending"]
+        A2["A2 · World rules"]
+        A3["A3 · Character sheets<br/>includes arc from start to end"]
+        A4["A4 · Setting sheets"]
+        A5["A5 · Beat sheet<br/>chapters + titles · act split<br/>anchor pages get a reversal"]
+        A1 --> A2 --> A3 --> A4 --> A5
+    end
+
+    DEL1 --> A1
+    A5 --> STG[("paths.staging_dir")]
+    STG --> A6{"A6 · Gate<br/>coverage · chapters tile · I-7 in code<br/>anchors turn · arcs closed by judgement"}
+    A6 -- "NO · attempts left" --> DEL1
+    A6 -- "NO · attempts spent" --> ABORT
+    A6 -- YES --> A7["A7 · Commit staged bible to disk<br/>orchestrator, one operation"]
     A7 --> FB[/"Start Phase B at page 1"/]
 ```
 
 | Step | Action |
 |---|---|
 | A0 | Load `config.json`, derive the story workspace from the story id, and check the invariants of section 2.3. If the workspace already holds a premise, it must match the premise of this run: if it does not, the run stops here (FR-44). When `control.abort_on_invalid_config`, an invalid configuration also stops the run before any model call. |
-| A1 | Expand the premise into central conflict, theme, tone and tentative ending. The expansion is the input to A2 to A5, and is staged rather than written (FR-32, FR-34). |
+| A1 | Expand the premise into central conflict, theme, tone and tentative ending. The expansion is the input to A2 to A5, and is staged rather than written (FR-32, FR-34). A1 to A5 are one invocation of `bible-builder`, which receives every bound as a value and resolves no configuration path of its own (FR-47). |
 | A2 | Generate the world rules, within the bounds in `bible`. |
 | A3 | Generate the character sheets, including the arc, up to `bible.max_characters`. |
 | A4 | Generate the setting sheets, up to `bible.max_settings`. |
 | A5 | Generate the beat sheet for `organization.pages_total` pages: group them according to `derived.chapter_sizes`, title each chapter, honour `derived.act_spans`, and give every page in `derived.anchor_pages` an objective that states a reversal. |
-| A6 | Check consistency, including that each anchor page turns the story rather than continuing it. On failure, redo A5, up to `control.consistency_gate_max_attempts`. |
-| A7 | Commit the staged bible to the locations in `paths`, in one operation. |
+| A6 | Check consistency. Beat coverage, chapter tiling and invariant 7 are computed in code; that each anchor page turns the story rather than continuing it is a judgement and is put to a separate call. On failure, re-invoke `bible-builder` with the gate's reasons, up to `control.consistency_gate_max_attempts`. |
+| A7 | Commit the staged bible from `paths.staging_dir` to the locations in `paths`, in one operation, and discard the staging directory. Performed by the orchestrator: no agent writes into the bible. |
 
-**Phase A is atomic.** Every artefact of A1 to A5, the premise expansion included, is staged and committed to disk in one operation at A7. Generation order and write order are therefore independent, which is what reconciles two requirements that read as contradictory: the expansion is produced before the world rules because they derive from it (FR-32), and nothing whatever is written until the gate passes (FR-34). A run that stops before A7 leaves nothing behind to resume from and repeats the phase in full. This costs one call to redo and removes the possibility of building pages on a partially written bible.
+**Phase A is atomic.** Every artefact of A1 to A5, the premise expansion included, is written by `bible-builder` into `paths.staging_dir` and committed to the bible in one operation at A7. Generation order and write order are therefore independent, which is what reconciles two requirements that read as contradictory: the expansion is produced before the world rules because they derive from it (FR-32), and nothing whatever is written until the gate passes (FR-34). A run that stops before A7 leaves nothing behind to resume from and repeats the phase in full. This costs one call to redo and removes the possibility of building pages on a partially written bible.
 
 ### Phase B — Writing cycle (one call per page)
 
@@ -227,17 +285,17 @@ flowchart TD
 flowchart TD
     B0["B0 · Read beat entry for page N"]
     B1["B1 · Load only the declared sheets<br/>within the cast and setting ceilings"]
-    B2["B2 · Assemble context<br/>tone · language · rules · sheets<br/>objective · digests + recent summaries · bridge"]
-    B3["B3 · Model call — write page N"]
+    B2["B2 · Assemble context in code<br/>tone · language · rules · sheets<br/>objective · digests + recent summaries · bridge"]
+    B3[["B3 · Delegate to page-writer<br/>payload: the assembled context<br/>returns: prose only"]]
     B4{"B4 · Mechanical validation in code<br/>length · roster · structure"}
-    B5{"B5 · Consistency validation<br/>appearance · voice · rules · objective"}
+    B5{"B5 · Delegate to consistency-checker<br/>K1 to K7, each with evidence<br/>separate invocation from B3"}
     B6{"B6 · Retries left?"}
     MARK["Flag page for review<br/>and accept it"]
-    B7["B7 · Write page file<br/>append state record and facts"]
+    B7["B7 · Write page file in code<br/>extraction call for summary · states<br/>threads · facts, then append the record"]
     B8{"B8 · End of chapter?"}
-    B9{"B9 · Continuity audit<br/>chapter vs fact ledger and digests"}
+    B9{"B9 · Delegate to continuity-auditor<br/>chapter vs fact ledger and digests"}
     B10["B10 · Repair the page at fault<br/>supersede its state record"]
-    B11["B11 · Write chapter digest"]
+    B11["B11 · Chapter digest<br/>orchestrator call, bounded in code"]
     B12{"B12 · Last page?"}
     FC[/"Move to Phase C"/]
 
@@ -263,13 +321,13 @@ flowchart TD
 | B0 | Read the beat entry for page N from `paths.beats`. |
 | B1 | Load only the character and setting sheets that entry declares, within `context.max_characters_per_page` and `context.max_settings_per_page`. |
 | B2 | Assemble the context: `story.tone`, `story.audience` and `story.language`, the world rules, the loaded sheets, the objective of N, the digest of each closed chapter, the page summaries inside `context.verbatim_summary_window`, and the final paragraph of page N-1. |
-| B3 | Issue the model call for page N. |
+| B3 | Delegate page N to `page-writer`, handing it the assembled context and, on a retry, the reasons the previous attempt was rejected. It returns prose and nothing else. |
 | B4 | Validate mechanically, in code. |
-| B5 | Validate consistency. |
+| B5 | Delegate the finished page to `consistency-checker`, in an invocation separate from B3. It answers K1 to K7 with evidence; the orchestrator computes the verdict from the answers. |
 | B6 | On failure, retry up to `control.max_retries_per_page`, then flag and accept. |
-| B7 | Write the page file and append the state record, including the facts the page asserts. |
+| B7 | Write the page file, then append the state record, including the facts the page asserts. The record's summary line, character states, threads and facts are read out of the prose by a single orchestrator-owned call; the write itself is code. |
 | B8 | If N does not close a chapter, go to B12. |
-| B9 | Audit the closing chapter against the fact ledger and the preceding digests. |
+| B9 | Delegate the closing chapter to `continuity-auditor`, with the fact ledger and the preceding digests. It names exactly one page at fault per contradiction. |
 | B10 | On a defect, rewrite the page at fault through B3 to B7 and append a superseding state record, up to `control.max_continuity_repairs`. Re-audit. |
 | B11 | Write the chapter digest, of at most `context.chapter_digest_max_words` words. |
 | B12 | If pages remain, advance to the next page. Otherwise move to Phase C. |
@@ -284,18 +342,18 @@ flowchart TD
     C2["C2 · Audit character arcs<br/>against the final state from Phase A"]
     C3["C3 · Audit chapter balance<br/>length and act boundaries"]
     C4["C4 · Assemble manuscript<br/>pages in order, under chapter titles"]
-    C5["C5 · Closing report<br/>issues and flagged pages"]
+    C5[["C5 · Delegate to closing-auditor<br/>writes the report over computed results"]]
     FIN([END])
     C1 --> C2 --> C3 --> C4 --> C5 --> FIN
 ```
 
 | Step | Action |
 |---|---|
-| C1 | Audit open threads by replaying the state log. |
+| C1 | Audit open threads by replaying the state log, in code. |
 | C2 | Audit character arcs against the final state declared in Phase A. |
-| C3 | Audit chapter balance: length per chapter, act boundaries, flag ratio. |
+| C3 | Audit chapter balance in code: length per chapter, act boundaries, flag ratio. |
 | C4 | Assemble the pages in order into `paths.manuscript`, each chapter introduced by its title. The manuscript is derived: it is rebuilt from `paths.pages_dir` and never edited in place. |
-| C5 | Write the closing report to `paths.report`. |
+| C5 | Delegate to `closing-auditor`, handing it the results of C1 to C3 and the superseded configuration values, and write what it returns to `paths.report`. It judges what the measurements mean and never recomputes them. |
 
 ---
 
@@ -365,6 +423,10 @@ Requirements reference configuration by path. None restates a literal.
 | FR-43 | The story id shall be taken from the run argument, and derived from the premise when that argument is absent. |
 | FR-44 | The system shall not write into a workspace whose persisted premise differs from the premise of the current run. It shall stop before the first model call and report the conflict. |
 | FR-45 | A run shall write nothing outside its own workspace, and shall leave every other workspace byte-for-byte unchanged. |
+| FR-46 | Each of the five call types shall be defined in exactly one agent definition under `.claude/agents/`, and shall be issued as one delegation to that agent per call. No two call types shall share an invocation. |
+| FR-47 | Every value an agent needs from `config.json` or from derivation shall reach it as a value in its invocation payload. No agent shall read `config.json`, and no payload shall supply a parameter name in place of a parameter value. |
+| FR-48 | Every delegation shall be labelled with its call type and its subject — page, chapter or run — and a retry shall additionally carry its attempt number. |
+| FR-49 | No agent shall write outside `paths.staging_dir`, and no agent shall delegate to another agent. Every file in the workspace other than the staged bible shall be written by the orchestrator. |
 
 ---
 
@@ -372,7 +434,7 @@ Requirements reference configuration by path. None restates a literal.
 
 **Mechanical (FR-10, FR-11, FR-25).** Executed in code over the returned page: word count against `page.target_words` within `page.length_tolerance`, and every character name found in the page against the ids the **bible** declares. Checking names against the ids of the *beat entry* instead, as version 2.1 did, forbids a page from so much as mentioning a character who is not on stage, which is a strong constraint on the prose that no requirement had stated. Whether an undeclared character acts or speaks is a judgement, and belongs to the consistency check rather than to a word matcher. Objective, repeatable, and not subject to the model's opinion of its own work.
 
-**Consistency (FR-12 to FR-14).** The page is checked against the loaded sheets, the world rules and its objective. Where this check is delegated to a model it shall be a separate call taking the page as input, never the same call that wrote it.
+**Consistency (FR-12 to FR-14).** The page is checked against the loaded sheets, the world rules and its objective. This check is delegated to `consistency-checker`, in an invocation separate from the one that wrote the page, and the agent answers the seven enumerated checks with evidence rather than giving an opinion. The orchestrator computes the verdict from the answers. Under FR-46 the separation is structural: two agents, two invocations, and no payload that merges them. In the measured run the check ran as a separate pass inside the same session, so the form was satisfied and the substance was not.
 
 **Failure branch.** The page is rewritten with the same assembled context. After `control.max_retries_per_page` failures the page is accepted, flagged in the state log, and the run continues. Halting on a local failure produces an unusable deliverable; flagging produces a correctable one.
 
@@ -401,6 +463,8 @@ A run is accepted if it meets all of the following:
 - Continuity repairs do not exceed `control.max_continuity_repairs`, and every one is recorded in the closing report.
 - Writing a second story leaves every file of every earlier story unchanged, and the earlier manuscripts still read exactly as they did.
 - A workspace, taken on its own, contains everything needed to read, audit or resume its story.
+- Every page was written by one invocation and judged by another, and the record of the run shows both.
+- No agent definition contains a value that belongs in `config.json`.
 
 ---
 
@@ -415,6 +479,8 @@ A run is accepted if it meets all of the following:
 **A derived shape is a shape nobody chose.** Chapter sizes, act spans and anchor pages are computed from proportions, so an author who wants a particular structure — a deliberately short opening chapter, an anchor on one specific page — must override rather than edit, and an explicit override is the one path by which the old hand-maintained inconsistency can return. Mitigation: overrides are validated against `pages_total` and reported, never silently accepted.
 
 **Orchestration surface.** The retired design had no code and therefore no code defects. This one has file I/O, resume logic and validation code, each of which can fail on its own. That cost is accepted in exchange for determinism where determinism matters.
+
+**Delegation surface.** Each of the five agents is a separate prompt that can drift from the requirement it implements, and nothing in the specifications is checked against an agent file automatically: V-12 to V-14 are review controls, performed by a person. The failure mode is quiet — an agent whose definition has drifted still returns something of the right shape — and it is the cost of moving behaviour out of the specifications and into five files. Mitigation: the definitions are checked into the repository, so a change to one is reviewable as a diff.
 
 **Cost per run.** The number of calls now scales with `organization.pages_total`, and retries add calls rather than tokens. A larger structure costs proportionally more.
 
@@ -435,6 +501,7 @@ A run is accepted if it meets all of the following:
 | 2.0 | 2026-09-15 | Architecture changed from single prompt to orchestrated calls with state on disk. Control and organization parameters extracted to `config.json`; all requirements now reference it. Chapters introduced as an organizational level. FR-20 to FR-26 added. Context strategy rewritten around two-level compression. Limitations rewritten. | Superseded |
 | 2.1 | 2026-09-15 | Completeness review applied. Anchor pages defined as reversals and enforced at A6. Chapter titles adopted, closing OI-06. Manuscript assembly added as the reader-facing deliverable. Premise expansion and configuration copy added to the output inventory. Tone, audience and language carried into every page context. Endpoint failures separated from content retries. Phase A declared atomic. Thread identifiers moved to Phase B. FR-27 to FR-35 added. | Superseded |
 | 2.2 | 2026-09-16 | Applied from the findings of the first full run (`report.md`, D3 to D8). Configuration reworked from five interdependent values to authoritative inputs plus derivation (2.1 to 2.3), so that any single value can be edited without invalidating the file. Character and setting context ceilings separated. The verbatim summary window given precedence over digests. Chapter digests bounded. Chapter-close continuity audit and bounded repair path added for defects in committed pages. FR-32 and FR-34 reconciled through staged Phase A writes. FR-08, FR-11, FR-22, FR-23 and FR-27 reworded; FR-36 to FR-41 added. | Superseded |
+| 2.4 | 2026-09-18 | Delegated form. The five call types become five declared agents under `.claude/agents/`, one definition per call type, and the orchestrator issues a call by delegating to one (FR-46). Agent behaviour moves out of the specifications and into the agent files, which are now the single place each call type's prompt is written; the `prompts/*.md` templates of the build inventory are folded into them. Section 5.0 added, stating for every step whether it is executed in code or delegated. Phase A clarified: A1 to A5 are one invocation, the bible is staged under the new `paths.staging_dir` and committed by the orchestrator at A7, and the A6 gate is split into its arithmetic and judgement halves. The state-record extraction call and the digest call named as orchestrator-owned calls for the first time. FR-46 to FR-49 added. Nothing about the artefacts, the state model or the acceptance criteria changes. | Draft for review |
 | 2.3 | 2026-09-16 | Story isolation. Until this version every path was a fixed single-story path, so a second novel overwrote the first, appended to its state log, and — with resume enabled and the previous pages still present — could be skipped entirely in favour of reassembling the old manuscript. Each story now owns a workspace at `derived.story_root`, and all paths resolve inside it. Story id added as a run argument, invariant 7 and FR-42 to FR-45 added, section 3.1 added. Specifications moved to `specs/`. | Draft for review |
 
 ### 11.2 Review roles
@@ -461,12 +528,17 @@ A run is accepted if it meets all of the following:
 | V-09 | Every value in `config.json` is authoritative, derived, or reported as superseded; none is silently ignored | |
 | V-10 | Editing any single `organization` value on its own leaves the configuration valid | |
 | V-11 | Every path a run resolves lies inside `derived.story_root`, and no requirement names a location outside it | |
+| V-12 | Every call type in technical specification §5 has exactly one agent definition under `.claude/agents/`, and no agent definition exists that no call type names | |
+| V-13 | No agent definition contains a configuration literal, and every value an agent needs is listed in its input section as arriving in the payload | |
+| V-14 | Every step of section 5 appears in the table of 5.0, assigned either to code or to a named agent | |
 
 ### 11.4 Change procedure
 
 Every change after approval is recorded as an open issue in 11.5, assessed for impact on the affected requirements, applied, versioned in 11.1, and re-checked against 11.3.
 
 Changes affecting FR-07, FR-08, FR-09, FR-15 or FR-23 additionally require an explicit review of section 6, because those are the requirements that sustain the context strategy. Changes to the `organization` block of `config.json` require re-validation of the invariants in section 2.
+
+A change to what an agent judges or refuses is made in its file under `.claude/agents/` and is not recorded here, because this document does not hold that content. A change to **what an agent is handed or what it returns** changes both the agent file and technical specification §5, and follows the procedure above like any other.
 
 ### 11.5 Open issues
 
@@ -481,6 +553,9 @@ Changes affecting FR-07, FR-08, FR-09, FR-15 or FR-23 additionally require an ex
 | OI-07 | Anchor pages are defined as reversals (FR-27), but A6 has no objective measure of what counts as one | The gate depends on a model judgement that nothing calibrates. In the first run it was implemented as a lexical test for reversal vocabulary, which would pass an objective that merely used the words | **Open — blocking for any unattended run**, because it is the one gate whose failure is silent |
 | OI-08 | What counts as a fact asserted by a page (FR-38) is undefined | An over-broad ledger costs tokens on every audit; an over-narrow one misses the contradictions the audit exists to catch | Open |
 | OI-09 | No way to discard or regenerate a story through the system, and no retention rule for workspaces | FR-44 stops a run whose premise conflicts, which is correct but leaves rewriting a premise from scratch with no path other than deleting files by hand | Open |
+| OI-10 | A declared agent definition cannot carry a temperature, so the requirement that judgement calls run at 0 has no mechanism in the delegated form | Consistency, continuity and audit are judgements being made at a composition temperature. Mirrors TI-14 | **Open — introduced by 2.4** |
+| OI-11 | An agent's tool allowlist cannot express no file access, so `page-writer` and `consistency-checker` are instructed rather than prevented from reading around their payload | The FR-08 ceilings rest on instruction for the two most frequent call types, and a page written from unauthorised context is indistinguishable in the prose. Mirrors TI-15 | **Open — introduced by 2.4** |
+| OI-12 | Whether the A6 anchor judgement is a sixth call type or a second use of an existing agent is unresolved | It is the one judgement in 5.0 with no agent of its own, which leaves FR-27's enforcement outside the inventory of technical §12.2. Compounds OI-07 | Open |
 
 ---
 
@@ -490,28 +565,28 @@ Changes affecting FR-07, FR-08, FR-09, FR-15 or FR-23 additionally require an ex
 flowchart TD
     INI([START]) --> CFG{"LOAD config.json<br/>derive shape · validate invariants"}
     CFG -- INVALID --> ABORT([ABORT])
-    CFG -- VALID --> GEN["BUILD THE BIBLE<br/>world rules · characters with arc · settings"]
+    CFG -- VALID --> GEN[["DELEGATE TO bible-builder<br/>world rules · characters with arc · settings"]]
     GEN --> SEP["BEAT SHEET<br/>chapters + titles · act split<br/>anchor pages get a reversal"]
     SEP --> GATE{"CONSISTENT?"}
     GATE -- NO --> SEP
     GATE -- YES --> DISK["WRITE BIBLE TO DISK"]
-    DISK --> CTX["ASSEMBLE CONTEXT FOR PAGE N<br/>declared sheets only · objective<br/>digests + recent summaries · bridge"]
-    CTX --> ESC["MODEL CALL — WRITE PAGE N"]
-    ESC --> VAL{"VALIDATE<br/>mechanical in code · consistency"}
+    DISK --> CTX["ASSEMBLE CONTEXT FOR PAGE N · CODE<br/>declared sheets only · objective<br/>digests + recent summaries · bridge"]
+    CTX --> ESC[["DELEGATE TO page-writer"]]
+    ESC --> VAL{"VALIDATE<br/>mechanical in code<br/>then delegate to consistency-checker"}
     VAL -- "FAIL · retries left" --> ESC
     VAL -- "FAIL · retries spent" --> FLAG["FLAG FOR REVIEW"]
     VAL -- OK --> SAVE
     FLAG --> SAVE["WRITE PAGE FILE<br/>APPEND STATE RECORD"]
     SAVE --> CH{"END OF CHAPTER?"}
-    CH -- YES --> AUD{"CONTINUITY AUDIT<br/>chapter vs fact ledger"}
+    CH -- YES --> AUD{"DELEGATE TO continuity-auditor<br/>chapter vs fact ledger"}
     CH -- NO --> DEC
     AUD -- "DEFECT · repairs left" --> FIX["REPAIR THE PAGE AT FAULT<br/>SUPERSEDE ITS STATE RECORD"]
     FIX --> AUD
     AUD -- "CLEAN · or budget spent" --> DIG["WRITE CHAPTER DIGEST"]
     DIG --> DEC{"LAST PAGE?"}
     DEC -- "NO · next page" --> CTX
-    DEC -- YES --> FINAL["CLOSING AUDIT<br/>threads · arcs · chapters"]
+    DEC -- YES --> FINAL["CLOSING AUDIT · CODE<br/>threads · arcs · chapters"]
     FINAL --> MAN["ASSEMBLE MANUSCRIPT<br/>pages in order, under chapter titles"]
-    MAN --> REP["CLOSING REPORT"]
+    MAN --> REP[["DELEGATE TO closing-auditor<br/>CLOSING REPORT"]]
     REP --> FIN([END])
 ```
