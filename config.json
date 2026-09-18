@@ -1,9 +1,9 @@
 {
-  "config_version": "2.5",
+  "config_version": "2.6",
   "description": "Single source of control and organization parameters, shared by every story. The specifications reference this file by path and restate no literal value. Everything under `organization` is an authoritative input; the shape of the story (chapter sizes, act spans, anchor pages) is derived from these by the rules in functional specification section 2.2 and is never stored here. Except for `paths.stories_root`, every path under `paths` is resolved relative to the workspace of the story being written, never to the repository root: this file holds no value belonging to any one story.",
   "organization": {
-    "pages_total": 10,
-    "chapters": 4,
+    "pages_total": 6,
+    "chapters": 2,
     "pages_per_chapter": null,
     "act_proportions": {
       "setup": 0.2,
@@ -45,10 +45,10 @@
   "learning": {
     "enabled": true,
     "max_first_attempt_length_failure_rate": 0.2,
-    "max_calibration_runs": 5,
-    "min_pages_per_observation": 8,
-    "correction_damping": 0.5,
-    "bias_tolerance": 0.03
+    "max_calibration_runs": 6,
+    "min_pages_per_observation": 6,
+    "max_length_block_words": 40,
+    "epoch_label": "campaign-02"
   },
   "model": {
     "id": null,
@@ -57,6 +57,7 @@
   },
   "paths": {
     "stories_root": "stories/",
+    "loops_dir": "loops/",
     "staging_dir": "runs/staging/",
     "premise": "bible/premise.md",
     "world_rules": "bible/rules.md",
