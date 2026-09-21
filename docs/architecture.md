@@ -1,6 +1,6 @@
 # architecture.md — Arquitectura y flujo del generador
 
-> Propósito: describe cómo el sistema convierte el contexto (`domain-knowledge.md` + `definitions.md`) en un manuscrito: capas, agentes, verificadores, flujo de trabajo, modelo de datos, tecnología y despliegue. Las decisiones tecnológicas son una propuesta de referencia; en cada caso se indica la alternativa razonable.
+> Propósito: describe cómo el sistema convierte el contexto (`domain-knowledge.md` + `definitions.md`) en un manuscrito: capas, agentes, verificadores, flujo de trabajo, modelo de datos y despliegue. El documento describe **qué** hace cada pieza, no con qué se implementa: la pila está sin decidir salvo lo recogido en §7.
 
 ---
 
@@ -26,9 +26,9 @@ flowchart TB
     V2["Verificadores LLM-juez"]
   end
   subgraph MEM["Capa de memoria"]
-    M1["Biblia estructurada · Postgres"]
-    M2["Índice semántico · pgvector"]
-    M3["Manuscrito versionado · objetos"]
+    M1["Biblia estructurada"]
+    M2["Índice semántico"]
+    M3["Manuscrito versionado"]
   end
   subgraph LLM["Capa de modelos"]
     L1["Modelo grande · escritura y planificación"]
@@ -220,32 +220,29 @@ flowchart LR
   CAP --> IDX["Índice semántico · fragmentos con metadatos"]
 ```
 
-| Almacén | Contenido | Tecnología propuesta | Alternativa |
-|---|---|---|---|
-| Relacional | Proyecto, contexto, plan, fichas, biblia, informes de verificación, costes | PostgreSQL (JSONB para el contexto) | MySQL, SQLite en local |
-| Vectorial | Fragmentos de capítulos con metadatos (capítulo, POV, personajes, localización) | pgvector en la misma base | Qdrant, Weaviate |
-| Objetos | Versiones de capítulos, exportaciones, prompts y respuestas para auditoría | S3 o compatible (MinIO en local) | Sistema de archivos |
-| Caché | Prompts repetidos, embeddings | Redis | Sin caché en fase inicial |
+| Almacén | Contenido |
+|---|---|
+| Relacional | Proyecto, contexto, plan, fichas, biblia, informes de verificación, costes |
+| Vectorial | Fragmentos de capítulos con metadatos (capítulo, POV, personajes, localización) |
+| Objetos | Versiones de capítulos, exportaciones, prompts y respuestas para auditoría |
+| Caché | Prompts repetidos, embeddings |
+
+Son cuatro necesidades, no cuatro servicios: en fase inicial pueden convivir en un mismo almacén. La tecnología está sin decidir.
 
 Cada capítulo se guarda con versión, estado (`borrador`, `editado`, `verificado`, `aprobado`, `revision_humana`) y los informes que lo produjeron, de modo que cualquier fallo es trazable hasta el prompt exacto.
 
 ---
 
-## 7. Tecnología de referencia
+## 7. Tecnología
 
-| Componente | Propuesta | Por qué | Alternativa |
-|---|---|---|---|
-| Lenguaje | Python 3.12 | Ecosistema de IA y validación de esquemas | TypeScript (Node) |
-| Orquestación de agentes | LangGraph (grafo de estados con persistencia) | Bucles, reintentos y puntos de pausa humana nativos | Temporal + código propio, CrewAI |
-| Modelos | Claude Opus/Sonnet para escritura y planificación; Haiku para resúmenes, extracción y jueces | Calidad de prosa larga y coste escalonado | GPT, Gemini, modelos abiertos vía vLLM |
-| Validación de esquema | Pydantic + JSON Schema derivado de la ontología | Contexto y fichas siempre tipados | Zod en TypeScript |
-| Métricas de estilo | spaCy (es) + textstat | Frase media, legibilidad, léxico | Código propio |
-| Cola de trabajos | Celery + Redis o RQ | Un job por capítulo, paralelismo controlado | Temporal, AWS SQS |
-| API | FastAPI | Tipado, documentación automática | Flask, NestJS |
-| Panel de editor | Next.js o Streamlit (MVP) | Revisión de plan, diff de capítulos, aprobación | Retool |
-| Observabilidad | Langfuse (trazas de prompts, coste, latencia) + OpenTelemetry | Auditar cada decisión de los agentes | LangSmith, Arize |
-| Exportación | Pandoc (EPUB, DOCX), WeasyPrint (PDF) | Formatos editoriales estándar | python-docx, ebooklib |
-| Despliegue | Docker Compose en desarrollo; Kubernetes o ECS en producción | Aislar workers de agentes por coste | Serverless para API + workers en cola |
+Lo decidido hasta ahora es solo esto:
+
+| Componente | Decisión |
+|---|---|
+| Backend | Python + FastAPI |
+| Frontend | React con Vite |
+
+Todo lo demás está **sin decidir**: orquestación de agentes, base de datos, índice vectorial, cola de trabajos, almacén de objetos, observabilidad, formatos de exportación y despliegue. El resto del documento describe esas piezas por su función, no por su implementación; cada decisión se tomará cuando la fase correspondiente la exija y se añadirá a esta tabla.
 
 ---
 
@@ -254,8 +251,9 @@ Cada capítulo se guarda con versión, estado (`borrador`, `editado`, `verificad
 ```mermaid
 flowchart LR
   subgraph EDGE["Acceso"]
-    U["Editor"] --> W["Panel web"]
-    U --> API["API FastAPI"]
+    U["Editor"] --> W["Panel web · React + Vite"]
+    W --> API["API · FastAPI"]
+    U --> API
   end
   subgraph CORE["Núcleo"]
     API --> Q["Cola de trabajos"]
@@ -264,15 +262,13 @@ flowchart LR
     Q --> WK3["Worker de verificación"]
   end
   subgraph DATA["Datos"]
-    PG["PostgreSQL + pgvector"]
-    S3["Almacén de objetos"]
-    RD["Redis"]
+    ST["Almacenes de §6"]
   end
   subgraph EXT["Servicios externos"]
     LLMs["API de modelos"]
-    OBS["Langfuse"]
+    OBS["Trazas y coste"]
   end
-  WK1 & WK2 & WK3 --> PG & S3 & RD
+  WK1 & WK2 & WK3 --> ST
   WK1 & WK2 & WK3 --> LLMs
   WK1 & WK2 & WK3 --> OBS
 ```
