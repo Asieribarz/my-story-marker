@@ -22,6 +22,8 @@ Léela antes de proponer diseño o escribir código. Los tres documentos son con
 
 Si un cambio de código altera la ontología, los valores permitidos o el flujo, actualiza el documento correspondiente en el mismo cambio.
 
+Todo diagrama o grafo, en `docs/` o en cualquier otro sitio del repositorio, se escribe en formato Mermaid: no se usan imágenes, ASCII art ni ningún otro formato.
+
 ## Cómo se trabaja
 
 Tres reglas que no se saltan:
