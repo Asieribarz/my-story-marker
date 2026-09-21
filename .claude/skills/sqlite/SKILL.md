@@ -1,6 +1,6 @@
 ---
 name: sqlite
-description: Referencia de SQLite: pragmas obligatorios, tipado dinámico, transacciones, WAL y escritor único, FTS5 y el módulo sqlite3 de Python. Úsala al escribir esquema, migraciones o cualquier consulta contra la base del proyecto.
+description: "Referencia de SQLite: pragmas obligatorios, tipado dinámico, transacciones, WAL y escritor único, FTS5 y el módulo sqlite3 de Python. Úsala al escribir esquema, migraciones o cualquier consulta contra la base del proyecto."
 ---
 
 # SQLite — referencia

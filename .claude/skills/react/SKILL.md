@@ -1,6 +1,6 @@
 ---
 name: react
-description: Capa sobre el plugin react@han: cubre lo que no trae (Vite y sus variables de entorno, claves de lista, StrictMode) y corrige su sesgo hacia memorizar por defecto. Léela junto a las skills del plugin, no en su lugar.
+description: "Capa sobre el plugin react@han: cubre lo que no trae (Vite y sus variables de entorno, claves de lista, StrictMode) y corrige su sesgo hacia memorizar por defecto. Léela junto a las skills del plugin, no en su lugar."
 ---
 
 # React — huecos y matices

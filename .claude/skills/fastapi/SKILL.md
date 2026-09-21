@@ -1,6 +1,6 @@
 ---
 name: fastapi
-description: Capa sobre el plugin fastapi@han: corrige su error sobre async frente a sync, y cubre lo que no trae (lifespan, migración a Pydantic v2, y por qué sus ejemplos de base de datos no valen aquí). Léela junto a las skills del plugin, no en su lugar.
+description: "Capa sobre el plugin fastapi@han: corrige su error sobre async frente a sync, y cubre lo que no trae (lifespan, migración a Pydantic v2, y por qué sus ejemplos de base de datos no valen aquí). Léela junto a las skills del plugin, no en su lugar."
 ---
 
 # FastAPI — correcciones y huecos
