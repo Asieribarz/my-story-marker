@@ -46,8 +46,8 @@ El skill `grilling` viene del plugin `mattpocock-skills`, del marketplace oficia
 
 ## Stack
 
-Lo decidido: **backend en Python con FastAPI**, **frontend en React con Vite**, **orquestación con Claude Code** — la sesión recorre el grafo de estados y cada agente de la novela es un subagente suyo; no se escribe un orquestador en código — y **SQLite local** como base de datos, un fichero por proyecto que cubre lo relacional, lo vectorial y la caché, con los capítulos y las exportaciones como ficheros en disco en vez de blobs.
+Lo decidido: **backend en Python con FastAPI**, **frontend en React con Vite**, **orquestación con Claude Code** — la sesión recorre el grafo de estados y cada agente de la novela es un subagente suyo; no se escribe un orquestador en código — **acceso de los agentes a la biblia por un servidor MCP** sobre esa base — herramientas tipadas, escritura reservada al Bibliotecario — y **SQLite local** como base de datos, un fichero por proyecto que cubre lo relacional, lo vectorial y la caché, con los capítulos y las exportaciones como ficheros en disco en vez de blobs.
 
 La organización del código también está decidida: **vertical slices en el backend**, una carpeta por fase de §2 con su router, sus modelos y su acceso a datos dentro, y **package by feature en el frontend**, sin adoptar FSD. Ver [docs/architecture.md](docs/architecture.md) §8.
 
-Todo lo demás (el mecanismo de búsqueda dentro de SQLite, la cola de trabajos, la observabilidad, la exportación, el despliegue, y la vía por la que Claude Code accede a la biblia) está sin decidir — ver [docs/architecture.md](docs/architecture.md) §7. No introduzcas ninguna de esas dependencias por iniciativa propia: propón la decisión, y si se acepta, añádela a esa tabla en el mismo cambio.
+Todo lo demás (el mecanismo de búsqueda dentro de SQLite, la cola de trabajos, la observabilidad, la exportación y el despliegue) está sin decidir — ver [docs/architecture.md](docs/architecture.md) §7. No introduzcas ninguna de esas dependencias por iniciativa propia: propón la decisión, y si se acepta, añádela a esa tabla en el mismo cambio.

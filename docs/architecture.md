@@ -82,7 +82,7 @@ flowchart LR
 
 ---
 
-## 3. Agentes
+## 3. Agentes y orquestación
 
 Cada agente de esta tabla es un **subagente de Claude Code**, con su propio contexto y su modelo fijado según la columna *Modelo*. Las definiciones concretas aún no existen.
 
@@ -124,6 +124,60 @@ flowchart LR
 | **Bibliotecario** | Extrae del capítulo aprobado los hechos nuevos (estado de personajes, objetos, fechas, presagios) y actualiza la biblia y el resumen acumulado. | Capítulo aprobado | Biblia actualizada | Rápido |
 | **Revisor dirigido** | Corrige capítulos concretos a partir de un informe de fallos, con cambios mínimos. | Capítulo + informe | Capítulo corregido | Grande |
 | **Exportador** | Genera título, sinopsis, palabras clave y los archivos finales. | Manuscrito | EPUB, DOCX, PDF, metadatos | Rápido + código |
+
+El **Recuperador de contexto** de §5 no está en esta tabla a propósito: no es un agente. Es código del backend y no consume modelo. Su sitio es §6.3.
+
+### 3.1 El grafo de estados
+
+La sesión de Claude Code no guarda el estado en su propia ventana. El estado del proyecto es una fila en SQLite y la sesión es un **ejecutor sin memoria propia**: lee dónde está, lanza un subagente, escribe el resultado y vuelve a leer. Un fin de ventana de contexto, un portátil cerrado y una pausa de tres días esperando una aprobación son el mismo caso, y reanudar es siempre lo mismo: leer la fila y seguir.
+
+Esto es lo que convierte «el grafo de estados» de metáfora en tabla. Hay dos máquinas anidadas: la del **proyecto**, que recorre las fases de §2, y la del **capítulo**, que es el bucle de §5 y cuyos estados ya estaban definidos en §6 (`borrador`, `editado`, `verificado`, `aprobado`, `revision_humana`).
+
+```mermaid
+flowchart LR
+  S1["intake"] --> S2["contexto"]
+  S2 --> S3["planificacion"]
+  S3 --> G1{"aprobacion_plan"}
+  G1 -->|"cambios"| S3
+  G1 -->|"ok"| S4["escaleta"]
+  S4 --> S5["capitulos · bucle de §5"]
+  S5 --> S6["verificacion_manuscrito"]
+  S6 -->|"fallos"| S7["revision"]
+  S7 --> S6
+  S6 -->|"ok"| G2{"aprobacion_final"}
+  G2 -->|"notas"| S7
+  G2 -->|"ok"| S8["exportacion"]
+  S8 --> S9["terminado"]
+```
+
+| Estado | Subagente que se lanza | Sale cuando | Quién decide la salida |
+|---|---|---|---|
+| `intake` | Agente de Contexto | El brief normalizado está completo | El agente, o el editor si falta un dato |
+| `contexto` | Agente de Contexto | El Verificador de Esquema da verde | Verificador determinista |
+| `planificacion` | Arquitecto, Personajes, Mundo, Estilo (secuenciales) | Existe plan estructural, fichas, biblia de mundo y guía de estilo | Los cuatro agentes, en orden |
+| `aprobacion_plan` | Ninguno | El editor aprueba o pide cambios | **Humano** — parada obligatoria |
+| `escaleta` | Escaletista | Hay N fichas de capítulo | El agente |
+| `capitulos` | Bucle de §5, capítulo a capítulo | El último capítulo está en `aprobado` o en `revision_humana` | Verificadores |
+| `verificacion_manuscrito` | Verificadores de manuscrito | Informe global sin fallos altos ni bloqueantes | Verificadores |
+| `revision` | Revisor dirigido | Los capítulos del informe están corregidos | El agente; vuelve siempre a verificar |
+| `aprobacion_final` | Ninguno | El editor aprueba o deja notas | **Humano** — parada obligatoria |
+| `exportacion` | Exportador | Los archivos y metadatos existen en disco | Código |
+
+### 3.2 Reintentos, fallos y reanudación
+
+El contador de intentos **no vive en la cabeza del orquestador**, vive en la fila del capítulo. Es la única forma de que el tope de 3 ciclos de §4 siga significando algo después de que la sesión se reinicie: una sesión nueva lee `intentos = 2` y sabe que le queda uno, en vez de empezar a contar desde cero y regenerar el mismo capítulo nueve veces.
+
+Cada transición se escribe **antes** de lanzar el siguiente subagente. Si la sesión muere a mitad, lo que se pierde es como mucho el trabajo de un subagente, nunca la posición en el grafo.
+
+Eso obliga a que cada paso sea **repetible sin daño**: las escrituras van claveadas por `(capítulo, versión, intento)`, de modo que relanzar un paso que ya se había completado produce la misma fila en vez de una duplicada. Un capítulo que agota los tres intentos no se reintenta más: pasa a `revision_humana` con los informes adjuntos y el bucle sigue con el siguiente, porque bloquear la novela entera por un capítulo es peor que dejarlo marcado.
+
+### 3.3 Lo que el orquestador no hace
+
+Tres cosas, y conviene que estén escritas porque las tres son tentadoras cuando quien orquesta es un modelo:
+
+- **No escribe prosa de la novela.** Ni un párrafo de relleno, ni un arreglo rápido de una frase que el Editor dejó torcida. Si hace falta texto, se lanza el agente que corresponde.
+- **No escribe en la biblia.** Solo el Bibliotecario, y solo tras la verificación. Esta regla deja de depender de la buena voluntad del agente en cuanto el acceso es por herramientas MCP con permisos por agente (§7).
+- **No se salta una parada humana.** `aprobacion_plan` y `aprobacion_final` no tienen transición automática de salida, ni siquiera cuando todos los verificadores están en verde.
 
 ---
 
@@ -201,7 +255,7 @@ sequenceDiagram
   end
 ```
 
-El **Recuperador de contexto** no es un agente creativo: ensambla el prompt a partir de consultas estructuradas a la biblia y de una búsqueda semántica de pasajes anteriores relevantes (por ejemplo, la última vez que apareció un secundario), para que el Escritor no reciba toda la novela sino solo lo pertinente.
+El **Recuperador de contexto** no es un agente creativo ni un agente en absoluto: es código del backend que ensambla el prompt a partir de consultas estructuradas a la biblia y de una búsqueda semántica de pasajes anteriores relevantes (por ejemplo, la última vez que apareció un secundario), para que el Escritor no reciba toda la novela sino solo lo pertinente. Cómo reparte el presupuesto de 100.000 tokens y qué recorta cuando no cabe está en §6.3.
 
 ---
 
@@ -243,6 +297,63 @@ Queda por decidir **cómo** se hace la búsqueda dentro de esa base: una extensi
 
 Cada capítulo se guarda con versión, estado (`borrador`, `editado`, `verificado`, `aprobado`, `revision_humana`) y los informes que lo produjeron, de modo que cualquier fallo es trazable hasta el prompt exacto.
 
+### 6.1 Tres niveles de memoria
+
+Los cuatro almacenes de la tabla anterior dicen **dónde** se guarda cada cosa. Cuánto **dura** es otro eje, y es el que gobierna el diseño de los prompts:
+
+```mermaid
+flowchart LR
+  N1["Nivel 1 · Memoria de trabajo · la ventana del subagente"]
+  N2["Nivel 2 · Memoria de proyecto · resumen vivo"]
+  N3["Nivel 3 · Memoria persistente · biblia y manuscrito"]
+  N3 -->|"se destila en"| N2
+  N2 -->|"se selecciona en"| N1
+  N1 -->|"produce capítulo aprobado"| N3
+```
+
+| Nivel | Qué contiene | Cuánto dura | Quién lo escribe |
+|---|---|---|---|
+| **1 · Trabajo** | El prompt ensamblado: ficha, guía de estilo, contexto recuperado, capítulo anterior | Una invocación. Muere con el subagente | El Recuperador de contexto (§6.3) |
+| **2 · Proyecto** | Resumen acumulado, presagios pendientes, estado actual de cada personaje, últimos capítulos | Se reescribe y se compacta sin parar | El Bibliotecario |
+| **3 · Persistente** | Biblia completa, manuscrito versionado, índice semántico, informes de verificación | No se borra nada | El Bibliotecario y el código de persistencia |
+
+**La invariante que lo sostiene:** el nivel 2 es una **vista derivada** del nivel 3, nunca una fuente de verdad. Todo lo que hay en el resumen acumulado se puede reconstruir releyendo los capítulos aprobados. Eso es lo que hace segura la compactación: se puede tirar un resumen porque lo resumido sigue estando entero. En el momento en que algo viva **solo** en el nivel 2, la compactación pasa a ser pérdida de datos.
+
+### 6.2 Compactación: por qué el resumen no crece
+
+Un resumen acumulado que es la concatenación de 30 resúmenes de capítulo es un problema disfrazado de solución: en el capítulo 28 ocupa más que el propio capítulo y el Escritor recibe mucho ruido y poca señal.
+
+La regla es que el resumen acumulado sea **O(actos), no O(capítulos)**:
+
+- Al aprobar un capítulo, el Bibliotecario escribe su resumen con **presupuesto fijo** (≈200 palabras). No es negociable por capítulo interesante.
+- Mientras el acto está abierto, el resumen acumulado son los resúmenes de sus capítulos, uno a uno.
+- Al **cerrar un acto** —el mismo punto en el que ya se dispara la verificación de acto de §4— los resúmenes de sus capítulos se destilan en un único resumen de acto y dejan de enviarse individualmente.
+
+Así, el resumen que recibe el Escritor del capítulo 28 son tres resúmenes de acto cerrado más los capítulos del acto en curso. Los resúmenes por capítulo no se borran: siguen en el nivel 3, consultables, y simplemente dejan de viajar en el prompt.
+
+Lo que **nunca** se compacta, porque su tamaño ya está acotado y su pérdida es un fallo de continuidad: los presagios pendientes (por definición, los no cobrados), el estado actual de los personajes presentes y el inventario de objetos vivos.
+
+### 6.3 El Recuperador de contexto y el presupuesto de 100.000 tokens
+
+El Recuperador es **código determinista del backend**, no un agente: no consume modelo, se comporta igual ante la misma entrada y —lo que importa— **cuenta los tokens antes de enviar**. Si el ensamblado fuese un agente, el tope de contexto sería algo que se comprueba a posteriori, cuando ya se ha desbordado.
+
+Dada una ficha de capítulo, ejecuta consultas fijas a la biblia y una búsqueda de pasajes anteriores relevantes, y arma el prompt del Escritor por bloques con un presupuesto por bloque:
+
+| Bloque | Presupuesto orientativo | Prioridad si no cabe |
+|---|---|---|
+| Ficha del capítulo | ~2k | 1 — nunca se recorta |
+| Guía de estilo | ~5k | 2 |
+| Presagios pendientes e inventario vivo | ~2k | 3 |
+| Fichas de los personajes presentes | ~8k | 4 |
+| Localización y reglas del mundo aplicables | ~5k | 5 |
+| Resumen acumulado (§6.2) | ~10k | 6 |
+| Capítulo anterior íntegro | ~8k | 7 |
+| Pasajes recuperados por búsqueda | ~15k | 8 — primero en caer |
+
+Suman ~55k de entrada sobre el tope de 100.000, y el margen restante es para la salida: el capítulo. Cuando un capítulo con nueve personajes en escena no cabe, el Recuperador **recorta por orden de prioridad inverso y lo deja escrito en el informe**. No trunca por el final en silencio: un prompt recortado sin avisar produce un fallo de continuidad que después nadie sabe explicar.
+
+La prioridad está puesta así a propósito. Los pasajes recuperados son lo primero que cae porque son la ayuda, no el encargo: sin ellos el capítulo sale más pobre, pero sale. Sin la ficha, el Escritor escribe otro capítulo.
+
 ---
 
 ## 7. Tecnología
@@ -256,10 +367,14 @@ Lo decidido hasta ahora es solo esto:
 | Orquestación de agentes | Claude Code: la sesión recorre el grafo y los agentes son subagentes suyos |
 | Base de datos | SQLite local, un fichero por proyecto, en modo WAL: relacional, vectorial y caché en la misma base |
 | Almacén de objetos | Ficheros en disco, sin servicio aparte |
+| Acceso de Claude Code a la biblia | **Servidor MCP** sobre la misma base SQLite: herramientas tipadas, de solo lectura para todos los agentes y de escritura solo para el Bibliotecario |
+| Estado del orquestador | Una fila en SQLite, no la ventana de la sesión (§3.1) |
 
 SQLite es una decisión de las **fases 1 y 2**. El multiusuario de la fase 3 (§11) obligará a revisarla; queda dicho aquí para que ese día se lea como un cambio previsto y no como una sorpresa.
 
-Todo lo demás está **sin decidir**: el mecanismo de búsqueda dentro de SQLite (extensión vectorial con embeddings o FTS5), la cola de trabajos, la observabilidad, los formatos de exportación, el despliegue y **por qué vía accede Claude Code a la biblia y al índice** (endpoint de FastAPI, servidor MCP u otra). El resto del documento describe esas piezas por su función, no por su implementación; cada decisión se tomará cuando la fase correspondiente la exija y se añadirá a esta tabla.
+El acceso por **MCP** se elige frente a endpoints de FastAPI llamados con Bash por una razón concreta: la regla de §1 de que solo el Bibliotecario escribe en la biblia deja de depender de que el agente se porte bien y pasa a ser un permiso por herramienta. El coste es un proceso más que mantener.
+
+Todo lo demás está **sin decidir**: el mecanismo de búsqueda dentro de SQLite (extensión vectorial con embeddings o FTS5), la cola de trabajos, la observabilidad, los formatos de exportación y el despliegue. El resto del documento describe esas piezas por su función, no por su implementación; cada decisión se tomará cuando la fase correspondiente la exija y se añadirá a esta tabla.
 
 ---
 
