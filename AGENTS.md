@@ -21,3 +21,9 @@ Léela antes de proponer diseño o escribir código. Los tres documentos son con
 | [docs/architecture.md](docs/architecture.md) | Capas, agentes, verificadores, ciclo de capítulo, modelo de datos, tecnología y fases de construcción. |
 
 Si un cambio de código altera la ontología, los valores permitidos o el flujo, actualiza el documento correspondiente en el mismo cambio.
+
+## Stack
+
+Lo único decidido: **backend en Python con FastAPI** y **frontend en React con Vite**.
+
+Todo lo demás (orquestación de agentes, base de datos, índice vectorial, cola de trabajos, almacén de objetos, observabilidad, exportación, despliegue) está sin decidir — ver [docs/architecture.md](docs/architecture.md) §7. No introduzcas ninguna de esas dependencias por iniciativa propia: propón la decisión, y si se acepta, añádela a esa tabla en el mismo cambio.
