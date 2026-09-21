@@ -1,4 +1,4 @@
-@AGENT.md
+@AGENTS.md
 
 ## Claude-specific notes
 

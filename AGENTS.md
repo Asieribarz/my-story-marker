@@ -1,4 +1,4 @@
-# AGENT.md — my-story-marker
+# AGENTS.md — my-story-marker
 
 Generador de novelas de aventura por agentes: convierte un brief de editor en un manuscrito verificado.
 
