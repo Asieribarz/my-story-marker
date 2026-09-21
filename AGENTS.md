@@ -24,18 +24,30 @@ Si un cambio de código altera la ontología, los valores permitidos o el flujo,
 
 ## Cómo se trabaja
 
-Desarrollo dirigido por especificaciones. El ciclo completo está en [specs/spec-driven-development.md](specs/spec-driven-development.md); estas son las tres reglas que no se saltan:
+Tres reglas que no se saltan:
 
-1. **Interroga antes de escribir.** Antes de modificar `docs/`, `specs/` o código, invoca el skill `grilling` (plugin `mattpocock-skills`) y sigue su protocolo: árbol de decisión, rondas de preguntas numeradas con tu recomendación en cada una, y espera a las respuestas antes de la siguiente ronda. Los hechos los averiguas tú leyendo el repositorio; a la persona solo le llevas decisiones. No rellenes los huecos por tu cuenta. Al cerrar, el acuerdo se escribe en la spec correspondiente antes de tocar nada. Excepciones: erratas, formato y lo que la persona ya haya dejado inequívoco — o cuando te diga explícitamente que te lo saltes.
-2. **No implementes sin spec acordada.** El código no es el sitio donde se decide qué hay que hacer. Si al implementar aparece algo que la spec no previó, vuelve a preguntar.
-3. **Actualiza el contexto al terminar.** Todo cambio de código termina revisando qué documentos de `docs/` han quedado desfasados y actualizándolos en el mismo commit. Di explícitamente cuáles tocaste y cuáles no aplicaban.
+1. **Interroga antes de escribir.** Antes de modificar `docs/` o código, invoca el skill `grilling` (plugin `mattpocock-skills`) y sigue su protocolo: árbol de decisión, rondas de preguntas numeradas con tu recomendación en cada una, y espera a las respuestas antes de la siguiente ronda. Los hechos los averiguas tú leyendo el repositorio; a la persona solo le llevas decisiones. No rellenes los huecos por tu cuenta. Al cerrar, di por escrito qué has entendido, qué decisiones se han tomado y qué supuestos aplicas, antes de tocar nada. Excepciones: erratas, formato y lo que la persona ya haya dejado inequívoco — o cuando te diga explícitamente que te lo saltes.
+2. **No implementes sin acuerdo explícito.** El código no es el sitio donde se decide qué hay que hacer. Si al implementar aparece algo que el acuerdo no previó, vuelve a preguntar; no lo resuelvas sobre la marcha.
+3. **Actualiza el contexto al terminar.** Todo cambio de código termina revisando qué documentos de `docs/` han quedado desfasados y actualizándolos en el mismo cambio, según esta tabla. Di explícitamente cuáles tocaste y cuáles no aplicaban: un "no aplicaba" declarado vale, un silencio no. No hagas commit ni push: los pide la persona a mano, y pedir un commit no autoriza el push.
 
-El índice de especificaciones está en [specs/README.md](specs/README.md), y las specs nuevas parten de [specs/_template.md](specs/_template.md).
+| Si el cambio afecta a… | Actualizar |
+|---|---|
+| Las claves, valores permitidos o estructura del objeto de contexto | [docs/definitions.md](docs/definitions.md) |
+| Las dimensiones del dominio o el pipeline de decisión | [docs/domain-knowledge.md](docs/domain-knowledge.md) |
+| Capas, agentes, verificadores, flujo, modelo de datos o despliegue | [docs/architecture.md](docs/architecture.md) |
+| La pila tecnológica: cualquier dependencia nueva | [docs/architecture.md](docs/architecture.md) §7 **y** este fichero |
+| Los métodos de verificación en uso | [docs/validators.md](docs/validators.md) |
+| Convenciones de trabajo o de nombres | Este fichero |
+| Nada de lo anterior | Nada, y se dice |
+
+La dirección importa: los `docs/` **siguen** al código, no lo preceden. Registran lo que quedó hecho.
 
 El skill `grilling` viene del plugin `mattpocock-skills`, del marketplace oficial. Si no lo tienes: `claude plugin install mattpocock-skills`.
 
 ## Stack
 
-Lo único decidido: **backend en Python con FastAPI** y **frontend en React con Vite**.
+Lo decidido: **backend en Python con FastAPI**, **frontend en React con Vite**, **orquestación con Claude Code** — la sesión recorre el grafo de estados y cada agente de la novela es un subagente suyo; no se escribe un orquestador en código — y **SQLite local** como base de datos, un fichero por proyecto que cubre lo relacional, lo vectorial y la caché, con los capítulos y las exportaciones como ficheros en disco en vez de blobs.
 
-Todo lo demás (orquestación de agentes, base de datos, índice vectorial, cola de trabajos, almacén de objetos, observabilidad, exportación, despliegue) está sin decidir — ver [docs/architecture.md](docs/architecture.md) §7. No introduzcas ninguna de esas dependencias por iniciativa propia: propón la decisión, y si se acepta, añádela a esa tabla en el mismo cambio.
+La organización del código también está decidida: **vertical slices en el backend**, una carpeta por fase de §2 con su router, sus modelos y su acceso a datos dentro, y **package by feature en el frontend**, sin adoptar FSD. Ver [docs/architecture.md](docs/architecture.md) §8.
+
+Todo lo demás (el mecanismo de búsqueda dentro de SQLite, la cola de trabajos, la observabilidad, la exportación, el despliegue, y la vía por la que Claude Code accede a la biblia) está sin decidir — ver [docs/architecture.md](docs/architecture.md) §7. No introduzcas ninguna de esas dependencias por iniciativa propia: propón la decisión, y si se acepta, añádela a esa tabla en el mismo cambio.

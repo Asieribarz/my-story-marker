@@ -1,6 +1,6 @@
 # architecture.md — Arquitectura y flujo del generador
 
-> Propósito: describe cómo el sistema convierte el contexto (`domain-knowledge.md` + `definitions.md`) en un manuscrito: capas, agentes, verificadores, flujo de trabajo, modelo de datos y despliegue. El documento describe **qué** hace cada pieza, no con qué se implementa: la pila está sin decidir salvo lo recogido en §7.
+> Propósito: describe cómo el sistema convierte el contexto (`domain-knowledge.md` + `definitions.md`) en un manuscrito: capas, agentes, verificadores, flujo de trabajo, modelo de datos, organización del código y despliegue. El documento describe **qué** hace cada pieza, no con qué se implementa: la pila está sin decidir salvo lo recogido en §7.
 
 ---
 
@@ -12,11 +12,11 @@ flowchart TB
     U1["Panel del editor · configuración, revisión, aprobación"]
     U2["API REST / SDK"]
   end
-  subgraph ORQ["Capa de orquestación"]
-    O1["Orquestador de flujo · grafo de estados"]
-    O2["Cola de trabajos · un job por capítulo"]
+  subgraph ORQ["Capa de orquestación · Claude Code"]
+    O1["Sesión de Claude Code · recorre el grafo de estados"]
+    O2["Cola de trabajos · un job por capítulo · backend"]
   end
-  subgraph AG["Capa de agentes"]
+  subgraph AG["Capa de agentes · subagentes de Claude Code"]
     A1["Agentes de planificación"]
     A2["Agentes de escritura"]
     A3["Agentes de revisión"]
@@ -42,6 +42,8 @@ flowchart TB
   AG --> LLM
   VER --> LLM
 ```
+
+**Quién orquesta:** una sesión de Claude Code, no código propio. Recorre el grafo de estados como protocolo escrito, lanza cada agente como subagente y aplica la política de reintentos. El backend se queda con todo lo que no consume modelo: verificadores deterministas, persistencia, índice y exportación.
 
 **Idea central:** los agentes proponen, los verificadores disponen y la biblia recuerda. Ningún agente escribe en la biblia directamente; solo el Bibliotecario, y solo después de que un capítulo pase la verificación.
 
@@ -82,9 +84,11 @@ flowchart LR
 
 ## 3. Agentes
 
+Cada agente de esta tabla es un **subagente de Claude Code**, con su propio contexto y su modelo fijado según la columna *Modelo*. Las definiciones concretas aún no existen.
+
 ```mermaid
 flowchart LR
-  ORQ["Orquestador"]
+  ORQ["Claude Code · orquestador"]
   ORQ --> CTX["Agente de Contexto"]
   ORQ --> ARQ["Arquitecto narrativo"]
   ORQ --> PER["Diseñador de personajes"]
@@ -108,7 +112,7 @@ flowchart LR
 
 | Agente | Responsabilidad | Entrada | Salida | Modelo |
 |---|---|---|---|---|
-| **Orquestador** | Ejecuta el grafo de estados, reintentos, límites de coste y puntos de aprobación humana. No genera texto. | Estado del proyecto | Transiciones | Código, sin LLM |
+| **Claude Code · orquestador** | Recorre el grafo de estados como protocolo, lanza los subagentes, aplica la política de reintentos y para en los puntos de aprobación humana. No genera prosa de la novela. | Estado del proyecto | Transiciones e invocaciones de subagente | Sesión de Claude Code |
 | **Agente de Contexto** | Convierte el brief en el objeto de contexto de la ontología, rellena valores por defecto según el pipeline de decisión y pregunta lo que falte. | Brief | Contexto YAML validado | Grande |
 | **Arquitecto narrativo** | Elige modelo estructural, reparte hitos por capítulo, define curva de tensión, pregunta dramática y tipo de final. | Contexto | Plan estructural | Grande |
 | **Diseñador de personajes** | Crea fichas, arcos, evolución y grafo de relaciones coherentes con los hitos. | Contexto + plan estructural | Fichas y grafo | Grande |
@@ -166,7 +170,7 @@ flowchart LR
 
 ```mermaid
 sequenceDiagram
-  participant O as Orquestador
+  participant O as Claude Code
   participant R as Recuperador de contexto
   participant B as Biblia
   participant W as Escritor
@@ -220,14 +224,22 @@ flowchart LR
   CAP --> IDX["Índice semántico · fragmentos con metadatos"]
 ```
 
-| Almacén | Contenido |
-|---|---|
-| Relacional | Proyecto, contexto, plan, fichas, biblia, informes de verificación, costes |
-| Vectorial | Fragmentos de capítulos con metadatos (capítulo, POV, personajes, localización) |
-| Objetos | Versiones de capítulos, exportaciones, prompts y respuestas para auditoría |
-| Caché | Prompts repetidos, embeddings |
+| Almacén | Contenido | Tecnología |
+|---|---|---|
+| Relacional | Proyecto, contexto, plan, fichas, biblia, informes de verificación, costes | **SQLite local**, un fichero por proyecto |
+| Vectorial | Fragmentos de capítulos con metadatos (capítulo, POV, personajes, localización) | **SQLite local**, misma base; extensión vectorial o FTS5, sin decidir |
+| Objetos | Versiones de capítulos, exportaciones, prompts y respuestas para auditoría | Ficheros en disco, dentro del proyecto |
+| Caché | Prompts repetidos, embeddings | **SQLite local**, misma base |
 
-Son cuatro necesidades, no cuatro servicios: en fase inicial pueden convivir en un mismo almacén. La tecnología está sin decidir.
+Son cuatro necesidades, no cuatro servicios.
+
+Las versiones de capítulo, las exportaciones y los prompts de auditoría son ficheros en disco y no blobs en la base, precisamente porque quien orquesta es Claude Code: un fichero se lee con grep y se compara con diff; un blob es opaco justo para quien más lo necesita.
+
+Un único fichero SQLite cubre las tres necesidades que no son ficheros: relacional, vectorial y caché. No hay servicio de base de datos aparte ni índice vectorial separado.
+
+SQLite funciona en modo **WAL** y admite un solo escritor a la vez, de modo que la escritura queda serializada. Ver la restricción que eso impone al paralelismo en §10.
+
+Queda por decidir **cómo** se hace la búsqueda dentro de esa base: una extensión vectorial sobre embeddings, o FTS5, que es búsqueda de texto completo y no necesita embeddings. Lo segundo evita depender de un proveedor de embeddings externo, que es gasto medido aparte de la suscripción.
 
 Cada capítulo se guarda con versión, estado (`borrador`, `editado`, `verificado`, `aprobado`, `revision_humana`) y los informes que lo produjeron, de modo que cualquier fallo es trazable hasta el prompt exacto.
 
@@ -241,12 +253,52 @@ Lo decidido hasta ahora es solo esto:
 |---|---|
 | Backend | Python + FastAPI |
 | Frontend | React con Vite |
+| Orquestación de agentes | Claude Code: la sesión recorre el grafo y los agentes son subagentes suyos |
+| Base de datos | SQLite local, un fichero por proyecto, en modo WAL: relacional, vectorial y caché en la misma base |
+| Almacén de objetos | Ficheros en disco, sin servicio aparte |
 
-Todo lo demás está **sin decidir**: orquestación de agentes, base de datos, índice vectorial, cola de trabajos, almacén de objetos, observabilidad, formatos de exportación y despliegue. El resto del documento describe esas piezas por su función, no por su implementación; cada decisión se tomará cuando la fase correspondiente la exija y se añadirá a esta tabla.
+SQLite es una decisión de las **fases 1 y 2**. El multiusuario de la fase 3 (§11) obligará a revisarla; queda dicho aquí para que ese día se lea como un cambio previsto y no como una sorpresa.
+
+Todo lo demás está **sin decidir**: el mecanismo de búsqueda dentro de SQLite (extensión vectorial con embeddings o FTS5), la cola de trabajos, la observabilidad, los formatos de exportación, el despliegue y **por qué vía accede Claude Code a la biblia y al índice** (endpoint de FastAPI, servidor MCP u otra). El resto del documento describe esas piezas por su función, no por su implementación; cada decisión se tomará cuando la fase correspondiente la exija y se añadirá a esta tabla.
 
 ---
 
-## 8. Despliegue
+## 8. Organización del código
+
+Dos criterios distintos, uno por lado, y ambos con la misma intención: que lo que cambia junto viva junto.
+
+### Backend — vertical slices, una carpeta por tarea
+
+Las tareas son las **fases de §2**, no los agentes de §3 ni los recursos REST. Una fase es la unidad de trabajo real y es lo que se toca entero cuando cambia algo; varios agentes comparten fase, así que una carpeta por agente dispersaría lo que se modifica a la vez.
+
+Cada rebanada contiene **todo lo suyo**: su router de FastAPI, sus modelos Pydantic, su lógica y su acceso a SQLite. No hay `routers/`, `models/` ni `services/` transversales: esa organización obliga a abrir cuatro carpetas para entender una sola tarea.
+
+```
+backend/
+  intake/            · brief → brief normalizado
+  contexto/          · brief → objeto de contexto validado
+  planificacion/     · contexto → plan narrativo
+  escaleta/          · plan → fichas de capítulo
+  capitulo/          · el bucle de §5
+  verificacion/      · verificación de manuscrito
+  revision/          · revisión dirigida
+  exportacion/       · manuscrito → archivos y metadatos
+  shared/            · deliberadamente pequeño
+```
+
+`shared/` es solo para lo que es transversal de verdad: la conexión a SQLite con sus pragmas, el esquema de la ontología y los tipos comunes. La tensión es real en las dos direcciones. Sin `shared/`, los pragmas acaban duplicados en ocho sitios y un día divergen —y un `PRAGMA foreign_keys` olvidado en una sola rebanada no da error, solo filas huérfanas—. Con un `shared/` que crece sin control, vuelves a tener capas horizontales con otro nombre. Ante la duda, duplicar dentro de la rebanada; se promueve a `shared/` cuando el tercer sitio lo necesite.
+
+### Frontend — package by feature, sin FSD
+
+Una carpeta por funcionalidad, con sus componentes, sus hooks, su estado y sus llamadas a la API dentro. No hay `components/`, `hooks/` ni `services/` en la raíz recogiendo piezas de pantallas que no tienen nada que ver entre sí.
+
+**Sin FSD**: no se adopta Feature-Sliced Design. Sus capas obligatorias (`shared`, `entities`, `features`, `widgets`, `pages`, `app`) y sus reglas de importación entre capas son más metodología de la que este frontend necesita, y el coste de aprenderla y respetarla no se paga con un panel de editor.
+
+Lo compartido entre funcionalidades vive en un `shared/` con el mismo criterio de arriba: pequeño, y se promueve cuando el tercer sitio lo pide.
+
+---
+
+## 9. Despliegue
 
 ```mermaid
 flowchart LR
@@ -262,26 +314,28 @@ flowchart LR
     Q --> WK3["Worker de verificación"]
   end
   subgraph DATA["Datos"]
-    ST["Almacenes de §6"]
+    ST["SQLite local · fichero por proyecto"]
+    FS["Ficheros en disco · capítulos, exportaciones, auditoría"]
   end
   subgraph EXT["Servicios externos"]
     LLMs["API de modelos"]
     OBS["Trazas y coste"]
   end
   WK1 & WK2 & WK3 --> ST
+  WK1 & WK2 & WK3 --> FS
   WK1 & WK2 & WK3 --> LLMs
   WK1 & WK2 & WK3 --> OBS
 ```
 
 ---
 
-## 9. Transversales
+## 10. Transversales
 
 | Aspecto | Decisión |
 |---|---|
 | **Human-in-the-loop** | Dos puntos obligatorios (plan y manuscrito final) y uno condicional (capítulo que agota reintentos). El panel muestra diff y el informe que motivó la pausa. |
-| **Control de coste** | Presupuesto por proyecto en tokens; el orquestador degrada a modelo rápido en editores y jueces si se supera el 80 %; alerta al 100 %. Estimación previa: novela estándar ≈ 30 capítulos × (1 escritura + 1,5 regeneraciones medias + edición + jueces). |
-| **Paralelismo** | Planificación secuencial; capítulos secuenciales por defecto (dependen de la biblia). Paralelizable solo en estructuras corales con líneas independientes hasta su convergencia. |
+| **Control de coste** | El gasto es de suscripción, no de API medida: no hay presupuesto por token que degradar en caliente. El control se ejerce eligiendo el modelo de cada subagente por adelantado (rápido en editores y jueces, grande en escritura y planificación). Estimación previa: novela estándar ≈ 30 capítulos × (1 escritura + 1,5 regeneraciones medias + edición + jueces). |
+| **Paralelismo** | Planificación secuencial; capítulos secuenciales por defecto (dependen de la biblia). Paralelizable solo en estructuras corales con líneas independientes hasta su convergencia, y **condicionado a que el almacén lo soporte**: con SQLite la escritura es serializada, así que el paralelismo coral se limita a la generación, no a la escritura en la biblia. |
 | **Determinismo y reproducibilidad** | Semilla, versión de prompt, versión de modelo y contexto exacto guardados por capítulo. |
 | **Seguridad y privacidad** | Sin datos personales en el brief; secretos en gestor de credenciales; prompts y salidas cifrados en reposo; retención configurable. |
 | **Evaluación continua** | Conjunto de briefs de prueba; se mide tasa de aprobación al primer intento, fallos por tipo de verificador, coste por capítulo y valoración humana ciega de calidad. |
@@ -289,7 +343,7 @@ flowchart LR
 
 ---
 
-## 10. Plan de construcción por fases
+## 11. Plan de construcción por fases
 
 ```mermaid
 flowchart LR
