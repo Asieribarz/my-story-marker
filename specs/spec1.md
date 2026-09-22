@@ -115,7 +115,7 @@ Consecuencia de diseño que atraviesa todo el documento: **el backend nunca llam
 | C-2 | SQLite local, un fichero por proyecto, modo WAL, un solo escritor | §6, §7 |
 | C-3 | Vertical slices: una carpeta por fase de §2, sin `routers/`, `models/` ni `services/` transversales | §8 |
 | C-4 | Versiones de capítulo, exportaciones y auditoría son ficheros en disco, no blobs | §6 |
-| C-5 | 100.000 tokens de ventana por subagente | [CLAUDE.md](../CLAUDE.md), §6.3 |
+| C-5 | 100.000 tokens de **entrada** por subagente; no hay presupuesto de salida | [CLAUDE.md](../CLAUDE.md), §6.3 |
 | C-6 | Acceso de agentes a la biblia por MCP, con permiso de escritura solo para el Bibliotecario | §7 |
 | C-7 | Ninguna dependencia nueva fuera de la tabla de §7 sin decisión previa | [AGENTS.md](../AGENTS.md) |
 | C-8 | Sin datos personales en el brief | §10 |
@@ -218,15 +218,21 @@ Cada requisito tiene identificador estable, enunciado, y la sección de `docs/` 
 
 | ID | Requisito | Prio | Origen |
 |---|---|---|---|
-| RF-50 | El Recuperador es código determinista: misma entrada, mismo prompt ensamblado. No llama a ningún modelo. | M | §5, §6.3 |
-| RF-51 | Ensambla el prompt por bloques, con los presupuestos de la tabla de §6.3. | M | §6.3 |
+| RF-50 | El Recuperador no llama a ningún modelo. Ensambla con **dos mecanismos de contrato distinto**: recuperación estructurada y recuperación por similitud. El criterio que los separa es el determinismo, no la técnica. | M | §5, §6.3 |
+| RF-50a | **Recuperación estructurada:** misma entrada → mismo resultado, byte a byte. Sirve todos los bloques menos el de pasajes recuperados. | M | §6.3 |
+| RF-50b | **Recuperación por similitud:** misma entrada **y mismo estado del índice** → mismo resultado. El desempate entre fragmentos de igual puntuación es explícito y estable: puntuación, luego número de capítulo, luego posición del fragmento. | M | §6.3 |
+| RF-50c | El resultado vacío es asimétrico: en similitud es una respuesta válida —no se emite su encabezado y **no se registra como recorte**—; en estructurada es un error que aborta el ensamblado con mensaje accionable. | M | §6.3 |
+| RF-51 | Ensambla el prompt por bloques, con los tamaños esperados y el orden de prioridad de la tabla de §6.3. El recorte se dispara contra el tope de 100.000, no contra la suma de la tabla. | M | §6.3 |
 | RF-52 | Cuenta los tokens **antes** de enviar, no después. | M | §6.3 |
 | RF-53 | Si no cabe, recorta por orden de prioridad inverso (pasajes recuperados primero, ficha nunca) y **deja escrito en el informe** qué recortó y cuánto. | M | §6.3 |
 | RF-54 | Nunca trunca por el final en silencio. Un recorte sin registro es un fallo del Recuperador. | M | §6.3 |
 | RF-55 | El bloque «resumen acumulado» se sirve compactado según §6.2: resúmenes de acto cerrado + capítulos del acto en curso. | M | §6.2 |
 | RF-56 | Los presagios pendientes, el estado de los personajes presentes y el inventario vivo nunca se compactan ni se recortan por compactación. | M | §6.2 |
-| RF-57 | El bloque «pasajes recuperados por búsqueda» queda como punto de extensión vacío en la v1, con su presupuesto declarado a cero hasta que se resuelva D-1. | M | §7, D-1 |
+| RF-57 | En la v1 la recuperación por similitud devuelve **siempre el conjunto vacío**, que es una respuesta válida de su contrato (RF-50c), con su presupuesto declarado a cero hasta que se resuelva D-1. No es un punto de extensión pendiente: es el caso vacío implementado. | M | §7, D-1 |
 | RF-58 | El prompt ensamblado se guarda como fichero en disco, asociado a `(capítulo, versión, intento)`. | M | §6, §10 |
+| RF-59 | La consulta de similitud se deriva de la ficha —hito y escenas como texto de consulta— con filtros estructurados duros: personajes presentes, localización y **solo capítulos anteriores al actual**, medidos por número de capítulo y no por orden de escritura. | M | §6.3 |
+| RF-59a | El bloque de pasajes va precedido de un encabezado fijo que declara que no son estado vigente y que ante discrepancia manda la ficha; el texto es una constante del código, no se redacta al vuelo. Cada fragmento va precedido de su procedencia. | M | §6.3 |
+| RF-59b | La respuesta del ensamblado incluye un desglose por bloque —identificador, tokens finales, presupuesto, recorte y cuánto—, el total de entrada, la lista ordenada de recortes y, para el bloque de similitud, capítulo y posición de cada fragmento. Se persiste junto al prompt de RF-58. | M | §6.3, §10 |
 
 #### 4.6.2 Versiones, estado e informes de capítulo
 
@@ -381,9 +387,10 @@ Un fichero SQLite por proyecto, en WAL. Entidades derivadas de [docs/architectur
 |---|---|---|
 | RNF-01 | **Reanudabilidad.** Matar el proceso en cualquier punto y volver a arrancar pierde como mucho el trabajo de un subagente, nunca la posición en el grafo. | V-1 |
 | RNF-02 | **Idempotencia.** Repetir un paso ya completado no duplica filas ni ficheros. | V-2 |
-| RNF-03 | **Determinismo del Recuperador.** Misma entrada → mismo prompt, byte a byte. | V-3 |
+| RNF-03a | **Determinismo de la recuperación estructurada.** Misma entrada → mismo resultado, byte a byte. | V-3a |
+| RNF-03b | **Reproducibilidad de la recuperación por similitud.** Misma entrada y mismo estado del índice → mismo resultado, desempate incluido. | V-3b |
 | RNF-04 | **Trazabilidad.** Desde cualquier hallazgo de un informe se llega al prompt exacto que lo produjo. | V-4 |
-| RNF-05 | **Presupuesto de contexto.** Ningún prompt ensamblado supera los 100.000 tokens. | V-5 |
+| RNF-05 | **Presupuesto de contexto.** Ningún prompt ensamblado supera los 100.000 tokens de entrada. | V-5 |
 | RNF-06 | **Tipado.** El código pasa comprobación estática de tipos sin errores. | V-6 |
 | RNF-07 | **Latencia.** Los verificadores deterministas de un capítulo terminan en segundos, no minutos: son la comprobación barata que corre siempre. | V-7 |
 | RNF-08 | **Portabilidad.** Arranca en Windows y en Linux sin cambios de código; las rutas se manejan como rutas, no como cadenas. | V-8 |
@@ -403,7 +410,7 @@ Se listan aparte porque son las que no pueden quedar en manos del prompt de un a
 | RN-2 | Nada entra en la biblia antes de la verificación. | RF-106 |
 | RN-3 | Las dos paradas humanas no se saltan. | RF-05: no existe transición automática de salida |
 | RN-4 | Máximo 3 intentos por capítulo. | RF-07, RF-63: el contador está en la fila |
-| RN-5 | Un recorte de contexto siempre se declara. | RF-53, RF-54 |
+| RN-5 | Un recorte de contexto siempre se declara. Un bloque de similitud vacío no es un recorte. | RF-53, RF-54, RF-50c |
 | RN-6 | Un verificador nunca corrige. | Los verificadores devuelven informe; no tienen escritura sobre el texto |
 | RN-7 | El nivel 2 de memoria es derivado. | RF-88: la compactación nunca es el único sitio donde vive un hecho |
 
@@ -417,7 +424,8 @@ Método de verificación por criterio, con la clasificación de [docs/validators
 |---|---|---|---|
 | V-1 | Reanudación (RNF-01) | Prueba de integración que mata el proceso en cada estado del grafo y reanuda; se comprueba que el estado leído es el esperado | T |
 | V-2 | Idempotencia (RNF-02) | Prueba basada en propiedades: para cualquier paso y cualquier número de repeticiones, el conjunto de filas resultante es el mismo | T |
-| V-3 | Determinismo del Recuperador (RNF-03) | Prueba de propiedades sobre entradas generadas + comparación exacta de salida | T |
+| V-3a | Determinismo de la recuperación estructurada (RNF-03a) | Prueba de propiedades sobre entradas generadas + comparación exacta de salida | T |
+| V-3b | Reproducibilidad de la recuperación por similitud (RNF-03b) | Prueba de propiedades con el índice congelado: dos ejecuciones sobre el mismo estado coinciden, incluido el orden de los empates | T |
 | V-4 | Trazabilidad (RNF-04) | Prueba de integración: dado un hallazgo, la cadena hasta el fichero de prompt se resuelve | T |
 | V-5 | Presupuesto de contexto (RNF-05) | Prueba de propiedades con biblias sintéticas grandes: el ensamblado nunca excede el tope y el informe de recorte es no vacío cuando recorta | T |
 | V-6 | Tipado (RNF-06) | Comprobación estática de tipos en CI | A |
@@ -432,7 +440,7 @@ Método de verificación por criterio, con la clasificación de [docs/validators
 | V-15 | Cobertura real de la batería | Pruebas de mutación sobre verificadores y validador de ontología | T |
 | V-16 | **Que el manuscrito sea bueno** | Ninguno en la v1. Los jueces LLM son Fase 2 y la valoración humana ciega es Fase 3. La v1 verifica que la maquinaria funciona, no que la novela valga | **U** |
 | V-17 | **Que los verificadores deterministas detecten toda incoherencia real** | Detectan las reglas escritas, no la incoherencia en general. Falsos negativos aceptados y delegados a Fase 2 | **U** |
-| V-18 | **Comportamiento del orquestador** | El grafo lo recorre una sesión de Claude Code: el backend puede rechazar transiciones inválidas, pero no puede garantizar que la sesión intente las correctas. Riesgo aceptado en v1; `model checking` sobre el grafo queda como candidato de Fase 2 | **U** |
+| V-18 | **Comportamiento del orquestador** | El grafo lo recorre una sesión de Claude Code: el backend puede rechazar transiciones inválidas, pero no puede garantizar que la sesión intente las correctas. Cubre también la regla de que **una invocación es un intento** ([docs/architecture.md](../docs/architecture.md) §3.2): el backend clavea por `(capítulo, versión, intento)` y cuenta hasta tres, pero no puede distinguir dos intentos hechos en dos invocaciones de dos hechos dentro de la misma. Riesgo aceptado en v1; `model checking` sobre el grafo queda como candidato de Fase 2 | **U** |
 
 ---
 
@@ -442,7 +450,7 @@ Ninguna de estas se resuelve en este documento. Están enumeradas porque hay req
 
 | ID | Decisión | A qué afecta | Bloquea la v1 |
 |---|---|---|---|
-| D-1 | Mecanismo de búsqueda dentro de SQLite: extensión vectorial con embeddings, o FTS5 | RF-57, bloque de pasajes recuperados del Recuperador | No — el bloque queda a cero |
+| D-1 | Mecanismo de búsqueda dentro de SQLite: extensión vectorial con embeddings, o FTS5 | Implementación de la recuperación por similitud (RF-50b, RF-57, RF-59). Su contrato ya está definido en §6.3 de la arquitectura, así que la decisión se enchufa detrás de una interfaz estrecha y no arrastra al resto del Recuperador | No — el mecanismo devuelve vacío |
 | D-2 | Cola de trabajos | §9 de la arquitectura; en v1 la ejecución es secuencial y en proceso | No |
 | D-3 | Observabilidad y trazas | RF-105, V-18 | No |
 | D-4 | Biblioteca de validación del esquema de ontología: si Pydantic basta o hace falta JSON Schema aparte | RF-20 | **Sí** |
@@ -469,7 +477,7 @@ Sobre **D-4**, **D-5** y **D-7**: son las tres que hay que cerrar antes de escri
 | architecture §6 | RF-60, RF-61, RF-80 a RF-86, §6 completo |
 | architecture §6.1 | RF-88, RN-7 |
 | architecture §6.2 | RF-55, RF-56, RF-86, RF-87 |
-| architecture §6.3 | RF-51 a RF-54, RNF-05 |
+| architecture §6.3 | RF-50 a RF-54, RF-59 a RF-59b, RNF-03a, RNF-03b, RNF-05 |
 | architecture §7 | C-1, C-2, C-6, RF-100 a RF-106, D-1 a D-3 |
 | architecture §8 | C-3, §3 de este documento |
 | architecture §10 | RF-09, RF-62, RF-105, C-8 |

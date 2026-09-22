@@ -171,6 +171,10 @@ Cada transición se escribe **antes** de lanzar el siguiente subagente. Si la se
 
 Eso obliga a que cada paso sea **repetible sin daño**: las escrituras van claveadas por `(capítulo, versión, intento)`, de modo que relanzar un paso que ya se había completado produce la misma fila en vez de una duplicada. Un capítulo que agota los tres intentos no se reintenta más: pasa a `revision_humana` con los informes adjuntos y el bucle sigue con el siguiente, porque bloquear la novela entera por un capítulo es peor que dejarlo marcado.
 
+**Una invocación es un intento.** Un reintento no es decirle «vuelve a intentarlo» al mismo subagente que ya está abierto: es una invocación nueva, con el prompt reensamblado por el Recuperador y el informe del intento anterior como un bloque más. El atajo contrario es tentador —el subagente ya tiene el contexto cargado— y tiene dos costes. El primero es que los borradores descartados pasan a contar como entrada en el turno siguiente, así que el prompt real deja de parecerse a lo que describe §6.3. El segundo es peor: el intento deja de ser una unidad con estado propio, y `(capítulo, versión, intento)` pierde el sentido justo cuando hace falta, que es al reanudar.
+
+Esto es **protocolo, no algo que el backend pueda imponer**. El backend clavea las escrituras por intento y cuenta hasta tres, pero no puede saber si dos intentos salieron de una invocación o de dos. Es la misma clase de riesgo que ya está declarado sobre el comportamiento del orquestador.
+
 ### 3.3 Lo que el orquestador no hace
 
 Tres cosas, y conviene que estén escritas porque las tres son tentadoras cuando quien orquesta es un modelo:
@@ -255,7 +259,7 @@ sequenceDiagram
   end
 ```
 
-El **Recuperador de contexto** no es un agente creativo ni un agente en absoluto: es código del backend que ensambla el prompt a partir de consultas estructuradas a la biblia y de una búsqueda semántica de pasajes anteriores relevantes (por ejemplo, la última vez que apareció un secundario), para que el Escritor no reciba toda la novela sino solo lo pertinente. Cómo reparte el presupuesto de 100.000 tokens y qué recorta cuando no cabe está en §6.3.
+El **Recuperador de contexto** no es un agente creativo ni un agente en absoluto: es código del backend que ensambla el prompt con dos mecanismos de contrato distinto —recuperación estructurada sobre la biblia y recuperación por similitud sobre los capítulos anteriores (por ejemplo, la última vez que apareció un secundario)—, para que el Escritor no reciba toda la novela sino solo lo pertinente. Los dos contratos, el reparto del presupuesto de 100.000 tokens y qué se recorta cuando no cabe están en §6.3.
 
 ---
 
@@ -333,13 +337,15 @@ Así, el resumen que recibe el Escritor del capítulo 28 son tres resúmenes de 
 
 Lo que **nunca** se compacta, porque su tamaño ya está acotado y su pérdida es un fallo de continuidad: los presagios pendientes (por definición, los no cobrados), el estado actual de los personajes presentes y el inventario de objetos vivos.
 
-### 6.3 El Recuperador de contexto y el presupuesto de 100.000 tokens
+### 6.3 El Recuperador de contexto y el tope de 100.000 tokens
 
-El Recuperador es **código determinista del backend**, no un agente: no consume modelo, se comporta igual ante la misma entrada y —lo que importa— **cuenta los tokens antes de enviar**. Si el ensamblado fuese un agente, el tope de contexto sería algo que se comprueba a posteriori, cuando ya se ha desbordado.
+El tope de 100.000 tokens es **de entrada**: acota el prompt ensamblado, no lo que el Escritor devuelve. No hay presupuesto de salida ni hace falta, porque la salida no compite con la entrada por la misma ventana.
 
-Dada una ficha de capítulo, ejecuta consultas fijas a la biblia y una búsqueda de pasajes anteriores relevantes, y arma el prompt del Escritor por bloques con un presupuesto por bloque:
+El Recuperador es **código del backend**, no un agente: no consume modelo y —lo que importa— **cuenta los tokens antes de enviar**. Si el ensamblado fuese un agente, el tope de contexto sería algo que se comprueba a posteriori, cuando ya se ha desbordado.
 
-| Bloque | Presupuesto orientativo | Prioridad si no cabe |
+Dada una ficha de capítulo, arma el prompt del Escritor por bloques:
+
+| Bloque | Tamaño esperado | Prioridad si no cabe |
 |---|---|---|
 | Ficha del capítulo | ~2k | 1 — nunca se recorta |
 | Guía de estilo | ~5k | 2 |
@@ -350,9 +356,49 @@ Dada una ficha de capítulo, ejecuta consultas fijas a la biblia y una búsqueda
 | Capítulo anterior íntegro | ~8k | 7 |
 | Pasajes recuperados por búsqueda | ~15k | 8 — primero en caer |
 
-Suman ~55k de entrada sobre el tope de 100.000, y el margen restante es para la salida: el capítulo. Cuando un capítulo con nueve personajes en escena no cabe, el Recuperador **recorta por orden de prioridad inverso y lo deja escrito en el informe**. No trunca por el final en silencio: un prompt recortado sin avisar produce un fallo de continuidad que después nadie sabe explicar.
+Estos números son **tamaños esperados, no asignaciones**: no son porciones repartidas de un presupuesto, son lo que cada cosa mide. Una ficha ocupa ~2k porque eso es lo que ocupa una ficha con el contenido que pide la escaleta, y no ocuparía más por darle más sitio. El único número con fuerza normativa es el techo de 100.000: **el recorte se dispara contra él**, no contra la suma de la tabla.
+
+Cuando un capítulo con nueve personajes en escena no cabe, el Recuperador **recorta por orden de prioridad inverso y lo deja escrito en el informe**. No trunca por el final en silencio: un prompt recortado sin avisar produce un fallo de continuidad que después nadie sabe explicar.
 
 La prioridad está puesta así a propósito. Los pasajes recuperados son lo primero que cae porque son la ayuda, no el encargo: sin ellos el capítulo sale más pobre, pero sale. Sin la ficha, el Escritor escribe otro capítulo.
+
+**Qué acota la salida.** Nada del lado del modelo: un capítulo de 3.000 palabras son unos 5k tokens, muy por debajo de lo que cualquier modelo devuelve en una respuesta. Lo que acota el capítulo son las `palabras_objetivo` de la ficha dentro del prompt y el verificador de Longitud (§4) a posteriori. Es un control blando —prompt más verificación, no un parámetro que corte—, y se acepta como tal porque quien orquesta es una sesión, no código.
+
+Ese control no es solo editorial, y esta es la razón por la que aparece aquí y no solo en §4: **la salida de hoy es la entrada de mañana**. Un capítulo que sale al doble de su longitud objetivo no rompe nada al escribirse, pero entra inflado como «capítulo anterior íntegro» en el prompt del capítulo siguiente, y como entrada del Editor, de los jueces, del Bibliotecario y del Revisor. Los tamaños de la tabla suponen capítulos en su longitud objetivo; el verificador de Longitud es lo que mantiene cierto ese supuesto. Tiene dos clientes: el editor, que quiere capítulos parejos, y el Recuperador, que cuenta con ello.
+
+Además del prompt, el Recuperador devuelve un **desglose por bloque**: identificador, tokens finales, tamaño esperado y, si hubo recorte, cuánto quedó fuera; más el total de entrada y la lista ordenada de recortes aplicados. El bloque de similitud declara también de qué fragmentos salió, con capítulo y posición de cada uno. Esa es la única traza que conecta un fallo de continuidad con su causa: sin ella, cuando el capítulo 24 contradice al 9, no hay forma de saber si fue por un pasaje recuperado.
+
+#### Dos mecanismos, no uno
+
+Los bloques de la tabla no se obtienen todos igual. El Recuperador usa dos mecanismos con contratos distintos, y la separación es formal, no una manera de hablar:
+
+| | **Recuperación estructurada** | **Recuperación por similitud** |
+|---|---|---|
+| Qué pregunta responde | Qué es verdad ahora mismo en esta novela | Qué prosa anterior se parece a lo que voy a escribir |
+| Bloques que sirve | Todos menos el último | Pasajes recuperados por búsqueda |
+| Garantía | Misma entrada → mismo resultado, byte a byte | Misma entrada **y mismo estado del índice** → mismo resultado |
+| Resultado vacío | Es un error: aborta el ensamblado | Es una respuesta normal |
+| Mecanismo | Consultas fijas a la biblia, parametrizadas por la ficha | Búsqueda sobre el índice de fragmentos (§7, D-1) |
+
+El criterio que los separa es el **determinismo**, no la técnica ni la obligatoriedad: es recuperación estructurada todo lo que el Recuperador puede prometer idéntico ante la misma entrada, y recuperación por similitud todo lo demás. El orden de recorte de la tabla anterior es consecuencia de ese criterio —lo que no se puede prometer no se pone en la base del encargo—, no una decisión aparte.
+
+El determinismo de la similitud es **relativo al estado** porque el índice crece cada vez que se aprueba un capítulo: la misma consulta en el capítulo 7 y en el 24 devuelve cosas distintas, y debe hacerlo. Lo que sí se promete es que dos ejecuciones sobre el mismo índice coincidan, lo que exige un **desempate explícito y estable** cuando dos fragmentos puntúan igual: puntuación, luego número de capítulo, luego posición del fragmento. Sin esa regla el orden lo decide el motor y la promesa se cae.
+
+La consulta se deriva de la **ficha**, que es lo único que existe en ese momento: el texto del hito y las escenas como consulta, con filtros estructurados duros —personajes presentes, localización y **solo capítulos anteriores al actual**, medidos por número de capítulo, no por orden de escritura—. Ese último filtro no es un detalle: sin él, al regenerar el capítulo 12 se podrían recuperar fragmentos del propio 12 o de capítulos posteriores ya escritos en otra pasada, y el Escritor se copiaría a sí mismo.
+
+Que la similitud devuelva vacío es corriente —el capítulo 1 no tiene nada anterior, uno con personajes nuevos tampoco—. En ese caso no se emite el encabezado del bloque y **no se registra como recorte**, porque no se recortó nada: no había. Que la estructurada devuelva vacío es otra cosa: una ficha que no existe, o un personaje que la ficha declara presente y la biblia no conoce, son inconsistencias de datos y abortan el ensamblado con un mensaje accionable.
+
+#### El encabezado de subordinación
+
+Los pasajes recuperados son texto de capítulos antiguos y arrastran estado viejo: en el fragmento del capítulo 9 el capitán todavía lleva el anillo que perdió en el 15. Si el Escritor los lee con el mismo estatus que la ficha de personaje, hay una vía directa a un fallo de continuidad que ningún verificador determinista detecta, porque el pasaje es internamente coherente.
+
+Por eso el bloque va precedido de un encabezado fijo, y cada fragmento de su procedencia:
+
+> Pasajes de capítulos anteriores, incluidos como muestra de voz, ritmo y tratamiento de estas escenas. **No son estado vigente**: describen la situación tal como era en su capítulo. El estado actual de personajes, objetos y localizaciones es el de los bloques anteriores. Ante cualquier discrepancia, manda la ficha.
+
+El texto es una **constante del código**, no se redacta al vuelo. Por dos razones: un encabezado variable rompe el determinismo byte a byte de la recuperación estructurada por una tontería, y una instrucción de este tipo es un parámetro de calidad que se querrá cambiar y medir, lo que exige que viva en un sitio único.
+
+En el código, los dos mecanismos viven en `backend/capitulo/` (§8), con la similitud en su propio módulo detrás de una interfaz estrecha —recibe consulta y filtros, devuelve una lista ordenada de fragmentos—. Así D-1 se resuelve cambiando ese módulo y nada más lo nota. No se promueve a `shared/` mientras tenga un solo consumidor.
 
 ---
 
