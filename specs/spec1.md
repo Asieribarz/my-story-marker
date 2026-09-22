@@ -42,8 +42,13 @@ El backend v1 cubre **todo lo que no consume modelo** ([docs/architecture.md](..
 | Originalidad contra corpus | 3 | Requiere corpus y búsqueda de similitud |
 | Multiusuario, autenticación, autorización | 3 | Un fichero SQLite por proyecto, un solo editor |
 | Control de coste por token | — | El gasto es de suscripción, no de API medida ([docs/architecture.md](../docs/architecture.md) §10) |
+| Cifrado en reposo y retención configurable | 3 | Ver más abajo |
 
 Las rebanadas fuera de alcance **no se crean vacías**: la carpeta aparece cuando hay código que poner dentro.
+
+**Sobre el cifrado en reposo.** [docs/architecture.md](../docs/architecture.md) §10 pide prompts y salidas cifrados en reposo y retención configurable. La v1 **no lo hace**, y conviene que quede escrito en vez de quedar como un olvido: escribe capítulos, prompts y exportaciones como ficheros planos dentro del directorio del proyecto, precisamente porque C-4 los quiere legibles con `grep` y comparables con `diff`. La exclusión se sostiene mientras la ejecución sea local y de un solo editor; el día que se aborde el multiusuario de la Fase 3, esta fila y C-4 se revisan juntas, porque la tensión entre ambas es real.
+
+**Sobre la rebanada `planificacion`.** Está entera dentro del alcance aunque [docs/architecture.md](../docs/architecture.md) §11 ponga en Fase 1 solo a Contexto, Arquitecto, Escaletista y Escritor, y deje a Personajes, Mundo y Estilo para la Fase 2. No es una contradicción: lo que la Fase 2 aplaza son los **agentes**, y lo que esta spec exige es la **persistencia** de lo que producen. El Recuperador la necesita desde el primer capítulo —fichas de personajes presentes y guía de estilo son dos bloques de la tabla de §6.3, ~8k y ~5k—, así que en la v1 esos datos existen aunque los escriba el editor a mano o un Arquitecto que asuma el hueco. Construir el hueco después obligaría a rehacer el Recuperador, que es el paso 6 del orden de §12.
 
 ### 1.3 Definiciones
 
@@ -78,7 +83,7 @@ El backend **no orquesta**. Quien recorre el grafo es una sesión de Claude Code
 flowchart LR
   ED["Editor"] --> PAN["Panel · React"]
   PAN --> API["API REST · FastAPI"]
-  CC["Sesión Claude Code"] --> MCP["Servidor MCP"]
+  CC["Sesión Claude Code"] --> MCP["MCP · superficie de lectura y superficie de escritura"]
   CC --> API
   API --> DB["SQLite · un fichero por proyecto"]
   MCP --> DB
@@ -94,7 +99,7 @@ Consecuencia de diseño que atraviesa todo el documento: **el backend nunca llam
 1. Validar el objeto de contexto contra la ontología.
 2. Persistir proyecto, contexto, plan, fichas, capítulos, biblia e informes.
 3. Mantener y exponer el estado del grafo, con reintentos contados en la fila del capítulo.
-4. Ensamblar el prompt del Escritor dentro del presupuesto de 100.000 tokens.
+4. Ensamblar el prompt del Escritor por debajo del tope de 100.000 tokens de entrada.
 5. Ejecutar los verificadores deterministas y devolver informes.
 6. Dar a los subagentes acceso tipado a la biblia, de solo lectura salvo el Bibliotecario.
 7. Exportar el manuscrito aprobado a Markdown con sus metadatos.
@@ -115,14 +120,14 @@ Consecuencia de diseño que atraviesa todo el documento: **el backend nunca llam
 | C-2 | SQLite local, un fichero por proyecto, modo WAL, un solo escritor | §6, §7 |
 | C-3 | Vertical slices: una carpeta por fase de §2, sin `routers/`, `models/` ni `services/` transversales | §8 |
 | C-4 | Versiones de capítulo, exportaciones y auditoría son ficheros en disco, no blobs | §6 |
-| C-5 | 100.000 tokens de **entrada** por subagente; no hay presupuesto de salida | [CLAUDE.md](../CLAUDE.md), §6.3 |
+| C-5 | 100.000 tokens de **entrada** por subagente; no hay presupuesto de salida. No es la ventana del modelo, es la decisión de no usarla entera: subirlo se mide contra la calidad del capítulo, no se rellena porque quepa | [CLAUDE.md](../CLAUDE.md), §6.3 |
 | C-6 | Acceso de agentes a la biblia por MCP, con permiso de escritura solo para el Bibliotecario | §7 |
 | C-7 | Ninguna dependencia nueva fuera de la tabla de §7 sin decisión previa | [AGENTS.md](../AGENTS.md) |
 | C-8 | Sin datos personales en el brief | §10 |
 
 ### 2.5 Supuestos y dependencias
 
-- Se asume un único editor por proyecto y ejecución local. La concurrencia real se limita a: una sesión de Claude Code, un servidor MCP, un servidor FastAPI, sobre el mismo fichero.
+- Se asume un único editor por proyecto y ejecución local. La concurrencia real se limita a: una sesión de Claude Code, las dos superficies MCP, un servidor FastAPI, sobre el mismo fichero.
 - Se asume que la ontología de [docs/definitions.md](../docs/definitions.md) es estable durante la v1; su versionado semántico (§10) se registra pero no se ejercita con migraciones.
 - Se depende de que exista un cliente MCP (la sesión de Claude Code). El backend no valida qué modelo hay al otro lado.
 
@@ -138,13 +143,16 @@ backend/
   escaleta/        · plan → fichas de capítulo
   capitulo/        · el bucle de §5: recuperador, verificadores, versiones, estado
   exportacion/     · manuscrito aprobado → Markdown + metadatos
-  shared/          · conexión SQLite con pragmas, esquema de la ontología, tipos comunes
-  mcp/             · servidor MCP sobre la misma base
+  shared/          · conexión SQLite con pragmas, esquema de la ontología, tipos comunes, rutas del proyecto
+  proyecto/        · estado del grafo, transiciones, aprobaciones humanas
+  mcp/             · las dos superficies MCP sobre la misma base
 ```
 
 Dos notas sobre esta estructura:
 
-**`mcp/` no es una rebanada.** No es una fase de §2: es un segundo canal de entrada a los mismos datos, igual que el router REST de cada rebanada. Está fuera del reparto por fases a propósito, y sus herramientas delegan en la lógica de las rebanadas en lugar de reimplementarla.
+**`proyecto/` y `mcp/` no son rebanadas.** Ninguna es una fase de §2 y ambas están excepcionadas por escrito en [docs/architecture.md](../docs/architecture.md) §8. `proyecto/` recoge lo que §5.1 llama transversal —crear proyecto, fila de estado, tabla de transiciones, historial, las dos aprobaciones— porque atraviesa todas las fases en vez de pertenecer a una. `mcp/` es un segundo canal de entrada a los mismos datos, igual que el router REST de cada rebanada, y sus herramientas delegan en la lógica de las rebanadas en lugar de reimplementarla.
+
+**La similitud vive en su propio módulo dentro de `capitulo/`.** Los dos mecanismos de RF-50 conviven en la misma rebanada, pero la recuperación por similitud queda detrás de una interfaz estrecha —recibe consulta y filtros, devuelve una lista ordenada de fragmentos— para que D-1 se resuelva cambiando ese módulo y nada más lo note ([docs/architecture.md](../docs/architecture.md) §6.3). No se promueve a `shared/` mientras tenga un solo consumidor.
 
 **`shared/` se mantiene pequeño a la fuerza.** Contiene la conexión con sus pragmas, el esquema de la ontología y los tipos comunes, y nada más. La regla operativa de §8 se aplica literalmente: ante la duda, duplicar dentro de la rebanada y promover cuando lo pida el tercer sitio.
 
@@ -224,15 +232,19 @@ Cada requisito tiene identificador estable, enunciado, y la sección de `docs/` 
 | RF-50c | El resultado vacío es asimétrico: en similitud es una respuesta válida —no se emite su encabezado y **no se registra como recorte**—; en estructurada es un error que aborta el ensamblado con mensaje accionable. | M | §6.3 |
 | RF-51 | Ensambla el prompt por bloques, con los tamaños esperados y el orden de prioridad de la tabla de §6.3. El recorte se dispara contra el tope de 100.000, no contra la suma de la tabla. | M | §6.3 |
 | RF-52 | Cuenta los tokens **antes** de enviar, no después. | M | §6.3 |
+| RF-52a | La cuenta la da un **estimador conservador**, no un contador exacto: `tiktoken` con `o200k_base` multiplicado por un factor de inflación de 1,35. `tiktoken` es el tokenizador de OpenAI e infracuenta a Claude; el factor existe para que el error sea siempre por exceso. | M | §6.3, §7 |
+| RF-52b | El estimador vive detrás de una interfaz estrecha —texto entra, entero sale— y el factor de inflación es una constante de ese módulo, en un sitio único. El tope de 100.000 **no se baja** para dejar margen: el margen está dentro del estimador. | M | §6.3 |
+| RF-52c | El fichero BPE de `o200k_base` se versiona en el repositorio y `TIKTOKEN_CACHE_DIR` apunta a él. El estimador no descarga nada de la red en tiempo de ejecución. | M | §6.3, §7 |
 | RF-53 | Si no cabe, recorta por orden de prioridad inverso (pasajes recuperados primero, ficha nunca) y **deja escrito en el informe** qué recortó y cuánto. | M | §6.3 |
+| RF-53a | El recorte elimina **unidades completas, nunca bytes**: fragmentos enteros desde la cola del ranking en el bloque de pasajes, y el bloque entero en los demás. No se corta un resumen ni una ficha por la mitad. | M | §6.3 |
 | RF-54 | Nunca trunca por el final en silencio. Un recorte sin registro es un fallo del Recuperador. | M | §6.3 |
 | RF-55 | El bloque «resumen acumulado» se sirve compactado según §6.2: resúmenes de acto cerrado + capítulos del acto en curso. | M | §6.2 |
 | RF-56 | Los presagios pendientes, el estado de los personajes presentes y el inventario vivo nunca se compactan ni se recortan por compactación. | M | §6.2 |
-| RF-57 | En la v1 la recuperación por similitud devuelve **siempre el conjunto vacío**, que es una respuesta válida de su contrato (RF-50c), con su presupuesto declarado a cero hasta que se resuelva D-1. No es un punto de extensión pendiente: es el caso vacío implementado. | M | §7, D-1 |
+| RF-57 | En la v1 la recuperación por similitud devuelve **siempre el conjunto vacío** hasta que se resuelva D-1. Es una respuesta válida de su contrato (RF-50c): no se emite el bloque ni su encabezado, y no se registra recorte. No es un punto de extensión pendiente, es el caso vacío implementado. | M | §7, D-1 |
 | RF-58 | El prompt ensamblado se guarda como fichero en disco, asociado a `(capítulo, versión, intento)`. | M | §6, §10 |
 | RF-59 | La consulta de similitud se deriva de la ficha —hito y escenas como texto de consulta— con filtros estructurados duros: personajes presentes, localización y **solo capítulos anteriores al actual**, medidos por número de capítulo y no por orden de escritura. | M | §6.3 |
 | RF-59a | El bloque de pasajes va precedido de un encabezado fijo que declara que no son estado vigente y que ante discrepancia manda la ficha; el texto es una constante del código, no se redacta al vuelo. Cada fragmento va precedido de su procedencia. | M | §6.3 |
-| RF-59b | La respuesta del ensamblado incluye un desglose por bloque —identificador, tokens finales, presupuesto, recorte y cuánto—, el total de entrada, la lista ordenada de recortes y, para el bloque de similitud, capítulo y posición de cada fragmento. Se persiste junto al prompt de RF-58. | M | §6.3, §10 |
+| RF-59b | La respuesta del ensamblado incluye un desglose por bloque —identificador, tokens finales, tamaño esperado y, si hubo recorte, cuánto quedó fuera—, el total de entrada, la lista ordenada de recortes y, para el bloque de similitud, capítulo y posición de cada fragmento. Se persiste junto al prompt de RF-58. | M | §6.3, §10 |
 
 #### 4.6.2 Versiones, estado e informes de capítulo
 
@@ -259,12 +271,17 @@ Todos devuelven informe con severidad y localización. **Ninguno corrige** ([doc
 | RF-75 | Continuidad dura · inventario | Ningún objeto cambia de poseedor sin que exista el traspaso; ningún objeto aparece en dos manos a la vez. | Alta |
 | RF-76 | Continuidad dura · tiempo | El salto temporal entre capítulos es compatible con los `dias_viaje` de la ruta; no hay tiempos de viaje imposibles. | Alta |
 
+**El verificador de Longitud tiene dos clientes, no uno** ([docs/architecture.md](../docs/architecture.md) §6.3). El primero es el editor, que quiere capítulos parejos. El segundo es el Recuperador: los tamaños esperados de la tabla de §6.3 suponen capítulos en su longitud objetivo, y un capítulo al doble entra inflado como «capítulo anterior íntegro» en el prompt del capítulo siguiente, y como entrada del Editor, del Bibliotecario y del Revisor. La salida de hoy es la entrada de mañana, así que RF-70 es lo que mantiene cierto el supuesto de RF-51. Su severidad sigue siendo media —no corta el ciclo— pero un hallazgo suyo desatendido se paga en el capítulo siguiente, no en este.
+
+El control de la longitud es **blando a propósito**: `palabras_objetivo` en el prompt más este verificador a posteriori, no un parámetro que corte la generación. Se acepta así porque quien orquesta es una sesión, no código ([docs/architecture.md](../docs/architecture.md) §6.3).
+
 Y dos requisitos sobre cómo se ejecutan:
 
 | ID | Requisito | Prio | Origen |
 |---|---|---|---|
 | RF-77 | Los deterministas se ejecutan **siempre** y **antes** que cualquier juez. Un fallo alto o bloqueante corta el ciclo sin llegar a los jueces. | M | §4, §5 |
 | RF-78 | El informe lista hallazgos con: verificador, severidad, localización (capítulo, y offset o número de párrafo), evidencia citada, y regla infringida. | M | §4 |
+| RF-79 | El informe de Longitud declara la desviación en palabras y en porcentaje sobre el objetivo de la ficha, no solo si está dentro o fuera del rango: es la señal que el Recuperador necesita para explicar un prompt inflado. | S | §6.3 |
 
 #### 4.6.4 Biblia
 
@@ -331,7 +348,7 @@ Cada rebanada aporta su router. Rutas indicativas, agrupadas por rebanada; la fo
 
 ### 5.2 Interfaz MCP
 
-Herramientas tipadas según RF-100 a RF-106. El servidor abre la misma base que la API, con los mismos pragmas.
+Herramientas tipadas según RF-100 a RF-106, en **dos superficies** ([docs/architecture.md](../docs/architecture.md) §7): una de solo lectura, disponible para cualquier subagente, y otra de lectura-escritura que solo se le entrega al Bibliotecario en su definición. Ambas abren la misma base que la API, con los mismos pragmas. RF-106 sigue viviendo en el backend pase lo que pase con el reparto: que el capítulo esté verificado es una comprobación de estado y no depende de quién llame.
 
 ### 5.3 Ficheros en disco
 
@@ -390,12 +407,12 @@ Un fichero SQLite por proyecto, en WAL. Entidades derivadas de [docs/architectur
 | RNF-03a | **Determinismo de la recuperación estructurada.** Misma entrada → mismo resultado, byte a byte. | V-3a |
 | RNF-03b | **Reproducibilidad de la recuperación por similitud.** Misma entrada y mismo estado del índice → mismo resultado, desempate incluido. | V-3b |
 | RNF-04 | **Trazabilidad.** Desde cualquier hallazgo de un informe se llega al prompt exacto que lo produjo. | V-4 |
-| RNF-05 | **Presupuesto de contexto.** Ningún prompt ensamblado supera los 100.000 tokens de entrada. | V-5 |
+| RNF-05 | **Tope de entrada.** Ningún prompt ensamblado supera los 100.000 tokens de entrada **medidos por el estimador de RF-52a**. La promesa es esa y no otra: el estimador no es exacto, es conservador por construcción, así que lo que se garantiza es que no se rebasa el tope estimado —y con ello, salvo error del factor de inflación, tampoco el real. | V-5 |
 | RNF-06 | **Tipado.** El código pasa comprobación estática de tipos sin errores. | V-6 |
 | RNF-07 | **Latencia.** Los verificadores deterministas de un capítulo terminan en segundos, no minutos: son la comprobación barata que corre siempre. | V-7 |
 | RNF-08 | **Portabilidad.** Arranca en Windows y en Linux sin cambios de código; las rutas se manejan como rutas, no como cadenas. | V-8 |
 | RNF-09 | **Aislamiento por proyecto.** Un proyecto corrupto no afecta a otro: son ficheros distintos. | Por construcción (C-2) |
-| RNF-10 | **Sin cliente LLM.** `backend/` no contiene llamadas a un proveedor de modelos. | V-9 |
+| RNF-10 | **Sin cliente LLM.** `backend/` no contiene llamadas a un proveedor de modelos. `tiktoken` (RF-52a) no cuenta: es una biblioteca local de tokenización, no un cliente de un proveedor, y no hace red. | V-9 |
 | RNF-11 | **Sin dependencias no acordadas.** El fichero de dependencias no contiene nada ausente de la tabla de §7 de la arquitectura. | V-10 |
 
 ---
@@ -427,7 +444,7 @@ Método de verificación por criterio, con la clasificación de [docs/validators
 | V-3a | Determinismo de la recuperación estructurada (RNF-03a) | Prueba de propiedades sobre entradas generadas + comparación exacta de salida | T |
 | V-3b | Reproducibilidad de la recuperación por similitud (RNF-03b) | Prueba de propiedades con el índice congelado: dos ejecuciones sobre el mismo estado coinciden, incluido el orden de los empates | T |
 | V-4 | Trazabilidad (RNF-04) | Prueba de integración: dado un hallazgo, la cadena hasta el fichero de prompt se resuelve | T |
-| V-5 | Presupuesto de contexto (RNF-05) | Prueba de propiedades con biblias sintéticas grandes: el ensamblado nunca excede el tope y el informe de recorte es no vacío cuando recorta | T |
+| V-5 | Presupuesto de contexto (RNF-05) | Prueba de propiedades con biblias sintéticas grandes: el ensamblado nunca excede el tope según el estimador, el informe de recorte es no vacío cuando recorta, y todo lo recortado son unidades completas —ningún bloque emitido es un prefijo de sí mismo (RF-53a) | T |
 | V-6 | Tipado (RNF-06) | Comprobación estática de tipos en CI | A |
 | V-7 | Latencia de deterministas (RNF-07) | Prueba con capítulo de tamaño máximo y umbral de tiempo | T |
 | V-8 | Portabilidad (RNF-08) | Suite ejecutada en ambos sistemas | T |
@@ -450,16 +467,19 @@ Ninguna de estas se resuelve en este documento. Están enumeradas porque hay req
 
 | ID | Decisión | A qué afecta | Bloquea la v1 |
 |---|---|---|---|
-| D-1 | Mecanismo de búsqueda dentro de SQLite: extensión vectorial con embeddings, o FTS5 | Implementación de la recuperación por similitud (RF-50b, RF-57, RF-59). Su contrato ya está definido en §6.3 de la arquitectura, así que la decisión se enchufa detrás de una interfaz estrecha y no arrastra al resto del Recuperador | No — el mecanismo devuelve vacío |
+| D-1 | Mecanismo de búsqueda dentro de SQLite: con embeddings locales o con FTS5 ([docs/architecture.md](../docs/architecture.md) §6). Es decisión de fase 2 | Implementación de la recuperación por similitud (RF-50b, RF-57, RF-59). Su contrato ya está definido en §6.3 de la arquitectura, así que la decisión se enchufa detrás de una interfaz estrecha y no arrastra al resto del Recuperador | No — el mecanismo devuelve vacío |
 | D-2 | Cola de trabajos | §9 de la arquitectura; en v1 la ejecución es secuencial y en proceso | No |
 | D-3 | Observabilidad y trazas | RF-105, V-18 | No |
 | D-4 | Biblioteca de validación del esquema de ontología: si Pydantic basta o hace falta JSON Schema aparte | RF-20 | **Sí** |
-| D-5 | Contador de tokens del Recuperador: contar tokens exige elegir cómo se cuentan | RF-52 | **Sí** |
+| D-5 | ~~Contador de tokens del Recuperador~~ — **resuelta**: estimador conservador `tiktoken` `o200k_base` × 1,35, en la tabla de §7 de la arquitectura | RF-52, RF-52a a RF-52c | — |
 | D-6 | Métrica de legibilidad concreta y su cálculo en español | RF-71 | Sí, para ese verificador |
 | D-7 | Marco de pruebas y de comprobación estática de tipos | V-6, V-15 | **Sí** |
 | D-8 | Formatos de exportación de Fase 3 y despliegue | Fuera de alcance v1 | No |
+| D-9 | Qué hace el Recuperador cuando, recortadas ya todas las unidades recortables, el ensamblado sigue sin caber: solo queda la ficha del capítulo y aun así rebasa el tope | RF-53, RF-53a | No — es un caso patológico, no el camino normal |
 
-Sobre **D-4**, **D-5** y **D-7**: son las tres que hay que cerrar antes de escribir la primera línea. Las demás admiten empezar sin ellas.
+Sobre **D-4** y **D-7**: son las dos que quedan por cerrar antes de escribir la primera línea. **D-5** ya está cerrada. Las demás admiten empezar sin ellas.
+
+**D-9** merece una nota, porque es un hueco abierto a propósito y no un olvido. El recorte por unidades completas (RF-53a) es finito: acaba, en el peor caso, con la ficha sola. Llegar ahí no significa que el capítulo sea denso, significa que hay un dato mal formado —una guía de estilo de 60k, una ficha con veinte personajes en escena, un resumen de acto que nunca se destiló—. Hasta que la decisión se tome, el código **no puede inventarse una salida**: ni truncar, ni subir el tope, ni enviar el prompt igualmente. Que falle de forma ruidosa es el comportamiento correcto mientras tanto.
 
 ---
 
@@ -470,15 +490,15 @@ Sobre **D-4**, **D-5** y **D-7**: son las tres que hay que cerrar antes de escri
 | architecture §1 | RF-65, RN-1, RNF-10 |
 | architecture §2 | RF-10, RF-11, estructura de rebanadas de §3 |
 | architecture §3.1 | RF-02, RF-04, RF-05, RF-08, RF-35 |
-| architecture §3.2 | RF-03, RF-06, RF-07, RF-63, RF-64 |
+| architecture §3.2 | RF-03, RF-06, RF-07, RF-63, RF-64, V-18 |
 | architecture §3.3 | RF-05, RN-1, RN-3 |
 | architecture §4 | RF-22, RF-70 a RF-78, RF-63 |
 | architecture §5 | RF-50, RF-77, RF-103 |
 | architecture §6 | RF-60, RF-61, RF-80 a RF-86, §6 completo |
 | architecture §6.1 | RF-88, RN-7 |
 | architecture §6.2 | RF-55, RF-56, RF-86, RF-87 |
-| architecture §6.3 | RF-50 a RF-54, RF-59 a RF-59b, RNF-03a, RNF-03b, RNF-05 |
-| architecture §7 | C-1, C-2, C-6, RF-100 a RF-106, D-1 a D-3 |
+| architecture §6.3 | RF-50 a RF-54, RF-52a a RF-52c, RF-53a, RF-57, RF-58, RF-59 a RF-59b, RF-79, RNF-03a, RNF-03b, RNF-05, D-9 |
+| architecture §7 | C-1, C-2, C-6, RF-52a, RF-52c, RF-100 a RF-106, D-1 a D-3, D-5 |
 | architecture §8 | C-3, §3 de este documento |
 | architecture §10 | RF-09, RF-62, RF-105, C-8 |
 | architecture §11 | §1.2 completo |
@@ -499,7 +519,7 @@ flowchart LR
   P2 --> P3["3 · estado del grafo y transiciones"]
   P3 --> P4["4 · persistencia de plan, escaleta y biblia"]
   P4 --> P5["5 · servidor MCP de lectura"]
-  P5 --> P6["6 · Recuperador con presupuesto"]
+  P5 --> P6["6 · Recuperador con tope de entrada"]
   P6 --> P7["7 · verificadores deterministas"]
   P7 --> P8["8 · escritura MCP del Bibliotecario"]
   P8 --> P9["9 · exportación a Markdown"]

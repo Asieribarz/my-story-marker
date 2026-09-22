@@ -5,13 +5,13 @@ description: Cómo elegir un método de verificación para una afirmación concr
 
 # Verificación — cómo elegir el método
 
-El **catálogo** de métodos, con la definición de cada uno, está en `docs/validators.md`. Esta skill no lo repite: es el procedimiento para elegir, más los enlaces de referencia que el catálogo no lleva.
+El **reparto** de qué método sostiene cada pieza de este proyecto está en `docs/validators.md`. Esta skill no lo repite: es el procedimiento para elegir cuando aparece una afirmación nueva, más los enlaces de referencia que el reparto no lleva.
 
 ## Primero: qué estás verificando
 
 Son tres cosas distintas y se confunden constantemente.
 
-| Qué | Dónde se define | Ejemplo |
+| Qué | Dónde se reparte | Ejemplo |
 |---|---|---|
 | **El código que escribimos** | `docs/validators.md` §2 | ¿El endpoint de intake rechaza un brief sin género? |
 | **El comportamiento del agente** | `docs/validators.md` §3 | ¿El Escritor respeta la ficha de capítulo de forma consistente? |
@@ -72,4 +72,6 @@ Las pruebas basadas en propiedades y las evals no tienen una referencia fundacio
 
 ## Lo que esta skill no decide
 
-`docs/validators.md` es un **menú, no un compromiso**: qué métodos se adoptan y en qué fase sigue sin decidirse. Esta skill ayuda a elegir para un criterio concreto; no autoriza a introducir una herramienta de verificación en el proyecto. Eso es una dependencia, y va por `docs/architecture.md` §7 como cualquier otra.
+`docs/validators.md` registra lo que ya está repartido, y `specs/spec1.md` §9 los criterios de aceptación del backend v1. Esta skill ayuda a elegir método para una afirmación **nueva**; no autoriza a introducir una herramienta de verificación en el proyecto. Eso es una dependencia, y va por `docs/architecture.md` §7 como cualquier otra — hoy, con D-7 de `specs/spec1.md` §10 todavía abierto, no hay marco de pruebas ni comprobador de tipos elegidos, así que ningún documento debe nombrar una biblioteca.
+
+Cuando la elección quede hecha, se escribe donde toca: el criterio en `specs/spec1.md` §9 si es un requisito del backend v1, y su fila por pieza en `docs/validators.md`. Ver `docs/validators.md` §8.

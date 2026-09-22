@@ -180,7 +180,7 @@ Esto es **protocolo, no algo que el backend pueda imponer**. El backend clavea l
 Tres cosas, y conviene que estén escritas porque las tres son tentadoras cuando quien orquesta es un modelo:
 
 - **No escribe prosa de la novela.** Ni un párrafo de relleno, ni un arreglo rápido de una frase que el Editor dejó torcida. Si hace falta texto, se lanza el agente que corresponde.
-- **No escribe en la biblia.** Solo el Bibliotecario, y solo tras la verificación. Esta regla deja de depender de la buena voluntad del agente en cuanto el acceso es por herramientas MCP con permisos por agente (§7).
+- **No escribe en la biblia.** Solo el Bibliotecario, y solo tras la verificación. Esta regla deja de depender de la buena voluntad del agente en cuanto el acceso es por MCP y la superficie de escritura solo se le entrega al Bibliotecario (§7).
 - **No se salta una parada humana.** `aprobacion_plan` y `aprobacion_final` no tienen transición automática de salida, ni siquiera cuando todos los verificadores están en verde.
 
 ---
@@ -285,7 +285,7 @@ flowchart LR
 | Almacén | Contenido | Tecnología |
 |---|---|---|
 | Relacional | Proyecto, contexto, plan, fichas, biblia, informes de verificación, costes | **SQLite local**, un fichero por proyecto |
-| Vectorial | Fragmentos de capítulos con metadatos (capítulo, POV, personajes, localización) | **SQLite local**, misma base; extensión vectorial o FTS5, sin decidir |
+| Vectorial | Fragmentos de capítulos con metadatos (capítulo, POV, personajes, localización) | **SQLite local**, misma base. Lo que guarda —índice FTS5 o vectores— depende de D-1, sin decidir |
 | Objetos | Versiones de capítulos, exportaciones, prompts y respuestas para auditoría | Ficheros en disco, dentro del proyecto |
 | Caché | Prompts repetidos, embeddings | **SQLite local**, misma base |
 
@@ -297,7 +297,14 @@ Un único fichero SQLite cubre las tres necesidades que no son ficheros: relacio
 
 SQLite funciona en modo **WAL** y admite un solo escritor a la vez, de modo que la escritura queda serializada. Ver la restricción que eso impone al paralelismo en §10.
 
-Queda por decidir **cómo** se hace la búsqueda dentro de esa base: una extensión vectorial sobre embeddings, o FTS5, que es búsqueda de texto completo y no necesita embeddings. Lo segundo evita depender de un proveedor de embeddings externo, que es gasto medido aparte de la suscripción.
+Queda por decidir **cómo** se hace la búsqueda dentro de esa base. El eje de la decisión es **con embeddings o sin ellos**, no una lista cerrada de bibliotecas:
+
+- **Sin embeddings**: FTS5, que es búsqueda de texto completo y viene con SQLite. Cero dependencias y cero descargas, a cambio de buscar por palabras y no por sentido — dos escenas que cuentan lo mismo con otras palabras no se encuentran.
+- **Con embeddings**: hay que representar los fragmentos como vectores y compararlos, ya sea con una extensión vectorial de SQLite o a mano sobre vectores guardados como BLOB.
+
+La restricción que acota la segunda rama no es «no usar embeddings», es que **el modelo corra en local**: un proveedor externo es gasto medido aparte de la suscripción, y eso está descartado. Un modelo local no lo es, y su coste real es otro —peso del modelo en disco y un arranque más lento—, que es lo que hay que pesar el día que se decida. Enunciarlo como «extensión vectorial o FTS5» descartaba los embeddings por un motivo que solo aplica a los de pago.
+
+La decisión es de la fase 2 (§11), porque la v1 implementa el caso vacío del contrato de similitud y no depende de ella.
 
 Cada capítulo se guarda con versión, estado (`borrador`, `editado`, `verificado`, `aprobado`, `revision_humana`) y los informes que lo produjeron, de modo que cualquier fallo es trazable hasta el prompt exacto.
 
@@ -360,6 +367,10 @@ Estos números son **tamaños esperados, no asignaciones**: no son porciones rep
 
 Cuando un capítulo con nueve personajes en escena no cabe, el Recuperador **recorta por orden de prioridad inverso y lo deja escrito en el informe**. No trunca por el final en silencio: un prompt recortado sin avisar produce un fallo de continuidad que después nadie sabe explicar.
 
+**El recorte elimina unidades completas, nunca bytes.** La unidad es semántica, no una longitud de cadena: en el bloque de pasajes recuperados se caen fragmentos enteros desde la cola del ranking, uno a uno, hasta que cabe; en los demás bloques se cae el bloque entero. No se corta un resumen a media frase ni una ficha de personaje por la mitad. Un texto cortado a media frase es la versión sofisticada del truncado silencioso que el párrafo anterior prohíbe: el Escritor lo lee como si estuviera completo, porque nada en el prompt le dice que no lo está.
+
+De ahí que el recorte sea **discreto y finito**: se retiran unidades en orden inverso hasta que el ensamblado cabe, y el caso límite es quedarse solo con la ficha del capítulo, que nunca se recorta. Qué hacer si ni siquiera eso cabe **está sin decidir**, y el código no lo puede inventar por su cuenta.
+
 La prioridad está puesta así a propósito. Los pasajes recuperados son lo primero que cae porque son la ayuda, no el encargo: sin ellos el capítulo sale más pobre, pero sale. Sin la ficha, el Escritor escribe otro capítulo.
 
 **Qué acota la salida.** Nada del lado del modelo: un capítulo de 3.000 palabras son unos 5k tokens, muy por debajo de lo que cualquier modelo devuelve en una respuesta. Lo que acota el capítulo son las `palabras_objetivo` de la ficha dentro del prompt y el verificador de Longitud (§4) a posteriori. Es un control blando —prompt más verificación, no un parámetro que corte—, y se acepta como tal porque quien orquesta es una sesión, no código.
@@ -367,6 +378,23 @@ La prioridad está puesta así a propósito. Los pasajes recuperados son lo prim
 Ese control no es solo editorial, y esta es la razón por la que aparece aquí y no solo en §4: **la salida de hoy es la entrada de mañana**. Un capítulo que sale al doble de su longitud objetivo no rompe nada al escribirse, pero entra inflado como «capítulo anterior íntegro» en el prompt del capítulo siguiente, y como entrada del Editor, de los jueces, del Bibliotecario y del Revisor. Los tamaños de la tabla suponen capítulos en su longitud objetivo; el verificador de Longitud es lo que mantiene cierto ese supuesto. Tiene dos clientes: el editor, que quiere capítulos parejos, y el Recuperador, que cuenta con ello.
 
 Además del prompt, el Recuperador devuelve un **desglose por bloque**: identificador, tokens finales, tamaño esperado y, si hubo recorte, cuánto quedó fuera; más el total de entrada y la lista ordenada de recortes aplicados. El bloque de similitud declara también de qué fragmentos salió, con capítulo y posición de cada uno. Esa es la única traza que conecta un fallo de continuidad con su causa: sin ella, cuando el capítulo 24 contradice al 9, no hay forma de saber si fue por un pasaje recuperado.
+
+#### Cómo se cuentan los tokens
+
+Contar tokens de Claude con exactitud exige el endpoint `count_tokens` de la API de Anthropic, y aquí no está disponible: el gasto es de suscripción y no de API medida (§10), así que no hay clave de API que usar. Aunque la hubiera, metería una llamada de red en el camino crítico del Recuperador y rompería el determinismo byte a byte que se le exige más abajo.
+
+Lo que hay, por tanto, no es un contador sino un **estimador conservador**: `tiktoken` con la codificación `o200k_base`, multiplicado por un **factor de inflación de 1,35**.
+
+Que `tiktoken` sea el tokenizador de OpenAI y no el de Claude no es un detalle que se pueda dejar sin escribir. Sobre texto corriente **infracuenta los tokens de Claude entre un 15 y un 20 %**, y más en código y en texto no inglés —el español cae en ese segundo caso—. Un estimador que infracuenta es justo el fallo que un tope de seguridad no admite: crees que vas por 98k y vas por 120k. El factor de inflación convierte un error sistemático de signo peligroso en uno de signo inofensivo. Se acepta `tiktoken` porque como *proxy* su varianza entre bloques de naturaleza distinta —el YAML de una ficha, la prosa de un capítulo, una lista de nombres propios— es mucho menor que la de una heurística de caracteres partidos por una constante, que obligaría a un margen bastante mayor y haría recortar capítulos que sí cabían.
+
+El factor se aplica **dentro del estimador**, no bajando el tope. Así sigue siendo cierto lo que dice la tabla de arriba: el único número con fuerza normativa es 100.000.
+
+El margen no cuesta nada en el caso normal. 100.000 ÷ 1,35 ≈ 74k tokens de `tiktoken` efectivos, frente a los ~55k que suman los tamaños esperados de la tabla: solo muerde en los capítulos patológicos, que son exactamente aquellos en los que el recorte debe dispararse de todos modos.
+
+Dos consecuencias de implementación:
+
+- El estimador vive **detrás de una interfaz estrecha** —recibe texto, devuelve un entero—, con la misma disciplina que el módulo de similitud. El día que haya acceso a `count_tokens` o a un tokenizador de Claude, se cambia ese módulo y nada más lo nota. El factor de inflación es una constante de ese módulo: medible y ajustable en un sitio único.
+- El fichero BPE de la codificación se **versiona en el repositorio**, con `TIKTOKEN_CACHE_DIR` apuntando a él. `tiktoken` se lo descarga de la red la primera vez que se usa; si el estimador depende de esa descarga, se caen a la vez el determinismo y el arranque sin red.
 
 #### Dos mecanismos, no uno
 
@@ -413,14 +441,17 @@ Lo decidido hasta ahora es solo esto:
 | Orquestación de agentes | Claude Code: la sesión recorre el grafo y los agentes son subagentes suyos |
 | Base de datos | SQLite local, un fichero por proyecto, en modo WAL: relacional, vectorial y caché en la misma base |
 | Almacén de objetos | Ficheros en disco, sin servicio aparte |
-| Acceso de Claude Code a la biblia | **Servidor MCP** sobre la misma base SQLite: herramientas tipadas, de solo lectura para todos los agentes y de escritura solo para el Bibliotecario |
+| Acceso de Claude Code a la biblia | **Servidor MCP** sobre la misma base SQLite, en **dos superficies**: una de solo lectura para todos los agentes y otra de lectura-escritura reservada al Bibliotecario. Herramientas tipadas, nunca SQL libre |
 | Estado del orquestador | Una fila en SQLite, no la ventana de la sesión (§3.1) |
+| Estimación de tokens del Recuperador | `tiktoken` con `o200k_base` × 1,35, como **estimador conservador**, con el fichero BPE versionado en el repositorio. No es el tokenizador de Claude: ver §6.3 |
 
 SQLite es una decisión de las **fases 1 y 2**. El multiusuario de la fase 3 (§11) obligará a revisarla; queda dicho aquí para que ese día se lea como un cambio previsto y no como una sorpresa.
 
 El acceso por **MCP** se elige frente a endpoints de FastAPI llamados con Bash por una razón concreta: la regla de §1 de que solo el Bibliotecario escribe en la biblia deja de depender de que el agente se porte bien y pasa a ser un permiso por herramienta. El coste es un proceso más que mantener.
 
-Todo lo demás está **sin decidir**: el mecanismo de búsqueda dentro de SQLite (extensión vectorial con embeddings o FTS5), la cola de trabajos, la observabilidad, los formatos de exportación y el despliegue. El resto del documento describe esas piezas por su función, no por su implementación; cada decisión se tomará cuando la fase correspondiente la exija y se añadirá a esta tabla.
+**Por qué dos superficies y no una con control de permisos dentro.** MCP no transporta la identidad del agente que llama: un servidor único no puede saber si quien invoca la escritura es el Bibliotecario. Lo único que podría hacer es preguntárselo —un campo `agente` en la llamada—, y eso es una convención de prompt disfrazada de mecanismo, justo lo que §1 quería dejar de hacer. Lo que sí existe es la lista de herramientas permitidas por subagente en su definición de Claude Code. Separar las superficies convierte el permiso en configuración verificable: al Escritor no se le da la de escritura, y no hay nada que mentir. El coste es un segundo proceso, y la comprobación de estado de que el capítulo esté verificado sigue viviendo en el backend de todos modos, porque esa no depende de quién llame.
+
+Todo lo demás está **sin decidir**: el mecanismo de búsqueda dentro de SQLite (con embeddings locales o con FTS5, §6), la cola de trabajos, la observabilidad, los formatos de exportación y el despliegue. El resto del documento describe esas piezas por su función, no por su implementación; cada decisión se tomará cuando la fase correspondiente la exija y se añadirá a esta tabla.
 
 ---
 
@@ -445,9 +476,18 @@ backend/
   revision/          · revisión dirigida
   exportacion/       · manuscrito → archivos y metadatos
   shared/            · deliberadamente pequeño
+  proyecto/          · no es una rebanada · grafo de estados (§3.1)
+  mcp/               · no es una rebanada · servidor MCP (§7)
 ```
 
-`shared/` es solo para lo que es transversal de verdad: la conexión a SQLite con sus pragmas, el esquema de la ontología y los tipos comunes. La tensión es real en las dos direcciones. Sin `shared/`, los pragmas acaban duplicados en ocho sitios y un día divergen —y un `PRAGMA foreign_keys` olvidado en una sola rebanada no da error, solo filas huérfanas—. Con un `shared/` que crece sin control, vuelves a tener capas horizontales con otro nombre. Ante la duda, duplicar dentro de la rebanada; se promueve a `shared/` cuando el tercer sitio lo necesite.
+Dos carpetas están en el árbol pero **fuera del reparto por fases**, y conviene que la excepción esté escrita en vez de deducirse:
+
+- **`proyecto/`** contiene lo transversal al proyecto entero: crearlo, su fila de estado, la tabla de transiciones permitidas, el historial y las dos aprobaciones humanas. No es una tarea de §2 porque las atraviesa todas. Las alternativas son peores: en `shared/` metería la máquina de estados entera en la carpeta que §8 quiere pequeña, y repartida entre rebanadas dispersaría una tabla de transiciones que es una sola cosa y el único sitio donde se hacen cumplir las paradas humanas.
+- **`mcp/`** es un segundo canal de entrada a los mismos datos, igual que el router REST de cada rebanada. Sus herramientas delegan en la lógica de las rebanadas en vez de reimplementarla; si una herramienta necesita una consulta que no existe, la consulta se añade a su rebanada y la herramienta la llama.
+
+Las carpetas **aparecen cuando hay código que poner dentro**, no antes: `verificacion/` y `revision/` son de las fases 2 y 3 (§11) y no se crean vacías por simetría con este árbol.
+
+`shared/` es solo para lo que es transversal de verdad: la conexión a SQLite con sus pragmas, el esquema de la ontología, los tipos comunes y la disposición del directorio de proyecto —la tienen que compartir las rebanadas que escriben ficheros, la API y el servidor MCP, que son más de tres sitios—. La tensión es real en las dos direcciones. Sin `shared/`, los pragmas acaban duplicados en ocho sitios y un día divergen —y un `PRAGMA foreign_keys` olvidado en una sola rebanada no da error, solo filas huérfanas—. Con un `shared/` que crece sin control, vuelves a tener capas horizontales con otro nombre. Ante la duda, duplicar dentro de la rebanada; se promueve a `shared/` cuando el tercer sitio lo necesite.
 
 ### Frontend — package by feature, sin FSD
 
@@ -488,6 +528,8 @@ flowchart LR
   WK1 & WK2 & WK3 --> OBS
 ```
 
+Este diagrama es el **estado objetivo**, no el de la fase 1. La cola de trabajos y los workers siguen sin decidir (§7): mientras lo estén, la ejecución es **secuencial y en proceso**, y los tres workers del dibujo son papeles que desempeña la misma sesión. Se dibujan aparte porque la separación de papeles sí está decidida —qué corre con modelo y qué no—, no porque haya tres procesos.
+
 ---
 
 ## 10. Transversales
@@ -498,7 +540,7 @@ flowchart LR
 | **Control de coste** | El gasto es de suscripción, no de API medida: no hay presupuesto por token que degradar en caliente. El control se ejerce eligiendo el modelo de cada subagente por adelantado (rápido en editores y jueces, grande en escritura y planificación). Estimación previa: novela estándar ≈ 30 capítulos × (1 escritura + 1,5 regeneraciones medias + edición + jueces). |
 | **Paralelismo** | Planificación secuencial; capítulos secuenciales por defecto (dependen de la biblia). Paralelizable solo en estructuras corales con líneas independientes hasta su convergencia, y **condicionado a que el almacén lo soporte**: con SQLite la escritura es serializada, así que el paralelismo coral se limita a la generación, no a la escritura en la biblia. |
 | **Determinismo y reproducibilidad** | Semilla, versión de prompt, versión de modelo y contexto exacto guardados por capítulo. |
-| **Seguridad y privacidad** | Sin datos personales en el brief; secretos en gestor de credenciales; prompts y salidas cifrados en reposo; retención configurable. |
+| **Seguridad y privacidad** | Sin datos personales en el brief; secretos en gestor de credenciales; prompts y salidas cifrados en reposo; retención configurable. **El cifrado en reposo es de la fase 3 y está en tensión declarada con §6**: mientras capítulos, prompts y exportaciones sean ficheros planos para poder leerse con `grep` y compararse con `diff`, no están cifrados. La exclusión se sostiene mientras la ejecución sea local y de un solo editor; el día del multiusuario se revisan las dos decisiones juntas. |
 | **Evaluación continua** | Conjunto de briefs de prueba; se mide tasa de aprobación al primer intento, fallos por tipo de verificador, coste por capítulo y valoración humana ciega de calidad. |
 | **Versionado de la ontología** | La ontología tiene versión semántica; cada proyecto fija la suya y las migraciones se validan con el verificador de esquema. |
 
