@@ -10,7 +10,7 @@
 
 ### 1.1 Propósito
 
-Especificar qué debe hacer el backend para que una sesión de Claude Code pueda llevar la entrevista a un comprador hasta un manuscrito en Markdown, con la biblia de continuidad y los informes de verificación persistidos y trazables.
+Especificar qué debe hacer el backend para que una sesión de Claude Code pueda llevar la entrevista a un comprador hasta una novela publicada —lectura web y PDF, en versiones que se conservan—, con la biblia de continuidad y los informes de verificación persistidos y trazables.
 
 El lector objetivo es quien implementa y quien revisa el alcance. Se asume lectura previa de los tres documentos de `docs/`.
 
@@ -28,7 +28,7 @@ El backend v1 cubre **todo lo que no consume modelo** ([docs/architecture.md](..
 | Biblia mínima y resumen acumulado | Necesarios para el bucle de capítulo |
 | Máquina de estados persistida en SQLite | §3.1: sin ella no hay reanudación |
 | Servidor MCP de lectura/escritura sobre la biblia | §7: el permiso de escritura del Bibliotecario es una decisión ya tomada |
-| Exportación a Markdown | Fase 1 explícita |
+| Manuscrito en Markdown | Formato interno del manuscrito: es la fuente de la que salen la lectura web y el PDF, y el formato legible con `grep` y comparable con `diff` que pide C-4 |
 | Guardarraíl de palabras prohibidas en tres niveles | Obligatorio en la entrega; es determinista y no necesita modelo |
 | Gates de manuscrito: cobertura, cronología formal en Lean, umbral de la rúbrica del juez | Obligatorios en la entrega. El backend genera el fichero Lean, ejecuta la comprobación y aplica el umbral; el juez es un subagente |
 | Rebanadas `verificacion` y `revision` | Las exigen los gates |
@@ -44,7 +44,7 @@ El backend v1 cubre **todo lo que no consume modelo** ([docs/architecture.md](..
 | Verificador de contenido y líneas rojas | 2 | Ver más abajo |
 | Índice semántico y búsqueda de pasajes | 2 | El mecanismo de búsqueda está **sin decidir** (§10, D-1) |
 | Exportación a EPUB / DOCX | — | El producto se lee en web y se descarga en PDF |
-| Originalidad contra corpus | 3 | Requiere corpus y búsqueda de similitud |
+| Originalidad contra corpus | 2 | Requiere corpus y búsqueda de similitud |
 | Multiusuario, autenticación, autorización | 3 | Un fichero SQLite por proyecto, un solo comprador |
 | Control de coste por token | — | El gasto es de suscripción, no de API medida ([docs/architecture.md](../docs/architecture.md) §10) |
 | Cifrado en reposo y retención configurable | 3 | Ver más abajo |
@@ -57,7 +57,7 @@ Las rebanadas fuera de alcance **no se crean vacías**: la carpeta aparece cuand
 
 **Sobre el cifrado en reposo.** [docs/architecture.md](../docs/architecture.md) §10 pide prompts y salidas cifrados en reposo y retención configurable. La v1 **no lo hace**, y conviene que quede escrito en vez de quedar como un olvido: escribe capítulos, prompts y exportaciones como ficheros planos dentro del directorio del proyecto, precisamente porque C-4 los quiere legibles con `grep` y comparables con `diff`. La exclusión se sostiene mientras la ejecución sea local y de un solo comprador; el día que se aborde el multiusuario de la Fase 3, esta fila y C-4 se revisan juntas, porque la tensión entre ambas es real.
 
-**Sobre la rebanada `planificacion`.** Está entera dentro del alcance aunque [docs/architecture.md](../docs/architecture.md) §11 ponga en Fase 1 solo a Contexto, Arquitecto, Escaletista y Escritor, y deje a Personajes, Mundo y Estilo para la Fase 2. No es una contradicción: lo que la Fase 2 aplaza son los **agentes**, y lo que esta spec exige es la **persistencia** de lo que producen. El Recuperador la necesita desde el primer capítulo —fichas de personajes presentes y guía de estilo son dos bloques de la tabla de §6.3, ~8k y ~5k—, así que en la v1 esos datos existen aunque los escriba una persona a mano o un Arquitecto que asuma el hueco. Construir el hueco después obligaría a rehacer el Recuperador, que es el paso 6 del orden de §12.
+**Sobre la rebanada `planificacion`.** Está entera dentro del alcance, y sus cuatro agentes —Arquitecto, Personajes, Mundo y Estilo— son de la Fase 1, porque el grafo de [docs/architecture.md](../docs/architecture.md) §3.1 los recorre en orden. El Recuperador necesita su salida desde el primer capítulo: fichas de personajes presentes y guía de estilo son dos bloques de la tabla de §6.3, ~8k y ~5k.
 
 ### 1.3 Definiciones
 
@@ -74,7 +74,7 @@ Los términos del dominio (acto, hito, escaleta, presagio, biblia, arco…) est�
 
 ### 1.4 Referencias
 
-- [docs/domain-knowledge.md](../docs/domain-knowledge.md) — las 8 dimensiones y el pipeline de decisión.
+- [docs/domain-knowledge.md](../docs/domain-knowledge.md) — las 9 dimensiones, incluida Personalización, y el pipeline de decisión.
 - [docs/definitions.md](../docs/definitions.md) — diccionario de nodos, valores permitidos, instancia YAML de referencia.
 - [docs/architecture.md](../docs/architecture.md) — capas, agentes, verificadores, ciclo de capítulo, modelo de datos, tecnología, organización del código, fases.
 - [docs/validators.md](../docs/validators.md) — marco T/A/I/D/U, usado en §9 de este documento.
@@ -90,15 +90,15 @@ El backend **no orquesta**. Quien recorre el grafo es una sesión de Claude Code
 
 ```mermaid
 flowchart LR
-  ED["Editor"] --> PAN["Panel · React"]
+  ED["Comprador"] --> PAN["Web · React"]
   PAN --> API["API REST · FastAPI"]
-  CC["Sesión Claude Code"] --> MCP["MCP · superficie de lectura y superficie de escritura"]
+  CC["Sesión Claude Code"] --> MCP["MCP · lectura, escritura y entrada"]
   CC --> API
   API --> DB["SQLite · un fichero por proyecto"]
   MCP --> DB
   API --> FS["Ficheros en disco"]
   MCP --> FS
-  SUB["Subagentes"] --> MCP
+  SUB["Subagentes que declaran una superficie"] --> MCP
 ```
 
 Consecuencia de diseño que atraviesa todo el documento: **el backend nunca llama a un modelo en la v1**. No hay cliente LLM en `backend/`. Si un requisito parece necesitarlo, o es trabajo de un subagente o está fuera de alcance.
@@ -110,16 +110,16 @@ Consecuencia de diseño que atraviesa todo el documento: **el backend nunca llam
 3. Mantener y exponer el estado del grafo, con reintentos contados en la fila del capítulo.
 4. Ensamblar el prompt del Escritor por debajo del tope de 100.000 tokens de entrada.
 5. Ejecutar los verificadores deterministas y devolver informes.
-6. Dar a los subagentes acceso tipado a la biblia, de solo lectura salvo el Bibliotecario.
-7. Exportar el manuscrito aprobado a Markdown con sus metadatos.
+6. Dar acceso tipado a la biblia a los subagentes que declaran `/mcp/lectura` —no al Escritor, que trabaja con el prompt del Recuperador—, escritura solo al Bibliotecario, y el texto no confiable solo al Extractor y al Intérprete.
+7. Publicar versiones de la novela —lectura web y PDF— que no se modifican nunca, y regenerar los capítulos afectados por un cambio del lector.
 
 ### 2.3 Usuarios y actores
 
 | Actor | Qué hace contra el backend |
 |---|---|
-| **Editor** | Crea el proyecto, envía el brief, aprueba o rechaza en las dos paradas humanas, lee informes y capítulos. Vía panel → API REST. |
+| **Comprador** | Crea el proyecto, responde a la entrevista, confirma hechos y cambios, aprueba en las paradas si las activa, lee la novela y pide cambios. Vía web → API REST. |
 | **Sesión de Claude Code** | Lee y escribe estado, lanza pasos, pide contexto ensamblado, ejecuta verificadores. Vía API REST y MCP. |
-| **Subagente** | Lee la biblia. Solo el Bibliotecario escribe. Vía MCP. |
+| **Subagente** | Lee la biblia si declara `/mcp/lectura`; solo el Bibliotecario escribe; solo el Extractor y el Intérprete leen el texto no confiable. Vía MCP. |
 
 ### 2.4 Restricciones
 
@@ -136,7 +136,7 @@ Consecuencia de diseño que atraviesa todo el documento: **el backend nunca llam
 
 ### 2.5 Supuestos y dependencias
 
-- Se asume un único comprador por proyecto y ejecución local. La concurrencia real se limita a: una sesión de Claude Code, las dos superficies MCP, un servidor FastAPI, sobre el mismo fichero.
+- Se asume un único comprador por proyecto y ejecución local. La concurrencia real se limita a: una sesión de Claude Code y un servidor FastAPI —que sirve también las tres superficies MCP y el worker de la cola—, sobre el mismo fichero.
 - Se asume que la ontología de [docs/definitions.md](../docs/definitions.md) es estable durante la v1; su versionado semántico (§10) se registra pero no se ejercita con migraciones.
 - Se depende de que exista un cliente MCP (la sesión de Claude Code). El backend no valida qué modelo hay al otro lado.
 
@@ -153,10 +153,10 @@ backend/
   capitulo/        · el bucle de §5: recuperador, verificadores, versiones, estado
   verificacion/    · gates de manuscrito: cobertura, cronología formal, umbral del juez
   revision/        · informe de fallos → capítulos a corregir
-  exportacion/     · manuscrito aprobado → Markdown + metadatos
+  exportacion/     · publicación de versión: lectura web, PDF, manuscrito Markdown y metadatos
   shared/          · conexión SQLite con pragmas, esquema de la ontología, tipos comunes, rutas del proyecto
   proyecto/        · estado del grafo, transiciones, aprobaciones humanas
-  mcp/             · las dos superficies MCP sobre la misma base
+  mcp/             · las tres superficies MCP, montadas en el FastAPI
   cambio/          · petición del lector → cambio de hecho confirmado → trabajo
 ```
 
@@ -198,14 +198,14 @@ Cada requisito tiene identificador estable, enunciado, y la sección de `docs/` 
 | RF-11 | Almacenar el brief normalizado que produce el Agente de Contexto, junto al brief original, sin sustituirlo. | M | §2 |
 | RF-12 | Exponer las preguntas pendientes que el agente haya dejado abiertas y permitir que el comprador las responda. | S | §3 |
 | RF-13 | Descartar, sin rechazar el brief, los datos excluidos por C-8 que aparezcan en las respuestas o en los hechos extraídos, y registrar cada descarte en el audit log con el tipo de dato y **sin el valor**. | M | §10 |
-| RF-14 | El texto libre se guarda como fichero aparte, marcado como no confiable. Ninguna herramienta MCP lo expone: solo lo recibe el Extractor de hechos, en su prompt. | M | §1, §3 |
+| RF-14 | El texto libre se guarda como fichero aparte, marcado como no confiable. Solo se entrega por la superficie `/mcp/entrada`, declarada únicamente en las definiciones del Extractor y del Intérprete, a cambio de un identificador opaco de un solo uso que el backend emite al iniciar la extracción. El identificador no se deriva del proyecto, se consume al canjearlo y caduca; un identificador desconocido, usado o caducado devuelve error. El orquestador no recibe nunca el texto. | M | §1, §3, §8 |
 | RF-15 | Los hechos extraídos del texto libre quedan en estado `pendiente` hasta que el comprador los confirma; solo los confirmados entran en el contexto. Validar contra el esquema de la §9 todo hecho propuesto, y rechazar el que no encaje. | M | §3, definitions §9 |
 
 ### 4.3 Rebanada `contexto`
 
 | ID | Requisito | Prio | Origen |
 |---|---|---|---|
-| RF-20 | Mantener el esquema de validación del objeto de contexto derivado de [docs/definitions.md](../docs/definitions.md), cubriendo las 8 dimensiones. | M | §4, definitions |
+| RF-20 | Mantener el esquema de validación del objeto de contexto derivado de [docs/definitions.md](../docs/definitions.md), cubriendo las 9 dimensiones, incluida Personalización. | M | §4, definitions |
 | RF-21 | Validar una instancia de contexto contra ese esquema y devolver un informe con ruta de la clave, valor recibido y valor o rango esperado. | M | §4 |
 | RF-22 | El fallo de esquema es **bloqueante**: el proyecto no sale de `contexto` mientras exista un hallazgo de esa severidad. | M | §4 |
 | RF-23 | Validar los enums de valores permitidos de [docs/definitions.md](../docs/definitions.md) §§1-9 (modelo estructural, subgénero, tono, público, misión, tipo de final, narrador, arco, cronología, cierre de capítulo, ocasión, relación, papel del destinatario, tipo y prioridad de hecho…). | M | definitions |
@@ -272,7 +272,7 @@ Cada requisito tiene identificador estable, enunciado, y la sección de `docs/` 
 | RF-63 | Tope de 3 intentos por capítulo. Agotados, el capítulo pasa a `revision_humana` con los informes adjuntos. | M | §4, §3.2 |
 | RF-64 | Un capítulo en `revision_humana` no bloquea el bucle: la sesión sigue con el siguiente. Pero la versión no se publica: al acabar el bucle, el proyecto pasa a `detenida` —o, en una regeneración, vuelve a `publicada` con el cambio fallido—. | M | §3.2 |
 | RF-64a | Tope de 3 ciclos entre `verificacion_manuscrito` y `revision`. Agotado: `detenida` en la generación inicial; `publicada` con la versión anterior vigente y el cambio fallido en una regeneración. El contador vive en la fila del proyecto. | M | §3.2 |
-| RF-64b | Desde `detenida`, la acción humana «reintentar» reabre los capítulos en `revision_humana` con el contador a cero y queda registrada en el historial. | M | §3.1 |
+| RF-64b | Desde `detenida`, la acción humana «reintentar» reabre los capítulos en `revision_humana` con su contador a cero, pone a cero el contador de ciclos de revisión del proyecto y vuelve a `capitulos`; queda registrada en el historial. | M | §3.1 |
 | RF-65 | El backend rechaza cualquier escritura en la biblia que no venga de la herramienta del Bibliotecario, y cualquiera que se intente antes de que el capítulo esté verificado. | M | §1, §3.3 |
 
 #### 4.6.3 Verificadores deterministas
@@ -284,7 +284,7 @@ Todos devuelven informe con severidad y localización. **Ninguno corrige** ([doc
 | RF-70 | Longitud | Palabras del capítulo dentro de `[min, max]` de la ficha y del contexto; y del manuscrito contra `palabras_objetivo ± tolerancia`. | Media |
 | RF-71 | Métricas de estilo | Longitud media de frase, porcentaje de diálogo, legibilidad, contra los valores de la guía de estilo. | Baja / Media |
 | RF-72 | Lista negra | Ninguna palabra o muletilla prohibida del contexto aparece en el texto. | Baja |
-| RF-72a | Palabras prohibidas | Ninguna palabra de las tres listas de SQLite —global, por público, por novela— aparece en el texto, tras normalizar mayúsculas, acentos, plurales simples y variantes sencillas. Consume el contador de intentos de RF-63; si se agota, **la generación se detiene y se informa**, por excepción a RF-64. Cada coincidencia se registra en `auditoria`. | Bloqueante |
+| RF-72a | Palabras prohibidas | Ninguna palabra de las tres listas de SQLite —global, por público, por novela— aparece en el texto, tras normalizar mayúsculas, acentos, plurales simples y variantes sencillas. Consume el contador de intentos de RF-63; si se agota, **la generación se detiene y se informa**, por excepción a RF-64: en la generación inicial el proyecto pasa a `detenida`; en una regeneración vuelve a `publicada` con la versión anterior vigente y el cambio fallido. Cada coincidencia se registra en `auditoria`. | Bloqueante |
 | RF-73 | Nombres y grafías | Todo nombre propio del capítulo existe en el glosario con esa grafía exacta. | Media |
 | RF-73a | Frases literales | Todo hecho `frase` que la ficha asigna al capítulo aparece en él literalmente. | Alta |
 | RF-74 | Continuidad dura · presencia | Ningún personaje actúa en un capítulo del que la biblia lo da por ausente, muerto o en otra localización. | Alta |
@@ -337,7 +337,7 @@ Y dos requisitos sobre cómo se ejecutan:
 | ID | Requisito | Prio | Origen |
 |---|---|---|---|
 | RF-100 | Exponer herramientas tipadas sobre la biblia, no SQL libre. | M | §7 |
-| RF-101 | Las herramientas de lectura están disponibles para los subagentes que declaran `/mcp/lectura` en su definición. El Escritor no la declara —trabaja solo con el prompt del Recuperador— y el Extractor y el Intérprete no declaran ninguna herramienta. | M | §7, §8 |
+| RF-101 | Las herramientas de lectura están disponibles para los subagentes que declaran `/mcp/lectura` en su definición. El Escritor no la declara —trabaja solo con el prompt del Recuperador— y el Extractor y el Intérprete solo declaran `/mcp/entrada`. | M | §7, §8 |
 | RF-102 | Las herramientas de escritura se sirven en una superficie aparte, `/mcp/escritura`, declarada solo en la definición del Bibliotecario, y el hook de policy las deniega a toda llamada cuyo `agent_type` no sea `bibliotecario`. El permiso es configuración y mecanismo, no convención en el prompt. | M | §1, §7, §8 |
 | RF-103 | Lectura mínima: ficha y estado de personaje, localización, día de la historia, inventario por objeto y por poseedor, presagios pendientes, glosario, resumen acumulado compactado, capítulo por número y versión. | M | §5, §6 |
 | RF-104 | Escritura mínima: registrar hechos nuevos de un capítulo aprobado, actualizar estado de personajes y objetos, cerrar presagios, escribir el resumen del capítulo y **registrar qué hechos aportados usa el capítulo** (`hecho_uso`). | M | §5, definitions §9 |
@@ -361,7 +361,7 @@ Se ejecutan sobre la novela completa en `verificacion_manuscrito`. Ninguna versi
 
 | ID | Requisito | Prio | Origen |
 |---|---|---|---|
-| RF-120 | Aceptar una petición del lector: versión de novela, capítulo, fragmento seleccionado y texto de la petición. El texto se guarda como **no confiable** y ninguna herramienta MCP lo expone: solo lo recibe el Intérprete de cambios, en su prompt. | M | §3 |
+| RF-120 | Aceptar una petición del lector: versión de novela, capítulo, fragmento seleccionado y texto de la petición. El texto se guarda como **no confiable** y se entrega al Intérprete de cambios por `/mcp/entrada`, con el mismo mecanismo de identificador de un solo uso que RF-14. El orquestador no lo recibe. | M | §3, §8 |
 | RF-121 | Persistir el cambio que propone el Intérprete —hecho afectado, valor anterior y valor nuevo, o hecho nuevo con el capítulo del fragmento como destino— en estado `pendiente`, validado contra el esquema de `definitions.md` §9. Un cambio fuera del esquema se rechaza. | M | §3, definitions §9 |
 | RF-122 | Al confirmar el comprador: actualizar el hecho, conservar en el cambio el valor anterior, calcular los capítulos afectados desde `hecho_uso` y encolar un trabajo. Al rechazar: volver a `publicada` sin tocar nada. | M | §3.1 |
 | RF-123 | Una petición hecha sobre una versión que ya no es la vigente se rechaza con aviso al procesarla. | M | §3.1 |
@@ -392,7 +392,12 @@ Cada rebanada aporta su router. Rutas indicativas, agrupadas por rebanada; la fo
 | `POST /proyectos/{id}/capitulos/{n}/verificar` | `capitulo` | Ejecutar deterministas, devolver informe (RF-77) |
 | `GET /proyectos/{id}/capitulos/{n}/informes` | `capitulo` | Informes de un capítulo |
 | `POST /proyectos/{id}/aprobacion-final` | transversal | Decisión humana (RF-05) |
-| `POST /proyectos/{id}/exportar` | `exportacion` | Exportar a Markdown (RF-90) |
+| `POST /proyectos/{id}/hechos/confirmacion` | `intake` | Confirmar los hechos extraídos (RF-15) |
+| `POST /proyectos/{id}/manuscrito/verificar` | `verificacion` | Ejecutar los gates de manuscrito (RF-110 a RF-112) |
+| `POST /proyectos/{id}/manuscrito/juez` | `verificacion` | Registrar el informe del juez o una revisión humana (RF-113, RF-114) |
+| `POST /proyectos/{id}/publicar` | `exportacion` | Publicar la versión desde `publicacion` (RF-93, RF-94) |
+| `POST /proyectos/{id}/reintentar` | transversal | Reintentar desde `detenida` (RF-64b) |
+| `POST /proyectos/{id}/exportar` | `exportacion` | Manuscrito en Markdown de una versión (RF-90) |
 | `GET /proyectos/{id}/versiones` | `exportacion` | Versiones publicadas y capítulos cambiados en cada una (RF-96) |
 | `GET /proyectos/{id}/versiones/{v}/lectura` | `exportacion` | Portada, índice, ficha de personajes y lugares (RF-97) |
 | `GET /proyectos/{id}/versiones/{v}/capitulos/{n}` | `exportacion` | Capítulo de una versión |
@@ -404,7 +409,7 @@ Cada rebanada aporta su router. Rutas indicativas, agrupadas por rebanada; la fo
 
 ### 5.2 Interfaz MCP
 
-Herramientas tipadas según RF-100 a RF-106, servidas con FastMCP **dentro del mismo proceso de FastAPI**, en **dos superficies** ([docs/architecture.md](../docs/architecture.md) §7): `/mcp/lectura`, declarada en `.mcp.json`, y `/mcp/escritura`, declarada solo en la definición del Bibliotecario, para que la sesión principal no la cargue. Ambas usan la misma conexión y los mismos pragmas que la API. RF-106 sigue viviendo en el backend pase lo que pase con el reparto: que el capítulo esté verificado es una comprobación de estado y no depende de quién llame.
+Herramientas tipadas según RF-100 a RF-106 y RF-14, servidas con FastMCP **dentro del mismo proceso de FastAPI**, en **tres superficies** ([docs/architecture.md](../docs/architecture.md) §7, §8): `/mcp/lectura`, declarada en `.mcp.json`; `/mcp/escritura`, declarada solo en la definición del Bibliotecario, para que la sesión principal no la cargue; y `/mcp/entrada`, declarada solo en las del Extractor y el Intérprete, que canjea un identificador de un solo uso por el texto no confiable. Todas usan la misma conexión y los mismos pragmas que la API. RF-106 sigue viviendo en el backend pase lo que pase con el reparto: que el capítulo esté verificado es una comprobación de estado y no depende de quién llame.
 
 ### 5.3 Ficheros en disco
 
@@ -434,21 +439,24 @@ Un fichero SQLite por proyecto, en WAL. Entidades derivadas de [docs/architectur
 | `transicion` | Historial append-only de cambios de estado | RF-09 |
 | `brief` | Respuestas de la entrevista, ruta del texto libre y brief normalizado | RF-10, RF-11, RF-14 |
 | `hecho_propuesto` | Hechos extraídos del texto libre y su estado de confirmación | RF-15 |
-| `auditoria` | Decisiones de política: descartes de datos personales (tipo, sin valor) y coincidencias del guardarraíl | RF-13, RF-72a |
+| `auditoria` | Decisiones de política: descartes de datos personales (tipo, sin valor), coincidencias del guardarraíl y cada decisión del hook de policy | RF-13, RF-72a, V-13 |
+| `identificador_entrada` | Identificadores de un solo uso: texto al que dan acceso, emisión, consumo y caducidad | RF-14, RF-120 |
+| `decision_humana` | Aprobaciones, confirmaciones y reintentos: estado, decisión y notas | RF-05, RF-15, RF-36, RF-64b, RF-122 |
 | `palabra_prohibida` | Listas del guardarraíl con su nivel: global, por público, por novela | RF-72a |
 | `informe_juez` | Puntuación y justificación por criterio, del juez y de las revisiones humanas | RF-113, RF-114 |
 | `contexto` | Objeto de contexto validado + versión de ontología | RF-28 |
 | `plan` | Plan estructural | RF-30 |
-| `personaje` | Ficha, arco, evolución, estado actual, qué sabe | RF-31, RF-80 |
+| `personaje` | Ficha, arco, evolución, estado actual, qué sabe, fecha de nacimiento si se conoce | RF-31, RF-80, RF-111 |
 | `relacion` | Grafo dirigido origen → destino, tipo, estado inicial y final | RF-31 |
 | `localizacion` | Árbol con `padre`, nivel, estado | RF-32, RF-81 |
 | `ruta` | Secuencia ordenada de localizaciones con `dias_viaje` | RF-32, RF-76 |
 | `regla_mundo` | Reglas con límites, costes y excepciones | RF-32 |
 | `guia_estilo` | Narrador, registro, métricas, léxico, lista negra, onomástica | RF-33 |
 | `ficha_capitulo` | La escaleta: una fila por capítulo | RF-40 |
+| `capitulo` | Una fila por capítulo: estado actual y contador de intentos | RF-07, RF-60, RF-63 |
 | `capitulo_version` | Versión, intento, estado, ruta del fichero, semilla, versión de prompt y de modelo | RF-60, RF-62 |
 | `informe` | Verificador, severidad, localización, evidencia, regla | RF-78 |
-| `evento` | Momento, lugar y capítulo de cada evento de la cronología | RF-82 |
+| `evento` | Momento, lugar y capítulo de cada evento de la cronología, y a quién excluye (muerte o partida) | RF-82, RF-111 |
 | `evento_personaje` | Personajes presentes en cada evento | RF-82 |
 | `personalizacion` | Destinatario, ocasión, relación, vetos, dedicatoria | RF-89 |
 | `hecho` | Hechos aportados con tipo y prioridad | RF-89 |
@@ -524,11 +532,11 @@ Los identificadores van en orden de incorporación y no de importancia: los dos 
 | V-10 | Dependencias acordadas (RNF-11) | Comprobación en CI del fichero de dependencias contra la tabla de §7 | A |
 | V-11 | Validación de ontología (RF-20 a RF-27) | Batería de instancias válidas e inválidas derivadas del ejemplo YAML de definitions §12, una por regla | T |
 | V-12 | Verificadores de continuidad dura (RF-74 a RF-76) | Pruebas con biblia y capítulo construidos para infringir cada regla, y casos de control que no deben disparar | T |
-| V-13 | Permisos MCP (RF-101, RF-102, RN-1) | Dos partes: análisis estático de las definiciones de agente —solo `bibliotecario.md` declara `/mcp/escritura`, el Escritor no declara MCP, el Extractor y el Intérprete no declaran herramientas— y prueba del hook de policy: una llamada de escritura con un `agent_type` distinto de `bibliotecario`, o sin él, se deniega y queda en `auditoria` | A + T |
+| V-13 | Permisos MCP (RF-14, RF-101, RF-102, RN-1) | Dos partes: análisis estático de las definiciones de agente —solo `bibliotecario.md` declara `/mcp/escritura`, solo el Extractor y el Intérprete declaran `/mcp/entrada` y ninguna otra, el Escritor no declara MCP— y prueba del hook de policy: una llamada de escritura con un `agent_type` distinto de `bibliotecario`, o sin él, se deniega y queda en `auditoria` | A + T |
 | V-14 | Paradas humanas (RN-3) | Prueba de integración: con la parada activa, y en `publicada`, `cambio_solicitado` y `detenida`, no existe secuencia de llamadas que salga del estado sin la acción humana | T |
 | V-15 | Cobertura real de la batería | Pruebas de mutación sobre verificadores y validador de ontología | T |
 | V-16 | Que el manuscrito sea bueno | Juez de manuscrito con la rúbrica de cinco criterios, calibrado con la revisión humana de al menos una novela con la misma rúbrica (RF-113, RF-114) | I |
-| V-17 | **Que los verificadores deterministas detecten toda incoherencia real** | Detectan las reglas escritas, no la incoherencia en general. Falsos negativos aceptados y delegados a Fase 2 | **U** |
+| V-17 | **Que los verificadores deterministas detecten toda incoherencia real** | Detectan las reglas escritas, no la incoherencia en general. Los falsos negativos se aceptan y los acotan los jueces y la cronología formal de Lean | **U** |
 | V-18 | **Comportamiento del orquestador** | El grafo lo recorre una sesión de Claude Code: el backend puede rechazar transiciones inválidas, pero no puede garantizar que la sesión intente las correctas. Cubre también la regla de que **una invocación es un intento** ([docs/architecture.md](../docs/architecture.md) §3.2): el backend clavea por `(capítulo, versión, intento)` y cuenta hasta tres, pero no puede distinguir dos intentos hechos en dos invocaciones de dos hechos dentro de la misma. El **diseño** del grafo lo verifica V-25; lo que queda como riesgo aceptado es que la sesión lo siga | **U** |
 | V-19 | Nada entra en la biblia antes de verificar (RN-2, RF-106) | Prueba de integración: una escritura sobre un capítulo que no está en `verificado` o posterior se rechaza, y la misma escritura se acepta cuando sí lo está. **No la cubre V-13**: aquella comprueba *quién* llama, esta *cuándo* se puede llamar, y [docs/architecture.md](../docs/architecture.md) §7 deja dicho que la segunda vive en el backend con independencia del reparto de superficies | T |
 | V-20 | Bloqueo por esquema inválido (RF-22) | Prueba de integración sobre el grafo: con un contexto que infringe una regla del esquema, ninguna secuencia de llamadas mueve el proyecto fuera del estado `contexto`. **No la cubre V-11**: aquella comprueba que el validador *detecta* la infracción, esta que el hallazgo *bloquea* la transición | T |
@@ -539,7 +547,8 @@ Los identificadores van en orden de incorporación y no de importancia: los dos 
 | V-26 | Guardarraíl (RF-72a) | Pruebas con al menos un caso por cada nivel y un caso de variante (acento o plural), más casos de control que no deben disparar | T |
 | V-27 | Cronología formal (RF-111, RF-112) | Cronologías construidas para infringir cada invariante, y casos de control; y al menos un caso real en que Lean detecta una incoherencia que los demás verificadores no detectaron, o la justificación de por qué no se encontró | T |
 | V-28 | Cobertura y frases literales (RF-110, RF-73a) | Pruebas con hechos obligatorios sin uso y frases ausentes, y casos de control | T |
-| V-29 | Resistencia a inyección del Extractor y del Intérprete (RF-14, RF-15, RF-120, RF-121) | Red teaming: briefs y peticiones adversariales con resultado esperado, registrados en un red-team log | T |
+| V-29 | Resistencia a inyección del Extractor y del Intérprete (RF-14, RF-15, RF-120, RF-121) | Red teaming: briefs y peticiones adversariales con resultado esperado, registrados en un red-team log. Incluye como caso obligatorio la exfiltración: una instrucción inyectada que intenta obtener el texto o los datos de otro proyecto, y la prueba de que un identificador ajeno, usado o caducado devuelve error | T |
+| V-32 | Umbral del juez de manuscrito (RF-113) | Pruebas con informes de juez construidos en los bordes del umbral —un criterio a 2, media a 3,4 y a 3,5— y casos de control | T |
 | V-30 | La versión anterior se conserva (RF-95, RN-9) | Prueba basada en propiedades: para cualquier secuencia de publicaciones, las filas y ficheros de toda versión anterior son idénticos antes y después | T |
 | V-31 | Alcance de una regeneración (RF-122, RF-125) | Prueba de integración: los capítulos regenerados son los que `hecho_uso` asocia al hecho, más los que corrija el Revisor, y ninguno más | T |
 | V-24 | Aislamiento por proyecto (RNF-09) | Análisis estático: toda ruta de fichero y toda conexión de `backend/` se derivan de la disposición de directorio de `shared/`, y ninguna se construye hacia un proyecto distinto del que la petición identifica | A |
@@ -561,10 +570,10 @@ Ninguna de estas se resuelve en este documento. Están enumeradas porque hay req
 | D-7 | ~~Pruebas y tipos~~ — **resuelta**: `pytest` + `Hypothesis`, `mypy --strict`, `ruff`, y `mutmut` solo sobre el validador de ontología y los verificadores; entorno con `uv` y Python 3.12 | V-6, V-15 y todos los criterios `T` | — |
 | D-8 | Mecanismo de exportación a PDF | RF-98 | Sí, para ese requisito |
 | D-10 | Despliegue | Fuera de alcance: la ejecución es local | No |
-| D-11 | Cómo llega el texto libre y la petición del lector al Extractor y al Intérprete sin pasar por la ventana del orquestador. Si van en el prompt, el orquestador los lee, y son contenido no confiable. Candidata: una única herramienta de solo lectura que devuelva ese texto y nada más, dada solo a esos dos agentes | RF-14, RF-120 | No para el backend: afecta a las definiciones de agente |
+| D-11 | ~~Cómo llega el texto no confiable al Extractor y al Intérprete~~ — **resuelta**: superficie `/mcp/entrada` declarada solo en esos dos agentes, con una herramienta de solo lectura que canjea un identificador opaco de un solo uso (RF-14, RF-120) | RF-14, RF-120 | — |
 | D-9 | Qué hace el Recuperador cuando, recortadas ya todas las unidades recortables, el ensamblado sigue sin caber: solo queda la ficha del capítulo y aun así rebasa el tope | RF-53, RF-53a | No — es un caso patológico, no el camino normal |
 
-Ninguna decisión abierta bloquea ya la primera línea: **D-2, D-4, D-5, D-6 y D-7 están cerradas**. **D-8** bloquea solo el PDF y **D-3** (observabilidad) solo la integración de trazas; las dos admiten empezar sin ellas.
+Ninguna decisión abierta bloquea ya la primera línea: **D-2, D-4, D-5, D-6, D-7 y D-11 están cerradas**. **D-8** bloquea solo el PDF y **D-3** (observabilidad) solo la integración de trazas; las dos admiten empezar sin ellas.
 
 **D-9** merece una nota, porque es un hueco abierto a propósito y no un olvido. El recorte por unidades completas (RF-53a) es finito: acaba, en el peor caso, con la ficha sola. Llegar ahí no significa que el capítulo sea denso, significa que hay un dato mal formado —una guía de estilo de 60k, una ficha con veinte personajes en escena, un resumen de acto que nunca se destiló—. Hasta que la decisión se tome, el código **no puede inventarse una salida**: ni truncar, ni subir el tope, ni enviar el prompt igualmente. Que falle de forma ruidosa es el comportamiento correcto mientras tanto.
 
@@ -577,10 +586,9 @@ Ninguna decisión abierta bloquea ya la primera línea: **D-2, D-4, D-5, D-6 y D
 | architecture §1 | RF-65, RN-1, RNF-10 |
 | architecture §2 | RF-10, RF-11, estructura de rebanadas de §3 |
 | architecture §3.1 | RF-02, RF-04, RF-05, RF-05a, RF-08, RF-35, RF-64b, RF-93, RF-122, RF-123 |
-| architecture §3.2 | RF-64, RF-64a, RF-125 |
+| architecture §3.2 | RF-03, RF-06, RF-07, RF-63, RF-64, RF-64a, RF-125, V-18 |
 | architecture §3.4 | V-25 |
 | architecture §6 (versiones) | RF-94 a RF-98, V-30 |
-| architecture §3.2 | RF-03, RF-06, RF-07, RF-63, RF-64, V-18 |
 | architecture §3.3 | RF-05, RN-1, RN-3 |
 | architecture §4 | RF-22, RF-70 a RF-78, RF-63 |
 | architecture §5 | RF-50, RF-77, RF-103 |
@@ -589,9 +597,10 @@ Ninguna decisión abierta bloquea ya la primera línea: **D-2, D-4, D-5, D-6 y D
 | architecture §6.2 | RF-55, RF-56, RF-86, RF-87 |
 | architecture §6.3 | RF-50 a RF-54, RF-52a a RF-52c, RF-53a, RF-57, RF-58, RF-59 a RF-59b, RF-79, RNF-03a, RNF-03b, RNF-05, D-9 |
 | architecture §7 | C-1, C-2, C-6, RF-52a, RF-52c, RF-100 a RF-106, D-1 a D-3, D-5 |
+| architecture §8 (agentes) | RF-14, RF-101, RF-102, RF-120, V-13, D-11 |
 | architecture §8 | C-3, §3 de este documento |
 | architecture §10 | RF-09, RF-09a, RF-13, RF-62, RF-105, C-8 |
-| architecture §4.1-§4.3 | RF-72a, RF-73a, RF-110 a RF-115, V-16, V-25 a V-28 |
+| architecture §4.1-§4.3 | RF-72a, RF-73a, RF-110 a RF-115, V-16, V-26 a V-28, V-32 |
 | architecture §11 | §1.2 completo |
 | definitions §1-§9 | RF-23 a RF-27, RF-31 a RF-33, RF-40 a RF-42, RF-82, RF-89, RF-91 |
 | definitions §10 | RF-24 |

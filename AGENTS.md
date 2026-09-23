@@ -4,7 +4,7 @@ Generador de novelas de aventura personalizadas para regalo, por agentes: convie
 
 ## Alcance de esta rama (importante)
 
-Esta rama es `project-v2`, un **orphan branch vacío**: solo contiene `docs/`. No hay código todavía.
+Esta rama es `project-v2`, un **orphan branch**: contiene `docs/`, `specs/` y las skills de `.claude/`. No hay código todavía.
 
 - Considera como fuente de verdad **únicamente lo que existe en esta rama**. Ignora `main` y cualquier historial, convención o código anterior: no aplica aquí.
 - Si algo no está en `docs/` ni en esta rama, no existe todavía. No lo asumas: pregúntalo o propónlo explícitamente.
@@ -12,13 +12,14 @@ Esta rama es `project-v2`, un **orphan branch vacío**: solo contiene `docs/`. N
 
 ## Documentación de referencia
 
-Léela antes de proponer diseño o escribir código. Los tres documentos son consistentes entre sí y deben seguir siéndolo:
+Léela antes de proponer diseño o escribir código. Los documentos son consistentes entre sí y deben seguir siéndolo:
 
 | Documento | Qué contiene |
 |---|---|
 | [docs/domain-knowledge.md](docs/domain-knowledge.md) | Árbol de conocimiento del dominio (9 dimensiones, la novena de personalización, + pipeline de decisión), en Mermaid. Los nodos hoja son claves del objeto de contexto. |
 | [docs/definitions.md](docs/definitions.md) | Diccionario de cada nodo: definición, valores permitidos, parámetros y ejemplo de instancia YAML. Es la base del esquema de validación. |
 | [docs/architecture.md](docs/architecture.md) | Capas, agentes, verificadores, ciclo de capítulo, modelo de datos, tecnología y fases de construcción. |
+| [docs/validators.md](docs/validators.md) | Qué método de verificación sostiene cada afirmación sobre el sistema, pieza por pieza. |
 
 Si un cambio de código altera la ontología, los valores permitidos o el flujo, actualiza el documento correspondiente en el mismo cambio.
 
@@ -50,7 +51,7 @@ El skill `grilling` viene del plugin `mattpocock-skills`, del marketplace oficia
 
 ## Stack
 
-Lo decidido: **backend en Python con FastAPI**, **frontend en React con Vite**, **orquestación con Claude Code** — la sesión recorre el grafo de estados y cada agente de la novela es un subagente suyo; no se escribe un orquestador en código — **acceso de los agentes a la biblia por MCP**, con FastMCP montado dentro del FastAPI, en dos superficies — herramientas tipadas, `/mcp/lectura` en `.mcp.json` y `/mcp/escritura` declarada solo en la definición del Bibliotecario — y **SQLite local** como base de datos, un fichero por proyecto que cubre lo relacional, lo vectorial y la caché, con los capítulos y las exportaciones como ficheros en disco en vez de blobs. El entorno es **`uv`** con **Python 3.12**; la ontología se valida con **Pydantic v2** como fuente única, y se prueba con **`pytest`** + **`Hypothesis`**, **`mypy --strict`**, **`ruff`** y **`mutmut`** (solo sobre el validador de ontología y los verificadores). La cola de trabajos es una **tabla en SQLite** con un worker que lanza **`claude -p`**. La verificación formal usa **Lean 4** (`lake` vía `elan`, sin Mathlib) para la cronología de cada novela y **TLA+ con TLC** (`tla2tools.jar`, Java) para el grafo de estados, este último solo en desarrollo. El tope de entrada se vigila con **`tiktoken`** (`o200k_base`) × 1,35 como estimador conservador, no como contador exacto: no es el tokenizador de Claude, y el porqué del factor está en [docs/architecture.md](docs/architecture.md) §6.3.
+Lo decidido: **backend en Python con FastAPI**, **frontend en React con Vite**, **orquestación con Claude Code** — la sesión recorre el grafo de estados y cada agente de la novela es un subagente suyo; no se escribe un orquestador en código — **acceso de los agentes a la biblia por MCP**, con FastMCP montado dentro del FastAPI, en tres superficies — herramientas tipadas, `/mcp/lectura` en `.mcp.json`, `/mcp/escritura` declarada solo en la definición del Bibliotecario y `/mcp/entrada` —el texto no confiable, con identificador de un solo uso— solo en la del Extractor y el Intérprete — y **SQLite local** como base de datos, un fichero por proyecto que cubre lo relacional, lo vectorial y la caché, con los capítulos y las exportaciones como ficheros en disco en vez de blobs. El entorno es **`uv`** con **Python 3.12**; la ontología se valida con **Pydantic v2** como fuente única, y se prueba con **`pytest`** + **`Hypothesis`**, **`mypy --strict`**, **`ruff`** y **`mutmut`** (solo sobre el validador de ontología y los verificadores). La cola de trabajos es una **tabla en SQLite** con un worker que lanza **`claude -p`**. La verificación formal usa **Lean 4** (`lake` vía `elan`, sin Mathlib) para la cronología de cada novela y **TLA+ con TLC** (`tla2tools.jar`, Java) para el grafo de estados, este último solo en desarrollo. El tope de entrada se vigila con **`tiktoken`** (`o200k_base`) × 1,35 como estimador conservador, no como contador exacto: no es el tokenizador de Claude, y el porqué del factor está en [docs/architecture.md](docs/architecture.md) §6.3.
 
 Los agentes son configuración de Claude Code: un fichero por agente en `.claude/agents/` con su modelo (`opus`, `sonnet` o `haiku`, según [docs/architecture.md](docs/architecture.md) §3), la skill `orquestar-novela` con el protocolo del grafo, y los hooks de validación de capítulo y de policy en `.claude/settings.json`. La inspección visual de la lectura web usa **Playwright MCP**. Ver [docs/architecture.md](docs/architecture.md) §8.
 

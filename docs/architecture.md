@@ -14,7 +14,7 @@ flowchart TB
   end
   subgraph ORQ["Capa de orquestación · Claude Code"]
     O1["Sesión de Claude Code · recorre el grafo de estados"]
-    O2["Cola de trabajos · un job por capítulo · backend"]
+    O2["Cola de trabajos · un trabajo por regeneración · backend"]
   end
   subgraph AG["Capa de agentes · subagentes de Claude Code"]
     A1["Agentes de planificación"]
@@ -31,9 +31,9 @@ flowchart TB
     M3["Manuscrito versionado"]
   end
   subgraph LLM["Capa de modelos"]
-    L1["Modelo grande · escritura y planificación"]
-    L2["Modelo rápido · resúmenes, extracción, jueces"]
-    L3["Embeddings"]
+    L1["opus · escritura y revisión"]
+    L2["sonnet · planificación, biblia, jueces · haiku · esquema cerrado"]
+    L3["Embeddings · locales, pendiente de D-1"]
   end
   UI --> ORQ --> AG
   AG <--> VER
@@ -45,7 +45,7 @@ flowchart TB
 
 **Quién orquesta:** una sesión de Claude Code, no código propio. Recorre el grafo de estados como protocolo escrito, lanza cada agente como subagente y aplica la política de reintentos. El backend se queda con todo lo que no consume modelo: verificadores deterministas, persistencia, índice y exportación.
 
-**El texto libre no viaja.** La anécdota o carta que pega el comprador solo la lee el Extractor de hechos. Ningún otro agente la recibe en crudo: el resto trabaja con los hechos validados y confirmados por el comprador.
+**El texto no confiable no viaja.** La anécdota o carta del comprador y la petición del lector solo las lee quien las procesa: el Extractor de hechos y el Intérprete de cambios. **Tampoco pasan por la ventana del orquestador**: el orquestador recibe del backend un identificador opaco de un solo uso y se lo pasa al agente, que es quien pide el texto. El resto trabaja con los hechos validados y confirmados por el comprador.
 
 **Idea central:** los agentes proponen, los verificadores disponen y la biblia recuerda. Ningún agente escribe en la biblia directamente; solo el Bibliotecario, y solo después de que un capítulo pase la verificación.
 
@@ -92,7 +92,7 @@ flowchart LR
 
 ## 3. Agentes y orquestación
 
-Cada agente de esta tabla es un **subagente de Claude Code**, con su propio contexto y el modelo de la columna *Modelo*, que es el valor del campo `model` de su definición (§8). El reparto sigue lo que produce cada agente: `opus` para la prosa, que es el producto; `sonnet` para planificar, extraer, juzgar y corregir estilo; `haiku` solo donde la salida es corta y la valida un esquema cerrado. Los jueces de §4 son también subagentes (`juez-capitulo` y `juez-manuscrito`, en `sonnet`): un juez más débil que el escritor no detecta lo que tiene que detectar.
+Cada agente de esta tabla es un **subagente de Claude Code**, con su propio contexto y el modelo de la columna *Modelo*, que es el valor del campo `model` de su definición (§8). El reparto sigue lo que produce cada agente: `opus` para la prosa, que es el producto; `sonnet` para planificar, extraer los hechos de cada capítulo (Bibliotecario), juzgar y corregir estilo; `haiku` solo donde la salida es corta y la valida un esquema cerrado. Los jueces de §4 son también subagentes (`juez-capitulo` y `juez-manuscrito`, en `sonnet`): un juez más débil que el escritor no detecta lo que tiene que detectar.
 
 ```mermaid
 flowchart LR
@@ -126,7 +126,7 @@ flowchart LR
 |---|---|---|---|---|
 | **Claude Code · orquestador** | Recorre el grafo de estados como protocolo, lanza los subagentes, aplica la política de reintentos y para en los puntos de aprobación humana. No genera prosa de la novela. | Estado del proyecto | Transiciones e invocaciones de subagente | Sesión de Claude Code |
 | **Agente de Contexto** | Convierte el brief en el objeto de contexto de la ontología, rellena valores por defecto según el pipeline de decisión y pregunta lo que falte. | Brief | Contexto YAML validado | `sonnet` |
-| **Extractor de hechos** | Lee el texto libre del comprador —contenido no confiable— y devuelve solo hechos en el esquema cerrado de `definitions.md` §9. **Sin herramientas**: no tiene acceso MCP ni nada que ejecutar, así que una instrucción inyectada en el texto no tiene efecto fuera de su salida, y una salida fuera del esquema falla la validación. Descarta los datos excluidos (§10). | Texto libre | Hechos propuestos, pendientes de confirmación | `haiku` |
+| **Extractor de hechos** | Lee el texto libre del comprador —contenido no confiable— y devuelve solo hechos en el esquema cerrado de `definitions.md` §9. **Una sola herramienta, de solo lectura**: recibe el identificador opaco de un solo uso y devuelve ese texto y nada más. No puede escribir, no ve la biblia ni otros proyectos, y una salida fuera del esquema falla la validación, así que una instrucción inyectada no tiene efecto fuera de su salida. Descarta los datos excluidos (§10). | Identificador del texto libre | Hechos propuestos, pendientes de confirmación | `haiku` |
 | **Arquitecto narrativo** | Elige modelo estructural, reparte hitos por capítulo, define curva de tensión, pregunta dramática y tipo de final. | Contexto | Plan estructural | `sonnet` |
 | **Diseñador de personajes** | Crea fichas, arcos, evolución y grafo de relaciones coherentes con los hitos. | Contexto + plan estructural | Fichas y grafo | `sonnet` |
 | **Constructor de mundo** | Define tipo de mundo, ruta ligada a los hitos, localizaciones clave, reglas del mundo con costes. | Contexto + plan + fichas | Biblia inicial de mundo | `sonnet` |
@@ -137,7 +137,7 @@ flowchart LR
 | **Bibliotecario** | Extrae del capítulo aprobado los hechos nuevos (estado de personajes, objetos, fechas, presagios) y actualiza la biblia y el resumen acumulado. | Capítulo aprobado | Biblia actualizada | `sonnet` |
 | **Revisor dirigido** | Corrige capítulos concretos a partir de un informe de fallos, con cambios mínimos. | Capítulo + informe | Capítulo corregido | `opus` |
 | **Exportador** | Genera título, sinopsis y palabras clave; el código genera la lectura web y el PDF de la versión. | Manuscrito verificado | Metadatos, lectura web, PDF | `haiku` + código |
-| **Intérprete de cambios** | Traduce la petición del lector («el perro se llama Nala») a un cambio sobre un hecho de la biblia, o a un hecho nuevo con el capítulo del fragmento como destino. Mismo patrón que el Extractor: **sin herramientas**, salida en esquema cerrado, y el texto del lector es **no confiable**. | Fragmento + petición + hechos vigentes | Cambio de hecho propuesto, pendiente de confirmación | `haiku` |
+| **Intérprete de cambios** | Traduce la petición del lector («el perro se llama Nala») a un cambio sobre un hecho de la biblia, o a un hecho nuevo con el capítulo del fragmento como destino. Mismo patrón que el Extractor: una sola herramienta de solo lectura con identificador de un solo uso, que devuelve la petición, el fragmento y los hechos vigentes; salida en esquema cerrado; el texto del lector es **no confiable**. | Identificador de la petición | Cambio de hecho propuesto, pendiente de confirmación | `haiku` |
 
 El **Recuperador de contexto** de §5 no está en esta tabla a propósito: no es un agente. Es código del backend y no consume modelo. Su sitio es §6.3.
 
@@ -170,7 +170,7 @@ flowchart LR
   S10 -->|"rechazado"| S9
   S10 -->|"confirmado"| S11["regeneracion"]
   S11 --> S6
-  S11 -->|"capítulo agotado · cambio fallido"| S9
+  S11 -->|"capítulo o veto agotado · cambio fallido"| S9
   S6 -->|"revisiones agotadas · regeneración"| S9
   D1 -->|"reintentar · humano"| S5
 ```
@@ -189,8 +189,8 @@ flowchart LR
 | `publicacion` | Exportador | Existe la versión de novela nueva, con su lectura web y su PDF en disco | Código |
 | `publicada` | Ninguno | El lector pide un cambio | **Humano** |
 | `cambio_solicitado` | Intérprete de cambios | El comprador confirma o rechaza el cambio propuesto | **Humano** |
-| `regeneracion` | Bucle de §5 sobre los capítulos afectados | Todos aprobados → `verificacion_manuscrito`; alguno agotado → `publicada`, con el cambio marcado como fallido | Verificadores |
-| `detenida` | Ninguno | El comprador pide reintentar, lo que reabre los capítulos en `revision_humana` con su contador a cero | **Humano** |
+| `regeneracion` | Bucle de §5 sobre los capítulos afectados | Todos aprobados → `verificacion_manuscrito`; alguno agotado, o el guardarraíl agotado → `publicada`, con la versión anterior vigente y el cambio marcado como fallido | Verificadores |
+| `detenida` | Ninguno | El comprador pide reintentar: se reabren los capítulos en `revision_humana` con su contador a cero, se pone a cero el contador de ciclos de revisión y se vuelve a `capitulos` | **Humano** |
 
 ### 3.2 Reintentos, fallos y reanudación
 
@@ -198,7 +198,7 @@ El contador de intentos **no vive en la cabeza del orquestador**, vive en la fil
 
 Cada transición se escribe **antes** de lanzar el siguiente subagente. Si la sesión muere a mitad, lo que se pierde es como mucho el trabajo de un subagente, nunca la posición en el grafo.
 
-Eso obliga a que cada paso sea **repetible sin daño**: las escrituras van claveadas por `(capítulo, versión, intento)`, de modo que relanzar un paso que ya se había completado produce la misma fila en vez de una duplicada. Un capítulo que agota los tres intentos no se reintenta más: pasa a `revision_humana` con los informes adjuntos y el bucle sigue con el siguiente, porque así la ejecución deja informado todo lo que falla y no solo lo primero. Pero **una versión no se publica con un capítulo en `revision_humana`**: al acabar el bucle, el proyecto pasa a `detenida`. La excepción es el guardarraíl de palabras prohibidas (§4.3), que detiene la generación en cuanto se agota, sin esperar al final del bucle.
+Eso obliga a que cada paso sea **repetible sin daño**: las escrituras van claveadas por `(capítulo, versión, intento)`, de modo que relanzar un paso que ya se había completado produce la misma fila en vez de una duplicada. Un capítulo que agota los tres intentos no se reintenta más: pasa a `revision_humana` con los informes adjuntos y el bucle sigue con el siguiente, porque así la ejecución deja informado todo lo que falla y no solo lo primero. Pero **una versión no se publica con un capítulo en `revision_humana`**: al acabar el bucle, el proyecto pasa a `detenida`. La excepción es el guardarraíl de palabras prohibidas (§4.3), que detiene la generación en cuanto se agota, sin esperar al final del bucle; en una regeneración, eso significa volver a `publicada` con el cambio fallido.
 
 **La revisión de manuscrito también tiene tope**: 3 ciclos entre `verificacion_manuscrito` y `revision`. Sin él, un gate que el Revisor no consigue satisfacer daría un bucle infinito. Agotado el tope, una generación inicial pasa a `detenida`, y una regeneración vuelve a `publicada` con la versión anterior vigente y el cambio marcado como fallido.
 
@@ -504,7 +504,7 @@ Que la similitud devuelva vacío es corriente —el capítulo 1 no tiene nada an
 
 #### El encabezado de subordinación
 
-Los pasajes recuperados son texto de capítulos antiguos y arrastran estado viejo: en el fragmento del capítulo 9 el capitán todavía lleva el anillo que perdió en el 15. Si el Escritor los lee con el mismo estatus que la ficha de personaje, hay una vía directa a un fallo de continuidad que ningún verificador determinista detecta, porque el pasaje es internamente coherente.
+Los pasajes recuperados son texto de capítulos antiguos y arrastran estado viejo: en el fragmento del capítulo 3 el capitán todavía lleva el anillo que perdió en el 7. Si el Escritor los lee con el mismo estatus que la ficha de personaje, hay una vía directa a un fallo de continuidad que ningún verificador determinista detecta, porque el pasaje es internamente coherente.
 
 Por eso el bloque va precedido de un encabezado fijo, y cada fragmento de su procedencia:
 
@@ -527,7 +527,7 @@ Lo decidido hasta ahora es solo esto:
 | Orquestación de agentes | Claude Code: la sesión recorre el grafo y los agentes son subagentes suyos |
 | Base de datos | SQLite local, un fichero por proyecto, en modo WAL: relacional, vectorial y caché en la misma base |
 | Almacén de objetos | Ficheros en disco, sin servicio aparte |
-| Acceso de Claude Code a la biblia | **Servidor MCP con FastMCP, montado dentro del FastAPI**, sobre la misma base SQLite y en el mismo proceso, en **dos superficies**: `/mcp/lectura`, declarada en `.mcp.json`, y `/mcp/escritura`, declarada **solo** en el campo `mcpServers` de la definición del Bibliotecario. Herramientas tipadas, nunca SQL libre |
+| Acceso de Claude Code a la biblia | **Servidor MCP con FastMCP, montado dentro del FastAPI**, sobre la misma base SQLite y en el mismo proceso, en **tres superficies**: `/mcp/lectura`, declarada en `.mcp.json`, y `/mcp/escritura`, declarada **solo** en el campo `mcpServers` de la definición del Bibliotecario; y `/mcp/entrada`, que entrega el texto no confiable al Extractor y al Intérprete, y solo ellos la declaran (§8). Herramientas tipadas, nunca SQL libre |
 | Estado del orquestador | Una fila en SQLite, no la ventana de la sesión (§3.1) |
 | Cola de trabajos | Una **tabla en SQLite** y un worker del backend que procesa un trabajo cada vez —el escritor único de SQLite lo exige— lanzando **`claude -p`** en modo headless con un comando propio de regeneración. El backend lanza un proceso, no llama a un modelo: sigue sin cliente LLM y el gasto sigue siendo de suscripción |
 | Estimación de tokens del Recuperador | `tiktoken` con `o200k_base` × 1,35, como **estimador conservador**, con el fichero BPE versionado en el repositorio. No es el tokenizador de Claude: ver §6.3 |
@@ -543,7 +543,7 @@ SQLite es una decisión de las **fases 1 y 2**. El multiusuario de la fase 3 (§
 
 El acceso por **MCP** se elige frente a endpoints de FastAPI llamados con Bash por una razón concreta: la regla de §1 de que solo el Bibliotecario escribe en la biblia deja de depender de que el agente se porte bien y pasa a ser configuración verificable. Montarlo con FastMCP dentro del FastAPI no añade ningún proceso: vive en el backend, que tiene que estar arrancado de todos modos porque el orquestador llama a su API y el worker de regeneración vive en él. Un solo proceso escribe además en SQLite, que es lo que su escritor único pide.
 
-**Por qué dos superficies, y por qué la de escritura no va en `.mcp.json`.** MCP no transporta la identidad del agente que llama: un servidor no puede saber si quien invoca la escritura es el Bibliotecario, y preguntárselo —un campo `agente` en la llamada— sería una convención de prompt disfrazada de mecanismo. Pero separar las superficies no basta si las dos están en `.mcp.json`, porque la **sesión principal recibe las herramientas de todos los servidores de ese fichero**: el orquestador tendría la escritura igualmente. Por eso `/mcp/escritura` se declara solo en el `mcpServers` del Bibliotecario, que Claude Code no carga en la sesión principal. Y como segunda barrera, el hook de policy (§8) deniega las herramientas de escritura a cualquier llamada cuyo `agent_type` no sea `bibliotecario`. Una regla `deny` en la configuración no sirve para esto: se aplica también a los subagentes y la lista `tools` no la anula. La comprobación de que el capítulo esté verificado sigue viviendo en el backend (RF-106), porque esa no depende de quién llame.
+**Por qué superficies separadas, y por qué la de escritura no va en `.mcp.json`.** MCP no transporta la identidad del agente que llama: un servidor no puede saber si quien invoca la escritura es el Bibliotecario, y preguntárselo —un campo `agente` en la llamada— sería una convención de prompt disfrazada de mecanismo. Pero separar las superficies no basta si las dos están en `.mcp.json`, porque la **sesión principal recibe las herramientas de todos los servidores de ese fichero**: el orquestador tendría la escritura igualmente. Por eso `/mcp/escritura` se declara solo en el `mcpServers` del Bibliotecario, que Claude Code no carga en la sesión principal. Y como segunda barrera, el hook de policy (§8) deniega las herramientas de escritura a cualquier llamada cuyo `agent_type` no sea `bibliotecario`. Una regla `deny` en la configuración no sirve para esto: se aplica también a los subagentes y la lista `tools` no la anula. La comprobación de que el capítulo esté verificado sigue viviendo en el backend (RF-106), porque esa no depende de quién llame.
 
 Todo lo demás está **sin decidir**: el mecanismo de búsqueda dentro de SQLite (con embeddings locales o con FTS5, §6), la observabilidad, el mecanismo de exportación a PDF y el despliegue. El resto del documento describe esas piezas por su función, no por su implementación; cada decisión se tomará cuando la fase correspondiente la exija y se añadirá a esta tabla.
 
@@ -606,7 +606,7 @@ Los agentes **no viven en `backend/`**: son configuración de Claude Code, versi
 | Agentes | Acceso |
 |---|---|
 | Escritor | **Ninguna herramienta MCP.** Trabaja solo con el prompt que ensambla el Recuperador; si pudiera consultar la biblia por su cuenta, se saltaría el tope de 100.000 tokens y la selección de §6.3 |
-| Extractor de hechos, Intérprete de cambios | **Ninguna herramienta.** Es su defensa frente a la inyección (§3) |
+| Extractor de hechos, Intérprete de cambios | **Solo `/mcp/entrada`**, declarada en su propio `mcpServers`: una herramienta de solo lectura que canjea el identificador opaco de un solo uso por el texto no confiable. Nada más. El identificador se consume al canjearlo y no se deriva del proyecto, así que una instrucción inyectada no puede pedir el texto de otro proyecto |
 | Bibliotecario | `/mcp/lectura` y `/mcp/escritura`, esta última declarada en su propio `mcpServers` |
 | El resto | `/mcp/lectura` |
 
@@ -634,7 +634,7 @@ Lo compartido entre funcionalidades vive en un `shared/` con el mismo criterio d
 ```mermaid
 flowchart LR
   subgraph EDGE["Acceso"]
-    U["Editor"] --> W["Panel web · React + Vite"]
+    U["Comprador"] --> W["Web · React + Vite"]
     W --> API["API · FastAPI"]
     U --> API
   end
@@ -649,7 +649,7 @@ flowchart LR
     FS["Ficheros en disco · capítulos, exportaciones, auditoría"]
   end
   subgraph EXT["Servicios externos"]
-    LLMs["API de modelos"]
+    LLMs["claude -p · suscripción"]
     OBS["Trazas y coste"]
   end
   WK1 & WK2 & WK3 --> ST
@@ -667,7 +667,7 @@ Este diagrama es el **estado objetivo**, no el de la fase 1. La cola ya está de
 | Aspecto | Decisión |
 |---|---|
 | **Human-in-the-loop** | Dos paradas **opcionales**, desactivadas por defecto (plan y manuscrito final); la confirmación de hechos extraídos y de cambios del lector; y `detenida`, cuando un capítulo o la revisión agotan su tope. El panel muestra el informe que motivó la pausa. |
-| **Control de coste** | El gasto es de suscripción, no de API medida: no hay presupuesto por token que degradar en caliente. El control se ejerce eligiendo el modelo de cada subagente por adelantado (§3): `opus` solo en Escritor y Revisor, `sonnet` en planificación, extracción, jueces y estilo, `haiku` en las tareas de esquema cerrado. Queda por confirmar que los subagentes con un modelo distinto al de la sesión descuentan de la suscripción y no de otra cosa. Estimación previa: novela ≈ 10 capítulos × (1 escritura + 1,5 regeneraciones medias + edición + jueces). |
+| **Control de coste** | El gasto es de suscripción, no de API medida: no hay presupuesto por token que degradar en caliente. El control se ejerce eligiendo el modelo de cada subagente por adelantado (§3): `opus` solo en Escritor y Revisor, `sonnet` en planificación, Bibliotecario, jueces y estilo, `haiku` en las tareas de esquema cerrado. Queda por confirmar que los subagentes con un modelo distinto al de la sesión descuentan de la suscripción y no de otra cosa. Estimación previa: novela ≈ 10 capítulos × (1 escritura + 1,5 regeneraciones medias + edición + jueces). |
 | **Paralelismo** | Planificación secuencial; capítulos secuenciales por defecto (dependen de la biblia). Paralelizable solo en estructuras corales con líneas independientes hasta su convergencia, y **condicionado a que el almacén lo soporte**: con SQLite la escritura es serializada, así que el paralelismo coral se limita a la generación, no a la escritura en la biblia. |
 | **Determinismo y reproducibilidad** | Semilla, versión de prompt, versión de modelo y contexto exacto guardados por capítulo. |
 | **Seguridad y privacidad** | **Minimización, no prohibición**: los datos del destinatario son el producto, pero son de un tercero. Solo se admiten los campos de `definitions.md` §9; documento de identidad, teléfono, email, dirección exacta, datos bancarios y datos de salud se descartan siempre, aunque el comprador los aporte, y el descarte queda en el audit log con el tipo de dato y sin el valor. El texto libre es entrada no confiable (§1, Extractor de hechos en §3). Los datos viven solo en el SQLite y el directorio del proyecto; sin retención automática, y borrar el proyecto borra ambos. Secretos fuera del repositorio. **El cifrado en reposo queda fuera y está en tensión declarada con §6**: mientras capítulos, prompts y exportaciones sean ficheros planos para poder leerse con `grep` y compararse con `diff`, no están cifrados. La exclusión se sostiene mientras la ejecución sea local; el día del multiusuario se revisan las dos decisiones juntas. Todo dato que se commitea en el repositorio —briefs de ejemplo y de evaluación, novelas generadas— es ficticio. |
@@ -681,7 +681,7 @@ Este diagrama es el **estado objetivo**, no el de la fase 1. La cola ya está de
 ```mermaid
 flowchart LR
   F1["Fase 1 · Entrega"] --> F2["Fase 2 · Calidad"] --> F3["Fase 3 · Producto"]
-  F1 --> F1a["Entrega · backend completo · gates de manuscrito con Lean y juez · guardarraíl · versiones y regeneración por el lector · lectura web y PDF · TLA+ · evals · observabilidad, pendiente de D-3"]
-  F2 --> F2a["Calidad · resto de agentes de planificación · índice semántico, D-1 · linters de prosa · originalidad"]
+  F1 --> F1a["Entrega · backend completo · los cuatro agentes de planificación · gates de manuscrito con Lean y juez · guardarraíl · versiones y regeneración por el lector · lectura web y PDF · TLA+ · evals · observabilidad, pendiente de D-3"]
+  F2 --> F2a["Calidad · índice semántico, D-1 · linters de prosa · originalidad · contenido y líneas rojas"]
   F3 --> F3a["Producto · multiusuario y login · servidor MCP de consulta · cifrado en reposo · control de coste"]
 ```

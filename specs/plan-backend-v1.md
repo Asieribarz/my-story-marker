@@ -14,8 +14,10 @@ Todas están **cerradas** en [spec1.md](spec1.md) §10 y en la tabla de `archite
 |---|---|---|
 | **D-2** | Cola de trabajos | Tabla en SQLite y un worker que lanza `claude -p`, un trabajo cada vez. |
 | **D-4** | Validación de la ontología | Pydantic v2 como fuente única. JSON Schema se **genera** desde los modelos como salida documental, no se mantiene a mano. |
+| **D-5** | Estimador de tokens | `tiktoken` `o200k_base` × 1,35, con el BPE versionado. |
 | **D-6** | Legibilidad en español | Índice de **Szigriszt-Pazos** con la escala INFLESZ, en código propio (sílabas por palabra y palabras por frase). Umbral por público: infantil 65, juvenil 55, adulto 40. |
 | **D-7** | Pruebas y tipos | `pytest` + `Hypothesis` + `mypy --strict` + `ruff`, y `mutmut` solo sobre el validador de ontología y los verificadores. Entorno con `uv` + `pyproject.toml` + `uv.lock`, Python 3.12. |
+| **D-11** | Texto no confiable | Superficie `/mcp/entrada` con identificador de un solo uso, solo para el Extractor y el Intérprete. |
 
 Siguen abiertas, y no bloquean el arranque:
 
@@ -29,7 +31,7 @@ Siguen abiertas, y no bloquean el arranque:
 **P-2 y P-3 ya no son premisas**: se llevaron a `architecture.md` y están decididas allí.
 
 - **P-2 · la carpeta `proyecto/`** para lo transversal —crear proyecto, estado, transiciones, aprobaciones— está en el árbol de `architecture.md` §8, fuera del reparto por fases y junto a `mcp/`, con la excepción escrita.
-- **P-3 · las dos superficies MCP** —una de solo lectura y otra de lectura-escritura para el Bibliotecario— están en la tabla de `architecture.md` §7 con su porqué: MCP no transporta identidad del llamante, así que un servidor único solo podría preguntársela, y eso es convención de prompt disfrazada de mecanismo. Es donde RN-1 deja de ser una promesa.
+- **P-3 · las superficies MCP separadas** —lectura para quien la declara, escritura solo para el Bibliotecario y entrada solo para el Extractor y el Intérprete— están en `architecture.md` §7 y §8 con su porqué: MCP no transporta identidad del llamante, y la sesión principal carga todo lo que hay en `.mcp.json`, así que la escritura y la entrada se declaran solo en el frontmatter de sus agentes.
 
 ---
 
@@ -39,11 +41,10 @@ Además de todo lo que [spec1.md](spec1.md) §1.2 ya excluye:
 
 | Pieza | Motivo |
 |---|---|
-| Definiciones de subagente (`.claude/agents/*.md`) | No son backend. RNF-10 es explícita: `backend/` no contiene cliente LLM. Los agentes son configuración de Claude Code y merecen encargo propio. |
-| Elección de modelo por agente (Haiku y demás) | Misma razón. Además contradice la columna *Modelo* de `architecture.md` §3 y el párrafo de control de coste de §10, así que es un cambio de `docs/`, no de código. |
+| Definiciones de subagente, skill y hooks (`.claude/`) | No son backend: son configuración de Claude Code y merecen encargo propio. Consecuencia: V-13 queda partido; este plan cubre su lado del backend —que la escritura y la entrada estén en superficies separadas y RF-106—, y el análisis de las definiciones y la prueba del hook de policy van con ese encargo. |
 | Índice semántico y recuperación por similitud real | `architecture.md` §11 lo pone en la **fase 2** y [spec1.md](spec1.md) §1.2 lo excluye de la v1. La v1 implementa el caso vacío de RF-57, que no es un punto de extensión pendiente sino el contrato cumplido: `capitulo/similitud.py` existe, con su firma, y devuelve la lista vacía. Nada del tramo B depende de que devuelva algo — el bloque de pasajes es el primero en caer al recortar (§6.3) —, así que adelantarlo solo añadiría dependencias y un modelo de 220 MB a cambio de nada. D-1 se resuelve cuando toque, detrás de esa interfaz. |
 | Frontend | La lectura web, la entrevista y la petición de cambios consumen la API REST del paso 10. Merecen plan propio. |
-| Especificación TLA+ y proyecto Lake | Viven en `formal/`, fuera de `backend/`. El backend genera el fichero de hechos y ejecuta la comprobación (paso 8a); las invariantes Lean y la especificación TLA+ merecen encargo propio. |
+| Especificación TLA+ | Vive en `formal/`, fuera de `backend/`, y no se ejecuta en producción. Merece encargo propio; V-25 va con él. Debe modelar la misma tabla de transiciones que el paso 3. |
 
 ---
 
@@ -87,7 +88,7 @@ Lo que se juega aquí es el modelo de datos. Es el tramo cuyo error sale más ca
 |---|---|
 | **Produce** | `pyproject.toml`, `uv.lock`, `backend/` como paquete, configuración de `mypy --strict`, `ruff`, `pytest`, `Hypothesis` y `mutmut`, y los tres chequeos automáticos de §9 de la spec. |
 | **Cierra** | RNF-06, RNF-10, RNF-11 (la maquinaria; el contenido lo cierran los pasos siguientes) |
-| **Verifica** | V-6 (mypy en CI), V-9 (regla de `ruff` que prohíbe importar `anthropic`, `openai` y demás clientes de proveedor dentro de `backend/`), V-10 (comprobación del fichero de dependencias contra la tabla de `architecture.md` §7) |
+| **Verifica** | V-24 (toda ruta y conexión se deriva de `shared/`), V-6 (mypy en CI), V-9 (regla de `ruff` que prohíbe importar `anthropic`, `openai` y demás clientes de proveedor dentro de `backend/`), V-10 (comprobación del fichero de dependencias contra la tabla de `architecture.md` §7) |
 
 Un fichero de datos se versiona aquí, no se descarga en ejecución: el BPE de `o200k_base` para `tiktoken` (RF-52c). Nombre exacto del fichero: `fb374d419588a4632f3f557e76b4b70aebbca790` — es el SHA-1 de la URL de origen, que es como `tiktoken` nombra su caché. `TIKTOKEN_CACHE_DIR` apunta al directorio que lo contiene.
 
@@ -108,8 +109,8 @@ V-8 (portabilidad Windows/Linux, RNF-08) no es un paso: es una regla que se apli
 | | |
 |---|---|
 | **Produce** | `contexto/modelos.py` — las 9 dimensiones de [definitions.md](../docs/definitions.md) como modelos Pydantic v2, con los enums de §§1-9 cerrados. `contexto/validacion.py` — validación que devuelve informe, no excepción. `intake/` — persistencia de la entrevista, del texto libre como fichero no confiable, de los hechos propuestos pendientes de confirmación y del audit log de descartes. |
-| **Cierra** | RF-10 a RF-15, RF-20 a RF-28 |
-| **Verifica** | V-11: batería de instancias derivadas del YAML de [definitions.md](../docs/definitions.md) §12 — una válida de referencia, y una inválida **por cada regla**, no una genérica. |
+| **Cierra** | RF-10 a RF-13, RF-15, RF-20 a RF-28 (RF-14 se cierra en el paso 5, con `/mcp/entrada`) |
+| **Verifica** | V-20 (con un contexto inválido, ninguna secuencia de llamadas sale de `contexto`), V-11: batería de instancias derivadas del YAML de [definitions.md](../docs/definitions.md) §12 — una válida de referencia, y una inválida **por cada regla**, no una genérica. |
 
 Las reglas que no son tipos y que son la razón de D-4:
 
@@ -146,7 +147,7 @@ Queda declarado el límite de V-18: el backend clavea por intento y cuenta hasta
 |---|---|
 | **Produce** | Rebanadas `planificacion/` y `escaleta/`, y las tablas de biblia dentro de `capitulo/`. |
 | **Cierra** | RF-30 a RF-36, RF-40 a RF-43, RF-80 a RF-89 |
-| **Verifica** | Comprobaciones de escaleta (RF-41 reparto por actos, RF-42 cada hito obligatorio en exactamente una ficha, RF-43 Chéjov a nivel de escaleta) con casos que las infringen y casos de control que no deben disparar. |
+| **Verifica** | V-21 y V-22, y comprobaciones de escaleta (RF-41 reparto por actos, RF-42 cada hito obligatorio en exactamente una ficha, RF-43 Chéjov a nivel de escaleta) con casos que las infringen y casos de control que no deben disparar. |
 
 La persistencia de `planificacion/` va entera aunque parte de sus agentes sean Fase 2: lo que la Fase 2 aplaza son los **agentes**, no los datos. El Recuperador necesita fichas de personaje (~8k) y guía de estilo (~5k) desde el capítulo 1, y construir ese hueco después obliga a rehacer el paso 6.
 
@@ -162,10 +163,10 @@ RF-88 es la invariante que sostiene la compactación: el resumen acumulado es vi
 
 | | |
 |---|---|
-| **Produce** | `mcp/` — superficie `/mcp/lectura` con las herramientas tipadas de RF-103, hecha con FastMCP y montada dentro del FastAPI, delegando en la lógica de las rebanadas. |
-| **Cierra** | RF-100, RF-101, RF-103 |
-| **Verifica** | Pruebas de contrato sobre cada herramienta: forma de entrada, forma de salida. |
-| **Dependencia nueva** | FastMCP. **Va a la tabla de `architecture.md` §7 y a `AGENTS.md` en el mismo cambio.** |
+| **Produce** | `mcp/` — superficies `/mcp/lectura` (RF-103) y `/mcp/entrada` (RF-14, con la tabla de identificadores de un solo uso), hechas con FastMCP y montadas dentro del FastAPI, delegando en la lógica de las rebanadas. |
+| **Verifica** | Pruebas de contrato sobre cada herramienta: forma de entrada, forma de salida; y que un identificador de entrada desconocido, usado o caducado devuelve error (parte de V-29). |
+| **Cierra** | RF-14, RF-100, RF-101, RF-103 |
+| **Dependencia** | FastMCP, ya en la tabla de `architecture.md` §7 y en `AGENTS.md`. |
 
 `mcp/` no es una rebanada y no reimplementa nada: sus herramientas llaman a la lógica de `capitulo/`, `planificacion/` y compañía. Si una herramienta MCP necesita una consulta que no existe en su rebanada, la consulta se añade allí y la herramienta la llama.
 
@@ -183,7 +184,7 @@ El paso con la restricción más dura y el que condiciona la forma de todo lo an
 | | |
 |---|---|
 | **Cierra** | RF-50 a RF-59b |
-| **Verifica** | V-3a (propiedades: determinismo byte a byte de la estructurada), V-4 (trazabilidad: de un hallazgo al fichero de prompt), V-5 (propiedades con biblias sintéticas grandes: nunca se excede el tope según el estimador, el informe de recorte es no vacío cuando recorta, y **ningún bloque emitido es prefijo de sí mismo**) |
+| **Verifica** | V-23 (contrato del resultado vacío), V-3a (propiedades: determinismo byte a byte de la estructurada), V-4 (trazabilidad: de un hallazgo al fichero de prompt), V-5 (propiedades con biblias sintéticas grandes: nunca se excede el tope según el estimador, el informe de recorte es no vacío cuando recorta, y **ningún bloque emitido es prefijo de sí mismo**) |
 
 Lo que no se puede hacer mal:
 
@@ -237,7 +238,7 @@ Queda declarado el límite de V-17: detectan las reglas escritas, no la incohere
 |---|---|
 | **Produce** | Superficie `/mcp/escritura` (`architecture.md` §7), montada en el mismo FastAPI y declarada solo en la definición del Bibliotecario, con las herramientas de RF-104, incluida la que registra `hecho_uso`. |
 | **Cierra** | RF-65, RF-102, RF-104 a RF-106 |
-| **Verifica** | V-13: un cliente que no es el Bibliotecario recibe error al invocar escritura. |
+| **Verifica** | V-19 (una escritura sobre un capítulo no verificado se rechaza, y se acepta cuando lo está); el lado del backend de V-13 (la escritura solo existe en `/mcp/escritura`). |
 
 Dos guardas, y la segunda vive en el backend pase lo que pase con la separación de superficies:
 
@@ -254,9 +255,9 @@ RF-105 (auditoría de llamadas: agente, herramienta, argumentos, resultado) usa 
 
 | | |
 |---|---|
-| **Produce** | Rebanadas `verificacion/` y `revision/`: cobertura contra `hecho_uso`, generación del fichero Lean de la novela y ejecución de la comprobación contra el proyecto Lake de `formal/`, persistencia del informe del juez y de las revisiones humanas con la rúbrica, y umbral. Tope de ciclos de revisión. |
+| **Produce** | Rebanadas `verificacion/` y `revision/`: cobertura contra `hecho_uso`, generación del fichero Lean de la novela y ejecución de la comprobación, persistencia del informe del juez y de las revisiones humanas con la rúbrica, umbral y tope de ciclos de revisión. Incluye el proyecto Lake mínimo de `formal/` con las tres invariantes, porque sin él RF-112 no se puede cerrar. |
 | **Cierra** | RF-110 a RF-115 |
-| **Verifica** | V-27 (cronologías que infringen cada invariante, y casos de control), V-28 (cobertura), V-16 (el umbral se aplica sobre el informe del juez) |
+| **Verifica** | V-27 (cronologías que infringen cada invariante, y casos de control), V-28 (cobertura), V-32 (umbral del juez en sus bordes) |
 
 El fichero Lean se genera de forma determinista: misma biblia → mismo fichero, byte a byte (RF-111). El juez **puntúa y el backend decide**: el umbral es código, no una frase del prompt.
 
@@ -301,13 +302,12 @@ AGENTS.md regla 3: cada cambio termina actualizando `docs/` y diciendo explícit
 
 | Cuándo | Documento | Qué |
 |---|---|---|
-| Paso 5 | `architecture.md` §7 + `AGENTS.md` | FastMCP |
 | Paso 6 | `spec1.md` §10 | D-9, si se decide |
 | Paso 9 | `architecture.md` §7 + `AGENTS.md` + `spec1.md` §10 | D-8, el mecanismo de PDF |
 
 Las herramientas del paso 0 —`uv`, `pytest`, `Hypothesis`, `mypy`, `ruff`, `mutmut`— y D-4, D-6 y D-7 **ya están** en `architecture.md` §7, `AGENTS.md` y `spec1.md` §10.
 
-`architecture.md` §7 (dos superficies MCP) y §8 (la carpeta `proyecto/`) **ya están actualizados**: eran las premisas P-2 y P-3 y se ratificaron antes de empezar, no durante los pasos 3 y 5.
+`architecture.md` §7 (superficies MCP separadas) y §8 (la carpeta `proyecto/`) **ya están actualizados**: eran las premisas P-2 y P-3 y se ratificaron antes de empezar, no durante los pasos 3 y 5.
 
 `domain-knowledge.md` y `definitions.md` **no se tocan**: este plan no altera la ontología —ya reorientada a la novela regalo— ni el pipeline de decisión. Si algún paso descubre que sí, se para y se propone el cambio de documento antes de escribir código (AGENTS.md regla 2).
 

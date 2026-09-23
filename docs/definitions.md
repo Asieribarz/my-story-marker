@@ -38,7 +38,7 @@ El género primario es **siempre aventura**. Los valores están filtrados para u
 | **Tono** | Actitud emocional dominante de la narración. Condiciona el estilo y el nivel de contenido. Un valor principal; puede modularse por acto. | `epico`, `ligero`, `pulp`, `melancolico` |
 | **Público objetivo** | Franja lectora. Determina complejidad léxica y límites de contenido. **Se deriva de la edad del lector** (§9) y el entrevistador puede cambiarlo. | `infantil` (<12), `juvenil` (12-17), `adulto` (≥18), `crossover` (solo por cambio explícito) |
 | **Tipo de misión** | Objetivo concreto que estructura la trama ("qué se persigue"). Suele materializarse en un *MacGuffin*. **Obligatorio.** | `rescate`, `busqueda`, `descubrimiento`, `carrera`, `proteccion`; `macguffin{nombre, descripcion, por_que_importa}` |
-| **Conflicto** | Fuerza opositora fundamental: persona vs naturaleza, vs persona, vs sociedad, vs lo desconocido. Siempre se combina con un conflicto interno ligado al defecto del protagonista. | `externo`, `interno` |
+| **Conflicto** | Fuerza opositora fundamental. Siempre se combina con un conflicto interno ligado al defecto del protagonista. | `externo[]` de: `persona_vs_naturaleza`, `persona_vs_persona`, `persona_vs_sociedad`, `persona_vs_desconocido`; `interno`: texto breve |
 | **Nivel de contenido** | Escala 0 (ninguno) a 2 (moderado) por categoría. **Tope de 2 para cualquier público**: el nivel 3 (explícito) no existe en este producto. Debe ser coherente con el público. | Infantil ≤1, YA ≤2, Adulto ≤2 |
 
 ---
@@ -51,7 +51,7 @@ El género primario es **siempre aventura**. Los valores están filtrados para u
 | **Número de capítulos** | Fijo en este producto. No se deriva de la extensión. | `10` |
 | Longitud de capítulo | Palabras por capítulo, igual para todos los públicos. | `min: 1000`, `max: 1500` |
 | Estructura interna | Patrón *escena* (objetivo → conflicto → desastre) + *secuela* (reacción → dilema → decisión). | `escenas_por_capitulo` |
-| Cierre de capítulo | Recurso con el que termina cada capítulo para sostener la lectura. | `cliffhanger`, `pausa`, `giro`, `pregunta`, `imagen` |
+| Cierre de capítulo | Recurso con el que termina cada capítulo para sostener la lectura. Un valor para todos, o una lista de 10, uno por capítulo. | `cliffhanger`, `pausa`, `giro`, `pregunta`, `imagen` |
 | Titulación y macroestructura | Forma de encabezar los capítulos y elementos superiores: prólogo, epílogo, partes, interludios, mapa, glosario. | `titulacion`, booleanos y listas |
 | **Curva de tensión** | Perfil objetivo de intensidad por capítulo (0-10), con picos en umbral, punto medio, crisis y clímax. | Array de 10 enteros |
 | Ratio acción / reflexión | Proporción de escenas de acción física frente a escenas de introspección o diálogo. | Ej. `70/30` |
@@ -254,28 +254,27 @@ novela:
     relacion: hijo
     edad_lector: 9
     hechos:
-      - {id: h1, tipo: ser_querido, texto: "Su perra se llama Nala, una galga blanca", prioridad: obligatorio}
-      - {id: h2, tipo: evento, texto: "Aprendió a nadar en la playa el verano de 2023", momento: 2023-07, lugar: playa, prioridad: obligatorio}
-      - {id: h3, tipo: lugar, texto: "La casa de la abuela en el pueblo", prioridad: obligatorio}
-      - {id: h4, tipo: objeto, texto: "Una brújula que le regaló su abuelo", prioridad: obligatorio}
-      - {id: h5, tipo: frase, texto: "¡A la aventura, Nala!", prioridad: deseable}
+      - {id: h1, tipo: ser_querido, texto: "Su perra se llama Nala, una galga blanca", prioridad: obligatorio, origen: entrevista}
+      - {id: h2, tipo: evento, texto: "Aprendió a nadar en la playa el verano de 2023", momento: 2023-07, lugar: playa, prioridad: obligatorio, origen: entrevista}
+      - {id: h3, tipo: lugar, texto: "La casa de la abuela en el pueblo", prioridad: obligatorio, origen: entrevista}
+      - {id: h4, tipo: objeto, texto: "Una brújula que le regaló su abuelo", prioridad: obligatorio, origen: entrevista}
+      - {id: h5, tipo: frase, texto: "¡A la aventura, Nala!", prioridad: deseable, origen: entrevista}
     texto_libre: {ref: brief/texto_libre.txt, confiable: false}
     vetos: {palabras: [], temas: [hospitales]}
     dedicatoria: "Para Aitana, que ya sabe leer mapas. Feliz noveno cumpleaños."
   publico: infantil
   tono: ligero
   tipo_aventura:
-    subgenero_primario: tesoro
-    subgenero_secundario: [expedicion]
+    subgenero: {primario: tesoro, secundarios: [expedicion]}
     mision: busqueda
     macguffin: "El mapa escondido en la caja de la brújula"
-    conflicto: [persona_vs_naturaleza, persona_vs_persona]
+    conflicto: {externo: [persona_vs_naturaleza, persona_vs_persona], interno: "no sabe pedir ayuda"}
     contenido: {violencia: 1, romance: 0, lenguaje: 0, sensibles: 0}
   formato:
     palabras_objetivo: 12000
     capitulos: 10
     longitud_capitulo: {min: 1000, max: 1500}
-    cierre_capitulo: cliffhanger_alternado
+    cierre_capitulo: [pausa, cliffhanger, giro, cliffhanger, pregunta, giro, cliffhanger, cliffhanger, giro, imagen]
     titulacion: titulado
     cronologia: analepsis
     curva_tension: [3,4,5,5,6,7,6,8,9,5]
@@ -305,7 +304,17 @@ novela:
   mundo:
     tipo: contemporaneo
     epoca: "actualidad"
-    ruta: [casa_abuela, bosque, faro, cueva_final]
+    localizaciones:
+      - {id: pueblo, nivel: macro, padre: null}
+      - {id: casa_abuela, nivel: micro, padre: pueblo}
+      - {id: bosque, nivel: meso, padre: pueblo}
+      - {id: faro, nivel: micro, padre: bosque}
+      - {id: cueva_final, nivel: micro, padre: bosque}
+    ruta:
+      - {id: casa_abuela, dias_viaje: 0}
+      - {id: bosque, dias_viaje: 1}
+      - {id: faro, dias_viaje: 1}
+      - {id: cueva_final, dias_viaje: 1}
     reglas: []
   lenguaje:
     idioma: es-ES

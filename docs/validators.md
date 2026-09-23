@@ -58,9 +58,9 @@ Recorre las piezas de [architecture.md](architecture.md) §8 en el orden de cons
 
 Tres cosas sobre el alcance de este reparto, para que ninguna quede como omisión silenciosa:
 
-- **Cubre los requisitos de prioridad `M`.** Los `S` y los `C` de [spec1.md](../specs/spec1.md) §4 —historial de transiciones, preguntas pendientes del *intake*, rechazo de brief con datos personales, Chéjov a nivel de escaleta, desviación porcentual de Longitud, auditoría de llamadas MCP— no tienen fila todavía. No es que no se verifiquen: es que aún pueden caerse del alcance, y un compromiso de verificación sobre algo que quizá no se construya es ruido.
+- **Cubre los requisitos de prioridad `M`.** Los `S` y los `C` de [spec1.md](../specs/spec1.md) §4 —historial de transiciones, preguntas pendientes del *intake*, Chéjov a nivel de escaleta, desviación porcentual de Longitud, auditoría de llamadas MCP— no tienen fila todavía. No es que no se verifiquen: es que aún pueden caerse del alcance, y un compromiso de verificación sobre algo que quizá no se construya es ruido.
 - **`mcp/` se trata entero en §2.7**, aunque el orden de construcción parta su superficie de lectura (paso 5) de la de escritura (paso 8). Partir la sección en dos por seguir el orden dispersaría un contrato que es uno solo.
-- **`verificacion/` y `revision/` no aparecen.** Son de las fases 2 y 3 ([architecture.md](architecture.md) §8) y ni siquiera existen como carpeta.
+- **`verificacion/` y `revision/` están en §2.8.** Son de la v1: los gates de manuscrito los exige la entrega.
 
 ### 2.1 `shared/` — conexión, pragmas y tipos
 
@@ -82,7 +82,7 @@ El pragma es el caso de libro de «elige la garantía más barata»: la tentaci�
 
 La mutación está aquí y no en todas partes por una razón de coste: se aplica donde una prueba verde y vacía es más probable y más cara. Un validador de 40 reglas con una batería que pasa siempre es justo ese sitio.
 
-**V-11 y V-20 no son la misma prueba y conviene no fundirlas.** V-11 comprueba que el validador *detecta* la infracción; V-20, que el hallazgo *bloquea* la transición. Un validador impecable cuyo informe nadie consulta antes de avanzar deja pasar un contexto incoherente, y lo que se rompe entonces no es el estado `contexto`: es la novela treinta capítulos después. Son dos piezas distintas —el validador y el grafo— y cada una puede fallar sola.
+**V-11 y V-20 no son la misma prueba y conviene no fundirlas.** V-11 comprueba que el validador *detecta* la infracción; V-20, que el hallazgo *bloquea* la transición. Un validador impecable cuyo informe nadie consulta antes de avanzar deja pasar un contexto incoherente, y lo que se rompe entonces no es el estado `contexto`: es la novela siete capítulos después. Son dos piezas distintas —el validador y el grafo— y cada una puede fallar sola.
 
 La forma de la batería la fija **D-4**, ya resuelta ([spec1.md](../specs/spec1.md) §10): Pydantic v2 como fuente única, así que cada regla es un validador de modelo y cada caso inválido, un `ValidationError` con su ruta.
 
@@ -109,6 +109,7 @@ Es el paso 4 del orden de construcción y la sección más nueva de este reparto
 | Cada hito obligatorio del modelo estructural aparece en **exactamente una** ficha | La misma batería, con casos de hito ausente y de hito duplicado | T | V-21 |
 | Compactar un acto no pierde nada: lo compactado sigue reconstruible desde los capítulos aprobados | Propiedades sobre proyectos sintéticos con actos ya cerrados | T | V-22 |
 | Presagios pendientes, estado de los personajes presentes e inventario vivo nunca se compactan | Pruebas unitarias sobre el compactado | T | — |
+| El intake descarta los datos excluidos sin rechazar el brief y registra el descarte sin el valor | Pruebas con entrevistas y hechos que contienen cada tipo de dato excluido | T | — |
 
 **Las dos direcciones del hito fallan distinto, y por eso los casos son dos.** Un hito que no aparece en ninguna ficha deja la novela sin su punto de giro; un hito repartido entre dos lo cuenta dos veces y rompe la curva de tensión. Una batería que solo probase la primera daría verde a la segunda.
 
@@ -145,6 +146,8 @@ Aquí el objeto verificado es **nuestro código**, no el manuscrito. Lo que se c
 |---|---|---|---|
 | Continuidad dura (presencia, inventario, tiempo) dispara ante cada infracción y **no** dispara en los casos de control | Biblias y capítulos construidos para infringir cada regla, más casos de control | T | V-12 |
 | Longitud, métricas de estilo, lista negra y nombres devuelven informe con severidad y localización, y nunca corrigen | Pruebas unitarias por verificador | T | — |
+| El guardarraíl detecta cada nivel —global, por público, por novela— y las variantes de acento y plural, y no dispara en los casos de control | Pruebas por nivel y por variante | T | V-26 |
+| Las frases literales se detectan en los capítulos que las usan | Pruebas con frases presentes y ausentes | T | V-28 |
 | Los deterministas de un capítulo terminan en segundos | Prueba con capítulo de tamaño máximo y umbral de tiempo | T | V-7 |
 | La batería detecta un verificador roto y no solo lo ejecuta | Pruebas de mutación sobre los verificadores | T | V-15 |
 | **Los deterministas detectan toda incoherencia real** | **Ninguno** — ver §5 | **U** | V-17 |
@@ -169,7 +172,16 @@ La primera fila combina **análisis y prueba** porque el permiso vive en dos sit
 
 **La segunda fila no es un caso de lo mismo, y por eso tiene criterio propio.** RN-1 dice *quién* escribe y RN-2 dice *cuándo* se puede escribir. Separarlas no es purismo: [architecture.md](architecture.md) §7 deja escrito que la comprobación de que el capítulo esté verificado «sigue viviendo en el backend de todos modos, porque esa no depende de quién llame». Es decir, la arquitectura las separa a propósito, y un reparto que las fundiera daría por cubierta con una prueba de contrato una regla que ninguna prueba de contrato puede alcanzar: el Bibliotecario tiene el permiso y aun así no debe poder escribir antes de tiempo.
 
-### 2.8 Transversales del repositorio
+### 2.8 `verificacion/` y `revision/` — gates de manuscrito
+
+| Afirmación | Método | Tipo | Criterio |
+|---|---|---|---|
+| El gate de cobertura bloquea si un hecho obligatorio no se usa en ningún capítulo | Pruebas con hechos obligatorios sin uso y casos de control | T | V-28 |
+| El fichero Lean generado es el mismo para la misma biblia, y la comprobación falla con cada invariante infringida | Cronologías construidas para infringir cada invariante, y casos de control | T | V-27 |
+| El umbral del juez se aplica bien en sus bordes | Informes construidos en los bordes del umbral | T | V-32 |
+| Todo fallo de gate vuelve al Revisor y después a verificar, con el tope de ciclos | Prueba de integración sobre el grafo | T | — |
+
+### 2.9 Transversales del repositorio
 
 | Afirmación | Método | Tipo | Criterio |
 |---|---|---|---|
@@ -191,13 +203,13 @@ Los agentes son subagentes de Claude Code y el backend no llama a ningún modelo
 
 | Afirmación | Método | Tipo | Fase | Criterio |
 |---|---|---|---|---|
-| El Bibliotecario extrae de un capítulo los hechos que realmente contiene | Evals con puntuación automática: capítulos con sus hechos anotados como conjunto esperado | T | 2 | — |
-| El Escritor respeta la ficha de capítulo: hito, POV, localización, personajes presentes | Evals con modelo juez y rúbrica | I | 2 | — |
-| El Editor de estilo no cambia hechos, solo prosa | Evals con juez sobre el diff entre borrador y borrador editado | I | 2 | — |
+| El Bibliotecario extrae de un capítulo los hechos que realmente contiene | Evals con puntuación automática: capítulos con sus hechos anotados como conjunto esperado | T | 1 | — |
+| El Escritor respeta la ficha de capítulo: hito, POV, localización, personajes presentes | Evals con modelo juez y rúbrica | I | 1 | — |
+| El Editor de estilo no cambia hechos, solo prosa | Evals con juez sobre el diff entre borrador y borrador editado | I | 1 | — |
 | Los jueces LLM coinciden con el criterio humano | Revisión humana de al menos una novela completa con la misma rúbrica del juez ([architecture.md](architecture.md) §4.1), y comparación criterio a criterio | I | 1 | — |
 | El Extractor de hechos y el Intérprete de cambios no obedecen instrucciones inyectadas en el texto del comprador o del lector, ni devuelven datos de otro proyecto o datos excluidos | Red teaming: briefs adversariales con resultado esperado, y un red-team log con cada caso, qué lo detectó y cómo se resolvió | T | 1 | V-29 |
 | El diseño del grafo de estados cumple sus invariantes de seguridad y su liveness | Model checking: especificación TLA+ del grafo verificada con TLC sobre un modelo pequeño | A | 1 | V-25 |
-| El coste y la latencia por capítulo se mantienen en lo estimado | Observabilidad y trazas en ejecución | D | 3 | — |
+| El coste y la latencia por capítulo se mantienen en lo estimado | Observabilidad y trazas en ejecución | D | 1 | — |
 | **La sesión de Claude Code sigue el grafo verificado** | **Ninguno** — ver §5 | **U** | — | V-18 |
 
 Tres notas sobre por qué el reparto queda así:
@@ -206,7 +218,7 @@ Tres notas sobre por qué el reparto queda así:
 
 **El coste y la latencia de los agentes son `D`, no `T`.** Se observan en ejecución real, no se afirman en una prueba, porque dependen del modelo, del tamaño real del prompt y de cuántas regeneraciones haya hecho falta. Es lo contrario del caso de V-7 en §2.6, y la diferencia es si hay modelo en medio.
 
-**Esa fila es de fase 3, y no por descuido.** [architecture.md](architecture.md) §11 sitúa el control de coste y la evaluación continua en la fase 3, y [spec1.md](../specs/spec1.md) §1.2 deja el control de coste fuera de alcance sin fase asignada. Conviene distinguir las dos cosas que se confunden aquí: **medir** coste y latencia es esta fila, un `D` sobre trazas; **controlarlos** —elegir modelo por adelantado, degradar, presupuestar— es funcionalidad de producto y vive en `architecture.md` §10. Lo primero es requisito de lo segundo, y ninguna de las dos es de la v1.
+**Esa fila es de la entrega, pero sin vehículo todavía.** [architecture.md](architecture.md) §11 pone la observabilidad y las evals en la Fase 1. Conviene distinguir las dos cosas que se confunden aquí: **medir** coste y latencia es esta fila, un `D` sobre trazas; **controlarlos** es elegir el modelo de cada subagente por adelantado, que ya está decidido en `architecture.md` §3 y §10. Lo primero comprueba que lo segundo funciona.
 
 **Ese `D` depende además de D-3.** La observabilidad está sin decidir en [spec1.md](../specs/spec1.md) §10. Hasta que se cierre, la fila existe como método elegido pero sin vehículo, y no se introduce nada por iniciativa propia.
 
@@ -216,7 +228,7 @@ Dos piezas que este proyecto **usa** y que aun así no verifican nada. Confundir
 
 | Pieza | Dónde está en el proyecto | Por qué no es un método |
 |---|---|---|
-| **Guardarraíles** | Las dos superficies MCP y el hook de policy ([architecture.md](architecture.md) §7, §8): la escritura solo se declara en el Bibliotecario y el hook la deniega a los demás | Un guardarraíl **previene**; no determina si una afirmación es cierta. Que el Escritor no pueda escribir en la biblia no comprueba que la biblia esté bien. Lo que verifica es V-13 |
+| **Guardarraíles** | Las superficies MCP separadas y el hook de policy ([architecture.md](architecture.md) §7, §8): la escritura solo se declara en el Bibliotecario y el hook la deniega a los demás | Un guardarraíl **previene**; no determina si una afirmación es cierta. Que el Escritor no pueda escribir en la biblia no comprueba que la biblia esté bien. Lo que verifica es V-13 |
 | **Integración en CI/CD** | Donde correrán V-6, V-8, V-9, V-10 | CI/CD **ejecuta** métodos, no es uno. Un criterio no se verifica «con CI»: se verifica con una comprobación estática que además corre ahí |
 
 Las dos siguen siendo deseables, y la primera es una decisión ya tomada de la arquitectura. Simplemente no cuentan como la garantía de una afirmación.
@@ -227,7 +239,7 @@ Las dos siguen siendo deseables, y la primera es una decisión ya tomada de la a
 
 Los verificadores de [architecture.md](architecture.md) §4 **no son métodos de este documento**. Son funcionalidad del producto, con su tabla de severidades y su política de 3 reintentos. Eso vale para los doce de aquella tabla, deterministas y jueces por igual: Esquema, Longitud, Métricas de estilo, Nombres, Continuidad dura, Hito estructural, Coherencia blanda, Voz y POV, Contenido y líneas rojas, Verificación de acto, Verificación de manuscrito y Originalidad.
 
-Los deterministas de esa lista aparecen además en §2.2 y §2.6, y eso no es una contradicción sino la doble condición que ya anunciaba §1.1: **son producto y son código nuestro a la vez**. Como producto, juzgan el manuscrito y no se discuten aquí. Como código nuestro, hay que comprobar que detectan lo que dicen detectar, y eso sí es §2. Los jueces LLM no tienen esa segunda cara en la v1 porque no existen todavía.
+Los deterministas de esa lista aparecen además en §2.2 y §2.6, y eso no es una contradicción sino la doble condición que ya anunciaba §1.1: **son producto y son código nuestro a la vez**. Como producto, juzgan el manuscrito y no se discuten aquí. Como código nuestro, hay que comprobar que detectan lo que dicen detectar, y eso sí es §2. Los jueces LLM tienen una segunda cara más pequeña: su juicio es producto, pero el umbral que el backend aplica sobre su informe es código nuestro y se prueba (V-32, §2.8).
 
 La frontera, en una frase: si falla, ¿se corrige el código o se regenera un capítulo? Lo primero es §2; lo segundo es `architecture.md` §4.
 
@@ -263,7 +275,7 @@ No se borran del mapa: se marcan, para que dentro de seis meses nadie los vuelva
 |---|---|---|
 | **Ejecución simbólica** | Descartado | El código del backend es persistencia, ensamblado y comprobaciones acotadas. No hay lógica con espacio de estados enrevesado que justifique un resolutor SMT |
 | **Verificación formal** | Adoptado para el manuscrito; descartado sobre nuestro código | Sobre el manuscrito se adopta Lean 4 para la cronología ([architecture.md](architecture.md) §4.2): es producto, no un método de este documento. Sobre nuestro código sigue descartada por el motivo original: lo que tendría sentido demostrar —el tope de entrada— depende de un estimador aproximado, y la demostración no aportaría garantía por encima de V-5 |
-| **Ejecución en sandbox** | Descartado en fases 1 y 2 | La ejecución es local, de un solo comprador y sobre un fichero por proyecto. El aislamiento lo da RNF-09, que desde ahora se sostiene con V-24 en §2.8 y no como supuesto. Se revisa con el multiusuario de fase 3 |
+| **Ejecución en sandbox** | Descartado en fases 1 y 2 | La ejecución es local, de un solo comprador y sobre un fichero por proyecto. El aislamiento lo da RNF-09, que desde ahora se sostiene con V-24 en §2.9 y no como supuesto. Se revisa con el multiusuario de fase 3 |
 | **Despliegue progresivo** | Descartado | No hay despliegue: D-8 sigue abierta y la ejecución es local. Sin tráfico que dividir, no hay nada que liberar por porcentajes |
 | **Red teaming** | Adoptado (§3) | Se descartó cuando el brief lo escribía el propio editor y no había entrada de terceros. Con el texto libre del comprador ya la hay: es contenido no confiable y el vector de inyección hacia el Extractor de hechos |
 | **Model checking** | Adoptado (§3) | TLA+ con TLC sobre el grafo de [architecture.md](architecture.md) §3.1 (V-25). Se aplazó porque las pruebas de integración (V-14, V-19) bastaban con un grafo pequeño; con reintentos, reanudación y regeneración por el lector deja de serlo, y es el único método que ataca V-18 de frente. Las pruebas de integración se mantienen: verifican el código, TLC el diseño |
