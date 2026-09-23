@@ -1,0 +1,3 @@
+# El BPE de o200k_base se versiona byte a byte: tiktoken comprueba su SHA-256
+# y core.autocrlf=true bastaría para romperlo (architecture.md §6.3, RF-52c).
+backend/capitulo/bpe/* binary

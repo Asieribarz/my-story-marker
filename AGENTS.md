@@ -4,7 +4,7 @@ Generador de novelas de aventura personalizadas para regalo, por agentes: convie
 
 ## Alcance de esta rama (importante)
 
-Esta rama es `project-v2`, un **orphan branch**: contiene `docs/`, `specs/` y las skills de `.claude/`. No hay código todavía.
+Esta rama es `project-v2`, un **orphan branch**: contiene `docs/`, `specs/`, las skills de `.claude/` y el backend en construcción según [specs/plan-backend-v1.md](specs/plan-backend-v1.md).
 
 - Considera como fuente de verdad **únicamente lo que existe en esta rama**. Ignora `main` y cualquier historial, convención o código anterior: no aplica aquí.
 - Si algo no está en `docs/` ni en esta rama, no existe todavía. No lo asumas: pregúntalo o propónlo explícitamente.
@@ -58,3 +58,16 @@ Los agentes son configuración de Claude Code: un fichero por agente en `.claude
 La organización del código también está decidida: **vertical slices en el backend**, una carpeta por fase de §2 con su router, sus modelos y su acceso a datos dentro —más `proyecto/` y `mcp/`, que no son fases y están excepcionadas por escrito—, y **package by feature en el frontend**, sin adoptar FSD. Ver [docs/architecture.md](docs/architecture.md) §8.
 
 Todo lo demás (el mecanismo de búsqueda dentro de SQLite, la observabilidad, la exportación a PDF y el despliegue) está sin decidir — ver [docs/architecture.md](docs/architecture.md) §7. No introduzcas ninguna de esas dependencias por iniciativa propia: propón la decisión, y si se acepta, añádela a esa tabla en el mismo cambio.
+
+## Comprobaciones del backend
+
+Todas miran solo `backend/`; ninguna toca `.claude/` ni `formal/`. Un cambio de código no se da por terminado sin las cuatro en verde:
+
+```
+uv run pytest            # incluye V-10 (dependencias contra architecture.md §7) y V-24 (rutas y conexiones desde shared/)
+uv run mypy              # V-6, modo strict
+uv run ruff check        # incluye V-9: TID251 prohíbe clientes de proveedor de modelos
+uv run ruff format --check
+```
+
+La mutación (V-15) es más lenta y se lanza a mano sobre los módulos de `cosmic-ray.toml`; los comandos están en su cabecera. Las pruebas de cada rebanada viven en su carpeta `tests/`; `backend/tests/` guarda solo las comprobaciones que miran el backend entero.

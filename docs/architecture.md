@@ -147,7 +147,7 @@ La sesión de Claude Code no guarda el estado en su propia ventana. El estado de
 
 **Quién decide el siguiente paso.** El backend expone la **siguiente orden** de un proyecto. Su elección es una función determinista del estado persistido, y la orden **se persiste al emitirse** —con los identificadores de un solo uso y el fichero de prompt que necesite—, así que pedirla otra vez mientras sigue vigente devuelve la misma. Indica qué subagente lanzar, con qué entrada (el prompt ensamblado o los identificadores que necesita) y dónde registrar el resultado; o bien `esperar_humano`, que el proyecto está en `publicada` o `detenida`, o `error_ensamblado` cuando el Recuperador no consigue que el prompt quepa (D-9, abierta). Cada orden lleva su número de intento, con tope 3 para cualquier agente. El resultado se registra contra la orden vigente: el backend valida su esquema, lo persiste y **escribe él la transición**; la sesión no escribe transiciones. Reintentos, topes, paradas y `detenida` se deciden ahí, con los contadores que ya viven en la base. La sesión no interpreta el grafo: pide, ejecuta, registra y vuelve a pedir. Así lo más frágil del sistema —un modelo aplicando reglas— pasa a ser código con pruebas, y la especificación TLA+ de §3.4 modela esa función.
 
-Esto es lo que convierte «el grafo de estados» de metáfora en tabla. Hay dos máquinas anidadas: la del **proyecto**, que recorre las fases de §2, y la del **capítulo**, que es el bucle de §5 y cuyos estados ya estaban definidos en §6 (`borrador`, `editado`, `verificado`, `aprobado`, `revision_humana`).
+Esto es lo que convierte «el grafo de estados» de metáfora en tabla. Hay dos máquinas anidadas: la del **proyecto**, que recorre las fases de §2, y la del **capítulo**, que es el bucle de §5 y cuyos estados ya estaban definidos en §6 (`borrador`, `editado`, `verificado`, `aprobado`, `revision_humana`), más `pendiente` para el capítulo que aún no tiene borrador: su contador de intentos existe desde el principio, porque un resultado fuera de esquema ya consume intento.
 
 ```mermaid
 flowchart LR
@@ -403,7 +403,7 @@ La decisión es de la fase 2 (§11), porque la v1 implementa el caso vacío del 
 
 **Versión de capítulo y versión de novela no son lo mismo.** Un capítulo acumula versiones por intento y por regeneración; una **versión de novela** es una selección publicada: apunta a una versión concreta de cada uno de los 10 capítulos y guarda qué cambio del lector la originó. Publicar la N+1 copia los punteros de los capítulos que no cambiaron, y **la N no se modifica nunca**. Qué capítulos cambiaron es la diferencia entre punteros. Cada versión publicada deja en disco su lectura web, su PDF, su ficha de personajes y lugares y su fichero Lean, así que se puede leer entera sin reconstruir la biblia, que guarda solo el estado vigente.
 
-Cada capítulo se guarda con versión, estado (`borrador`, `editado`, `verificado`, `aprobado`, `revision_humana`) y los informes que lo produjeron, de modo que cualquier fallo es trazable hasta el prompt exacto.
+Cada capítulo se guarda con versión, estado (`borrador`, `editado`, `verificado`, `aprobado`, `revision_humana`; el capítulo sin borrador todavía está en `pendiente`) y los informes que lo produjeron, de modo que cualquier fallo es trazable hasta el prompt exacto.
 
 ### 6.1 Tres niveles de memoria
 
@@ -491,7 +491,7 @@ El margen no cuesta nada en el caso normal. 100.000 ÷ 1,35 ≈ 74k tokens de `t
 Dos consecuencias de implementación:
 
 - El estimador vive **detrás de una interfaz estrecha** —recibe texto, devuelve un entero—, con la misma disciplina que el módulo de similitud. El día que haya acceso a `count_tokens` o a un tokenizador de Claude, se cambia ese módulo y nada más lo nota. El factor de inflación es una constante de ese módulo: medible y ajustable en un sitio único.
-- El fichero BPE de la codificación se **versiona en el repositorio**, con `TIKTOKEN_CACHE_DIR` apuntando a él, y **marcado como binario en `.gitattributes`**: `tiktoken` comprueba su SHA-256 y, si no coincide, borra la copia y la vuelve a descargar, y una conversión de saltos de línea de Git (`core.autocrlf`) basta para romper ese hash. `tiktoken` se lo descarga de la red la primera vez que se usa; si el estimador depende de esa descarga, se caen a la vez el determinismo y el arranque sin red.
+- El fichero BPE de la codificación se **versiona en el repositorio**, en `backend/capitulo/bpe/` junto al estimador que lo usa, con `TIKTOKEN_CACHE_DIR` apuntando a él, y **marcado como binario en `.gitattributes`**: `tiktoken` comprueba su SHA-256 y, si no coincide, borra la copia y la vuelve a descargar, y una conversión de saltos de línea de Git (`core.autocrlf`) basta para romper ese hash. `tiktoken` se lo descarga de la red la primera vez que se usa; si el estimador depende de esa descarga, se caen a la vez el determinismo y el arranque sin red.
 
 #### Dos mecanismos, no uno
 

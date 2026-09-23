@@ -424,10 +424,14 @@ Herramientas tipadas según RF-100 a RF-106 y RF-14, servidas con FastMCP **dent
   proyecto.sqlite
   capitulos/   cap-03/v2-intento1.md
   prompts/     cap-03/v2-intento1.prompt.md
-  export/      manuscrito.md, metadatos.yaml
+  export/      v1/ …
+  brief/       texto_libre.txt
+  cambios/     peticion-7.txt
 ```
 
-Nombres orientativos; la regla firme es que texto de capítulo, prompt de auditoría y exportación son ficheros, no blobs (C-4).
+Los nombres los fija `shared/rutas.py`, único sitio donde se construyen rutas de datos (V-24). `brief/` y `cambios/` guardan el texto libre y las peticiones del lector, ambos no confiables. La regla firme es que texto de capítulo, prompt de auditoría y exportación son ficheros, no blobs (C-4).
+
+Cada directorio de proyecto se llama como el identificador opaco del proyecto y cuelga de la raíz que fija la variable de entorno `MSM_PROYECTOS` —por defecto, `proyectos/` en la raíz del repositorio, ignorado por Git—. La base no guarda la ruta de su directorio: es el que la contiene, y guardarla solo serviría para que quedara desfasada al mover el proyecto.
 
 ---
 
@@ -437,7 +441,7 @@ Un fichero SQLite por proyecto, en WAL. Entidades derivadas de [docs/architectur
 
 | Tabla | Contenido | Requisitos |
 |---|---|---|
-| `proyecto` | Identidad, ruta del directorio, versión de ontología, estado actual, paradas activas, ciclos de revisión, bloqueo con su titular y caducidad | RF-01, RF-02, RF-05, RF-09b, RF-64a |
+| `proyecto` | Identidad, versión de ontología, estado actual, paradas activas, ciclos de revisión, bloqueo con su titular y caducidad | RF-01, RF-02, RF-05, RF-09b, RF-64a |
 | `version_novela` | Número, cambio que la originó, fecha | RF-94 |
 | `version_novela_capitulo` | Versión de novela → versión de capítulo | RF-94, RF-96 |
 | `cambio_lector` | Petición, cambio propuesto, valor anterior, estado | RF-120 a RF-123 |
@@ -459,7 +463,7 @@ Un fichero SQLite por proyecto, en WAL. Entidades derivadas de [docs/architectur
 | `regla_mundo` | Reglas con límites, costes y excepciones | RF-32 |
 | `guia_estilo` | Narrador, registro, métricas, léxico, lista negra, onomástica | RF-33 |
 | `ficha_capitulo` | La escaleta: una fila por capítulo | RF-40 |
-| `capitulo` | Una fila por capítulo: estado actual y contador de intentos | RF-07, RF-60, RF-63 |
+| `capitulo` | Una fila por capítulo: estado actual —`pendiente` hasta el primer borrador— y contador de intentos | RF-07, RF-60, RF-63 |
 | `capitulo_version` | Versión, intento, estado, ruta del fichero, semilla, versión de prompt y de modelo | RF-60, RF-62 |
 | `informe` | Verificador, severidad, localización, evidencia, regla | RF-78 |
 | `evento` | Momento, lugar y capítulo de cada evento de la cronología, y a quién excluye (muerte o partida) | RF-82, RF-111 |

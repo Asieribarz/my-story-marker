@@ -124,7 +124,9 @@ Las reglas que no son tipos y que son la razón de D-4:
 - **RF-26** · valores por defecto derivables (22/55/23, `preterito`) — y el informe declara **cuáles se rellenaron**. Rellenar en silencio es la versión amable del truncado silencioso.
 - **RF-27** · 10 capítulos de `[1000, 1500]` palabras y `len(curva_tension) == 10`.
 
-Todas son validadores de modelo, que es lo que JSON Schema no expresa sin extensiones. RF-21 pide informe con ruta de clave, valor recibido y valor esperado: es la forma nativa de un `ValidationError` de Pydantic v2.
+Ninguna la expresa JSON Schema sin extensiones. Se implementaron como **funciones sobre el modelo ya validado**, una por regla, y no como validadores de modelo de Pydantic: un validador que lanza se para en el primer fallo, y RF-21 pide el informe entero. Los tipos y los valores permitidos sí van en los modelos, y sus errores —ruta de clave, valor recibido y valor esperado, la forma nativa de un `ValidationError`— se traducen al mismo formato de hallazgo. Cómo se concretó cada coherencia está en [definitions.md](../docs/definitions.md) §10.
+
+Las rutas de `intake/` y `contexto/` (§5.1) llegan con la aplicación FastAPI del paso 3: sin ella no hay proyecto sobre el que montarlas. V-20 queda igual partido: el paso 2 entrega la guarda `puede_salir_de_contexto` con sus pruebas, y el paso 3 la conecta a la transición. RF-12 (preguntas pendientes, prioridad S) queda sin hacer.
 
 La versión de ontología se fija como constante y se persiste con cada contexto validado (RF-28). No hay migraciones en la v1 ([spec1.md](spec1.md) §2.5).
 

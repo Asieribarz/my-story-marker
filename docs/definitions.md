@@ -39,7 +39,7 @@ El género primario es **siempre aventura**. Los valores están filtrados para u
 | **Público objetivo** | Franja lectora. Determina complejidad léxica y límites de contenido. **Se deriva de la edad del lector** (§9) y el entrevistador puede cambiarlo. | `infantil` (<12), `juvenil` (12-17), `adulto` (≥18), `crossover` (solo por cambio explícito) |
 | **Tipo de misión** | Objetivo concreto que estructura la trama ("qué se persigue"). Suele materializarse en un *MacGuffin*. **Obligatorio.** | `rescate`, `busqueda`, `descubrimiento`, `carrera`, `proteccion`; `macguffin{nombre, descripcion, por_que_importa}` |
 | **Conflicto** | Fuerza opositora fundamental. Siempre se combina con un conflicto interno ligado al defecto del protagonista. | `externo[]` de: `persona_vs_naturaleza`, `persona_vs_persona`, `persona_vs_sociedad`, `persona_vs_desconocido`; `interno`: texto breve |
-| **Nivel de contenido** | Escala 0 (ninguno) a 2 (moderado) por categoría. **Tope de 2 para cualquier público**: el nivel 3 (explícito) no existe en este producto. Debe ser coherente con el público. | Infantil ≤1, YA ≤2, Adulto ≤2 |
+| **Nivel de contenido** | Escala 0 (ninguno) a 2 (moderado) por categoría. **Tope de 2 para cualquier público**: el nivel 3 (explícito) no existe en este producto. Debe ser coherente con el público. | Categorías `violencia`, `romance`, `lenguaje`, `sensibles`. Infantil ≤1, YA ≤2, Adulto ≤2 |
 
 ---
 
@@ -63,16 +63,16 @@ El género primario es **siempre aventura**. Los valores están filtrados para u
 
 | Nodo | Definición | Valores / parámetros |
 |---|---|---|
-| **Rol narrativo** | Función que cumple el personaje en la trama, independiente de su personalidad. Un personaje puede acumular roles. | Lista de roles por `personaje.id` |
+| **Rol narrativo** | Función que cumple el personaje en la trama, independiente de su personalidad. Un personaje puede acumular roles. | Lista de roles por `personaje.id`, de: `protagonista`, `antagonista`, `mentor`, `aliado`, `alivio_comico`, `interes_romantico`, `guardian_umbral`, `traidor`, `secundario` |
 | **Origen** | Si el personaje es una persona real aportada por el comprador (el destinatario o un hecho `ser_querido`, §9) o un personaje inventado. Un personaje real conserva **el nombre exacto** del brief, y su ficha no puede contradecir los hechos aportados sobre él. | `real` con `fuente` (id de hecho o `destinatario`), `ficticio` |
 | **Ficha de personaje** | Registro canónico que garantiza consistencia en toda la novela. Forma parte de la *biblia* (dimensión 8). | Objeto con los campos del diagrama |
 | Deseo externo | Meta visible y concreta que persigue. Motor de la trama. | Texto breve |
 | Necesidad interna | Carencia que debe resolver para completar su arco; a menudo opuesta al deseo. | Texto breve |
 | Herida y miedo | Suceso pasado que explica el miedo y el defecto; el miedo se materializa en la crisis. | Texto breve |
 | Defecto fatal | Rasgo que le pone en peligro y que la trama pondrá a prueba. | Texto breve |
-| Voz | Forma de hablar: registro, ritmo, expresiones propias. Alimenta la dimensión 6. | `registro`, `muletillas[]`, `tratamiento` |
+| Voz | Forma de hablar: registro, ritmo, expresiones propias. Alimenta la dimensión 6. | `registro` (§6), `muletillas[]`, `tratamiento`: `tu`, `usted`, `vos` |
 | **Arco** | Trayectoria de cambio del personaje entre mundo ordinario y retorno. | `positivo`, `negativo`, `plano`, `redencion`, `corrupcion` |
-| **Relaciones** | Grafo dirigido entre personajes con tipo y evolución. | `origen`, `destino`, `tipo`, `estado_inicial`, `estado_final` |
+| **Relaciones** | Grafo dirigido entre personajes con tipo y evolución. | `origen`, `destino`, `tipo` (`alianza`, `rivalidad`, `mentoria`, `familiar`, `romance`, `deuda`), `estado_inicial`, `estado_final` |
 | **Configuración del grupo** | Número y dinámica de personajes que viajan juntos. | Determina reparto de escenas y diálogos |
 
 ### Evolución del personaje
@@ -110,9 +110,9 @@ Cuando el protagonista es el destinatario real, el **defecto fatal** y los arcos
 | Nodo | Definición | Valores / parámetros |
 |---|---|---|
 | **Idioma y variante** | Lengua de salida y norma regional (léxico, tratamiento, ortotipografía). Único valor en este producto. | `es-ES` |
-| **Narrador** | Instancia que cuenta la historia y su grado de acceso a la mente de los personajes. | Enum del diagrama; si `multiple`, definir rotación por capítulo |
+| **Narrador** | Instancia que cuenta la historia y su grado de acceso a la mente de los personajes. | `primera`, `tercera_limitada`, `tercera_omnisciente`, `multiple`; si `multiple`, definir rotación por capítulo |
 | **Tiempo verbal** | Tiempo base de la narración. | `preterito` (defecto), `presente` |
-| **Registro** | Nivel de formalidad del lenguaje narrativo. | Enum |
+| **Registro** | Nivel de formalidad del lenguaje narrativo. | `culto`, `estandar`, `coloquial`, `arcaizante` |
 | **Voz autoral** | Personalidad estilística global; puede referirse a un tono o tradición, nunca a la copia de un autor concreto. | Descripción + 2-3 rasgos |
 | **Diálogo** | Reglas de construcción del habla de los personajes. | `proporcion %`, `tratamiento`, `raya` o `comillas` |
 | **Prosa** | Métricas de la escritura. | `frase_media_palabras`, `descriptivo 1-5`, `legibilidad` |
@@ -163,7 +163,7 @@ Lo que el comprador aporta sobre la persona a la que regala la novela. La entrev
 | **Hecho aportado** | Dato concreto sobre el destinatario o su mundo que debe o puede aparecer en la novela. | `hecho{id, tipo, texto, prioridad, origen}`; `origen`: `entrevista`, `texto_libre`, `lector` |
 | Tipo de hecho | Qué es el hecho y adónde va dentro del contexto. | `evento` → cronología, con `momento` y `lugar`; `rasgo` → ficha del destinatario; `ser_querido` → personaje con origen `real`; `lugar` → localización y ruta; `objeto` → inventario y candidato a motivo; `frase` → debe aparecer literalmente |
 | Prioridad del hecho | Si su ausencia bloquea la novela. Por defecto son obligatorios el nombre del destinatario y hasta 5 hechos que elige el comprador; el resto es `deseable`. Todo obligatorio obligaría a meter los recuerdos con calzador. | `obligatorio`, `deseable` |
-| Momento de un evento | Cuándo ocurrió. Puede ser una fecha o un periodo aproximado; solo los eventos con fecha entran en la comprobación de edad frente a fecha de nacimiento. | Fecha (`AAAA`, `AAAA-MM`, `AAAA-MM-DD`) o periodo (`infancia`, `adolescencia`…) |
+| Momento de un evento | Cuándo ocurrió. Puede ser una fecha o un periodo aproximado; solo los eventos con fecha entran en la comprobación de edad frente a fecha de nacimiento. El **lugar** de un evento es el id de una localización del mundo (§5): todo evento de la cronología necesita un lugar. | Fecha (`AAAA`, `AAAA-MM`, `AAAA-MM-DD`) o periodo en minúsculas (`infancia`, `adolescencia`…) |
 | **Texto libre** | Anécdota o carta que pega el comprador. Es **contenido no confiable**: se guarda aparte, solo se extraen de él hechos con esta misma estructura, y nunca llega en crudo a quien escribe. | `ref` al fichero, `confiable: false` |
 | **Vetos** | Palabras y temas que el comprador no quiere que aparezcan (por ejemplo, el nombre de una expareja). | `palabras[]`, `temas[]` |
 | **Dedicatoria** | Texto de la portada. | Texto |
@@ -194,6 +194,16 @@ Las decisiones deben tomarse de lo general a lo particular, porque cada nivel fi
 - Edad declarada frente a fecha de nacimiento.
 - Momento de cada evento frente a fecha de nacimiento del destinatario (no hay recuerdos anteriores a nacer).
 - Ocasión frente a tipo de final (una `jubilacion` o una `boda` no admiten un final `agridulce` por defecto).
+
+Cómo se concretan al validar, porque el enunciado de arriba admite más de una lectura:
+
+- **Público frente a edad del lector**: el entrevistador puede **bajar** el público (un adulto puede leer una novela `infantil`), nunca subirlo por encima del que da la edad. `crossover` solo para lectores de 12 años o más.
+- **Tono frente a edad**: un lector menor de 12 años no admite tono `melancolico`. El nivel de contenido lo acota ya la regla de §2.
+- **Edad declarada frente a fecha de nacimiento**: se admite la edad cumplida a la fecha de validación y la que está a punto de cumplir, porque el regalo suele ser de cumpleaños.
+- **Ocasión frente a final**: `boda` y `jubilacion` con final `agridulce` no se admiten.
+- **Tema frente a final**: sin regla automática; no hay una correspondencia cerrada que comprobar.
+
+Y la integridad que el contexto necesita para poder planificarse: a lo sumo 5 hechos `obligatorio`; los tres tramos de la estructura cubren los capítulos 1 a 10 sin huecos, con el punto medio y la crisis dentro del nudo y el clímax dentro del desenlace, y porcentajes que suman 100; exactamente un personaje con fuente `destinatario` (y otro con `segundo_destinatario` si lo hay), con arco `positivo` o `plano` y con el rol `protagonista` si ese es su papel; todo personaje `real` con una fuente válida y ningún `ficticio` con fuente; el árbol de localizaciones encadena `macro` → `meso` → `micro`, la ruta pasa solo por localizaciones del mundo y las reglas del mundo solo aparecen fuera de `real_historico` y `contemporaneo`.
 
 ---
 

@@ -1,0 +1,17 @@
+# V-15: mutación solo sobre el validador de ontología y los verificadores deterministas
+# (architecture.md §7). El paso 2 crea el validador; el paso 7 añade aquí los verificadores.
+# Uso — el baseline primero: si falla sin mutar, todo mutante saldría «eliminado» en falso.
+#      uv run cosmic-ray baseline cosmic-ray.toml
+#      uv run cosmic-ray init cosmic-ray.toml cosmic-ray.sqlite
+#      uv run cosmic-ray exec cosmic-ray.toml cosmic-ray.sqlite
+#      uv run cr-report cosmic-ray.sqlite
+[cosmic-ray]
+module-path = ["backend/contexto/validacion.py"]
+timeout = 60.0
+excluded-modules = []
+# `uv run`, no `python`: en Windows el subproceso resolvería `python` al intérprete base,
+# sin pytest, y todas las pruebas fallarían antes de empezar.
+test-command = "uv run --frozen pytest -x -q -p no:cacheprovider backend/contexto"
+
+[cosmic-ray.distributor]
+name = "local"

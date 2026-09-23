@@ -1,0 +1,57 @@
+[project]
+name = "my-story-marker"
+version = "0.1.0"
+description = "Generador de novelas de aventura personalizadas para regalo: backend."
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.13.5",
+    "tiktoken>=0.14.0",
+]
+
+[dependency-groups]
+dev = [
+    "cosmic-ray>=8.7.0",
+    "hypothesis>=6.168.1",
+    "mypy>=2.3.1",
+    "pytest>=9.1.1",
+    "ruff>=0.16.8",
+]
+
+[tool.uv]
+package = false
+
+# Las herramientas miran solo backend/: .claude/hooks/ tiene scripts de otra sesión.
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+include = ["backend/**/*.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "PTH", "TID"]
+
+# V-9 (RNF-10): backend/ no contiene clientes de proveedor de modelos.
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"anthropic".msg = "RNF-10: backend/ no llama a proveedores de modelos; la orquestación es de Claude Code."
+"openai".msg = "RNF-10: backend/ no llama a proveedores de modelos."
+"google.generativeai".msg = "RNF-10: backend/ no llama a proveedores de modelos."
+"google.genai".msg = "RNF-10: backend/ no llama a proveedores de modelos."
+"mistralai".msg = "RNF-10: backend/ no llama a proveedores de modelos."
+"cohere".msg = "RNF-10: backend/ no llama a proveedores de modelos."
+"groq".msg = "RNF-10: backend/ no llama a proveedores de modelos."
+"litellm".msg = "RNF-10: backend/ no llama a proveedores de modelos."
+"langchain".msg = "RNF-10: backend/ no llama a proveedores de modelos."
+"langchain_anthropic".msg = "RNF-10: backend/ no llama a proveedores de modelos."
+"langchain_openai".msg = "RNF-10: backend/ no llama a proveedores de modelos."
+"claude_agent_sdk".msg = "RNF-10: el worker lanza `claude -p` como proceso, no usa el SDK."
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["backend"]
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend"]
+pythonpath = ["."]
+addopts = ["--import-mode=importlib", "-q"]
