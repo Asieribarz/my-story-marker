@@ -1,8 +1,10 @@
-# domain-knowledge.md — Conocimiento de dominio: novelas de aventura
+# domain-knowledge.md — Conocimiento de dominio: novelas de aventura personalizadas
 
-> Propósito: árbol de conocimiento que el sistema usa como contexto para generar novelas de aventura. Cada dimensión se representa como un árbol de decisión en Mermaid. Los nodos hoja se corresponden con claves del objeto de contexto descrito en `definitions.md`; la forma en que el sistema lo consume está en `architecture.md`.
+> Propósito: árbol de conocimiento que el sistema usa como contexto para generar novelas de aventura **personalizadas para regalo**: el destinatario, sus seres queridos, sus lugares y sus recuerdos entran en la historia como personajes, localizaciones y hechos. Cada dimensión se representa como un árbol de decisión en Mermaid. Los nodos hoja se corresponden con claves del objeto de contexto descrito en `definitions.md`; la forma en que el sistema lo consume está en `architecture.md`.
 
 **Cómo leer los árboles:** de izquierda a derecha, de lo general a lo particular. Los nodos intermedios agrupan; los nodos hoja deciden y deben poder expresarse como `clave: valor`.
+
+**Dos objetivos del mismo peso.** La novela tiene que llevar los datos del destinatario de forma que se reconozca en ella, y tiene que funcionar como historia. Las dimensiones 1 a 8 sostienen lo segundo y la 9 lo primero; ninguna de las dos justifica sacrificar la otra.
 
 ---
 
@@ -10,15 +12,16 @@
 
 ```mermaid
 flowchart LR
-  N["NOVELA DE AVENTURA"]
+  N["NOVELA DE AVENTURA PERSONALIZADA"]
   N --> E["1. Estructura narrativa"]
-  N --> T["2. Tipo de aventura"]
+  N --> T["2. Tipo de aventura y tono"]
   N --> F["3. Formato y longitud"]
   N --> P["4. Personajes"]
   N --> M["5. Espacios y mundo"]
   N --> L["6. Lenguaje y estilo"]
   N --> TM["7. Temas y motivos"]
   N --> C["8. Restricciones y control"]
+  N --> PZ["9. Personalización"]
 ```
 
 ---
@@ -32,8 +35,7 @@ flowchart LR
   E --> E2["NUDO · Acto II · ~55%"]
   E --> E3["DESENLACE · Acto III · ~23%"]
 
-  E0 --> E01["Tres actos · Viaje del héroe · Kishōtenketsu"]
-  E0 --> E02["In medias res · Coral · Episódico"]
+  E0 --> E01["Tres actos · Viaje del héroe · Episódico"]
 
   E1 --> E11["Mundo ordinario"]
   E1 --> E12["Detonante"]
@@ -50,26 +52,27 @@ flowchart LR
 
 ---
 
-## 2. Tipo de aventura
+## 2. Tipo de aventura y tono
+
+El género primario es **siempre aventura**. Lo que se elige es el subgénero de aventura, y los valores están filtrados para un regalo: fuera lo que no encaja en un libro que se regala a una persona real.
 
 ```mermaid
 flowchart LR
-  T["Tipo de aventura"] --> T1["Subgénero"]
+  T["Tipo de aventura y tono"] --> T1["Subgénero"]
   T --> T2["Tono"]
   T --> T3["Público objetivo"]
   T --> T4["Tipo de misión"]
   T --> T5["Conflicto y contenido"]
 
-  T1 --> T1a["Realista e histórica: expedición, náutica, capa y espada, tesoro, western"]
-  T1 --> T1b["Especulativa: fantasía épica, ciencia ficción, steampunk, post-apocalíptica"]
-  T1 --> T1c["Contemporánea: urbana, espionaje, supervivencia, road novel"]
+  T1 --> T1a["Realista e histórica: expedición, náutica, capa y espada, tesoro"]
+  T1 --> T1b["Especulativa: fantasía épica, ciencia ficción, steampunk"]
+  T1 --> T1c["Contemporánea: urbana, road novel"]
 
-  T2 --> T2a["Épico · Ligero · Oscuro · Pulp · Melancólico · Satírico"]
-  T3 --> T3a["Infantil · Juvenil/YA · Adulto · Crossover"]
-  T4 --> T4a["Rescate · Búsqueda · Huida · Descubrimiento"]
-  T4 --> T4b["Supervivencia · Venganza · Carrera · Protección"]
+  T2 --> T2a["Épico · Ligero · Pulp · Melancólico"]
+  T3 --> T3a["Infantil · Juvenil/YA · Adulto · Crossover · derivado de la edad del lector"]
+  T4 --> T4a["Rescate · Búsqueda · Descubrimiento · Carrera · Protección"]
   T5 --> T5a["Conflicto externo + conflicto interno"]
-  T5 --> T5b["Escalas 0-3: violencia, romance, lenguaje, temas sensibles"]
+  T5 --> T5b["Escalas 0-2: violencia, romance, lenguaje, temas sensibles"]
 ```
 
 ---
@@ -83,17 +86,16 @@ flowchart LR
   F --> F3["Ritmo"]
   F --> F4["Cronología"]
 
-  F1 --> F1a["Relato largo 15-40k · Novela corta 40-60k"]
-  F1 --> F1b["Estándar 70-100k · Extensa 100-150k · Saga"]
+  F1 --> F1a["Fija: 10.000-15.000 palabras"]
 
-  F2 --> F2a["Número y longitud media"]
+  F2 --> F2a["Fijo: 10 capítulos de 1.000-1.500 palabras"]
   F2 --> F2b["Estructura interna: escena + secuela"]
   F2 --> F2c["Cierre: cliffhanger, giro, pausa"]
 
   F3 --> F3a["Curva de tensión por capítulo"]
   F3 --> F3b["Ratio acción / reflexión"]
 
-  F4 --> F4a["Lineal · Con flashbacks · Doble línea temporal · Enmarcada"]
+  F4 --> F4a["Lineal · Con flashbacks"]
 ```
 
 ---
@@ -107,6 +109,7 @@ flowchart LR
   P --> P3["Arco"]
   P --> P4["Relaciones y grupo"]
   P --> P5["Evolución del personaje"]
+  P --> P6["Origen del personaje"]
 
   P1 --> P1a["Protagonista · Antagonista · Mentor"]
   P1 --> P1b["Aliados · Alivio cómico · Interés romántico"]
@@ -125,6 +128,9 @@ flowchart LR
   P5 --> P5b["Punto de llegada"]
   P5 --> P5c["Momento de cambio"]
   P5 --> P5d["Qué cambia · Creencias · Habilidades · Relaciones"]
+
+  P6 --> P6a["Real · destinatario o ser querido aportado por el comprador"]
+  P6 --> P6b["Ficticio · inventado por el sistema"]
 ```
 
 ---
@@ -141,9 +147,11 @@ flowchart LR
 
   M1 --> M1a["Real histórico · Contemporáneo · Alternativo · Secundario · Futuro"]
   M2 --> M2a["Macro (mundo) → Meso (región/ruta) → Micro (escena)"]
-  M3 --> M3a["Biomas, clima, distancias, transporte, peligros"]
+  M3 --> M3a["Ruta obligatoria · 2 localizaciones como mínimo"]
+  M3 --> M3b["Lugares reales del comprador con prioridad"]
+  M3 --> M3c["Biomas, clima, distancias, transporte, peligros"]
   M4 --> M4a["Poder, economía, religión, tecnología, costumbres"]
-  M4 --> M4b["Reglas del mundo con límites y costes"]
+  M4 --> M4b["Reglas del mundo con límites y costes · solo en mundos no realistas"]
   M5 --> M5a["Hogar → Umbral → Pruebas → Refugio → Guarida → Clímax"]
 ```
 
@@ -158,7 +166,7 @@ flowchart LR
   L --> L3["Diálogo y prosa"]
   L --> L4["Léxico y recursos"]
 
-  L1 --> L1a["es-ES · es-LATAM · neutro"]
+  L1 --> L1a["es-ES"]
   L1 --> L1b["1ª persona · 3ª limitada · 3ª omnisciente · múltiple"]
   L1 --> L1c["Pretérito · Presente"]
 
@@ -200,19 +208,54 @@ flowchart LR
   C --> C4["Parámetros de generación"]
 
   C1 --> C1a["Fichas · Localizaciones · Línea temporal · Inventario · Hechos"]
+  C1 --> C1b["Uso de cada hecho por capítulo · Eventos datados"]
   C2 --> C2a["Contenido · Originalidad · Sensibilidad cultural"]
+  C2 --> C2b["Vetos del comprador"]
   C3 --> C3a["Cierre de subtramas · Chéjov · Coherencia · Longitud · Estilo"]
+  C3 --> C3b["Cobertura de hechos obligatorios"]
   C4 --> C4a["Escaleta por capítulo · Resumen acumulado · Metadatos"]
 ```
 
 ---
 
-## 9. Orden de decisión recomendado (pipeline)
+## 9. Personalización
+
+Lo que el comprador aporta sobre la persona a la que regala la novela. Es la dimensión que la entrevista rellena primero y la que fija valores por defecto de casi todas las demás.
 
 ```mermaid
 flowchart LR
-  D1["1. Público y tono"] --> D2["2. Subgénero y misión"]
-  D2 --> D3["3. Extensión y capítulos"]
+  PZ["Personalización"] --> PZ1["Destinatario"]
+  PZ --> PZ2["Comprador y ocasión"]
+  PZ --> PZ3["Hechos aportados"]
+  PZ --> PZ4["Texto libre"]
+  PZ --> PZ5["Vetos"]
+  PZ --> PZ6["Dedicatoria"]
+
+  PZ1 --> PZ1a["Nombre · Fecha de nacimiento · Edad · Rasgos"]
+  PZ1 --> PZ1b["Papel: protagonista · coprotagonista · secundario clave"]
+  PZ1 --> PZ1c["Segundo destinatario opcional · parejas"]
+
+  PZ2 --> PZ2a["Ocasión: cumpleaños · boda · aniversario · jubilación · nacimiento · graduación · sin ocasión"]
+  PZ2 --> PZ2b["Relación: hijo · pareja · padre o madre · abuelo · amigo · compañero · otra"]
+  PZ2 --> PZ2c["Edad del lector"]
+
+  PZ3 --> PZ3a["Tipo: evento · rasgo · ser querido · lugar · objeto · frase"]
+  PZ3 --> PZ3b["Prioridad: obligatorio · deseable"]
+
+  PZ4 --> PZ4a["Anécdota o carta · no confiable · solo se extraen hechos"]
+  PZ5 --> PZ5a["Palabras y temas que no deben aparecer"]
+  PZ6 --> PZ6a["Texto de la portada"]
+```
+
+---
+
+## 10. Orden de decisión recomendado (pipeline)
+
+```mermaid
+flowchart LR
+  D0["0. Personalización · entrevista"] --> D1["1. Público y tono"]
+  D1 --> D2["2. Subgénero y misión"]
+  D2 --> D3["3. Capítulos · fijo en 10"]
   D3 --> D4["4. Estructura e hitos"]
   D4 --> D5["5. Personajes"]
   D5 --> D6["6. Mundo y ruta"]
@@ -223,4 +266,7 @@ flowchart LR
   D10 --> D11["11. Validación"]
   D11 -->|"fallo"| D9
   D11 -->|"ok"| D12["12. Entrega"]
+  D0 -.->|"seres queridos"| D5
+  D0 -.->|"lugares"| D6
+  D0 -.->|"hechos obligatorios"| D9
 ```
