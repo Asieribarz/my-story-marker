@@ -76,6 +76,13 @@ class OrigenHecho(StrEnum):
     LECTOR = "lector"
 
 
+class TipoExclusion(StrEnum):
+    """B-18: por qué un evento saca a un personaje de lo que viene después."""
+
+    MUERTE = "muerte"
+    PARTIDA = "partida"
+
+
 _FECHA_PARCIAL = re.compile(r"\d{4}(-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?)?")
 _PERIODO = re.compile(r"[a-z][a-z_]*")
 
@@ -83,6 +90,11 @@ _PERIODO = re.compile(r"[a-z][a-z_]*")
 def es_fecha(momento: str) -> bool:
     """Un momento con fecha (`AAAA`, `AAAA-MM`, `AAAA-MM-DD`), no un periodo aproximado."""
     return _FECHA_PARCIAL.fullmatch(momento) is not None
+
+
+def es_momento(momento: str) -> bool:
+    """El momento de un recuerdo (B-6): una fecha parcial o un periodo como `infancia`."""
+    return es_fecha(momento) or _PERIODO.fullmatch(momento) is not None
 
 
 class Destinatario(Modelo):
@@ -94,6 +106,14 @@ class Destinatario(Modelo):
     papel: Papel
 
 
+class Exclusion(Modelo):
+    """B-18: `fuente` es la del personaje excluido: `destinatario`, `segundo_destinatario` o
+    el id de un hecho `ser_querido`."""
+
+    fuente: Texto
+    tipo: TipoExclusion
+
+
 class Hecho(Modelo):
     id: Annotated[str, Field(pattern=r"^[a-z0-9_]{1,32}$")]
     tipo: TipoHecho
@@ -103,13 +123,15 @@ class Hecho(Modelo):
     # Solo los `evento`: fecha (`AAAA`, `AAAA-MM`, `AAAA-MM-DD`) o periodo (`infancia`…).
     momento: str | None = None
     lugar: str | None = None
+    # Solo los `evento` (B-18): a quién excluye. La materialización lo lleva a `evento.excluye`.
+    excluye: Exclusion | None = None
 
     @field_validator("momento", mode="before")
     @classmethod
     def _momento(cls, valor: object) -> object:
         if isinstance(valor, date):
             return valor.isoformat()
-        if isinstance(valor, str) and not (es_fecha(valor) or _PERIODO.fullmatch(valor)):
+        if isinstance(valor, str) and not es_momento(valor):
             raise ValueError("fecha AAAA, AAAA-MM o AAAA-MM-DD, o un periodo como `infancia`")
         return valor
 

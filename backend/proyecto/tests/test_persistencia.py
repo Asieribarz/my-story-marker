@@ -252,7 +252,7 @@ def test_intake_y_contexto_de_punta_a_punta(proyecto: Proyecto, token: str) -> N
     assert conexion.execute("SELECT count(*) FROM contexto").fetchone()[0] == 1
 
     planificar = _orden(emitir_siguiente_orden(proyecto, token, AHORA))
-    assert planificar.agente is A.ARQUITECTO
+    assert planificar.agente is A.PLANIFICADOR
 
 
 def test_el_tope_de_una_orden_detiene_y_reintentar_vuelve_a_la_fase(
@@ -327,7 +327,7 @@ def test_un_agente_sin_esquema_no_gasta_intento_ni_cierra_la_orden(
 ) -> None:
     forzar(proyecto, E.PLANIFICACION, intentos_paso=1)
     orden = _orden(emitir_siguiente_orden(proyecto, token, AHORA))
-    assert (orden.agente, orden.intento) == (A.ARQUITECTO, 2)
+    assert (orden.agente, orden.intento) == (A.PLANIFICADOR, 2)
     antes = volcado(proyecto.conexion)
     with pytest.raises(AgenteSinEsquema, match="paso 4"):
         registrar_resultado(proyecto, orden.id, {"plan": "lo que sea"}, token, AHORA)

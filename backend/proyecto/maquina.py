@@ -179,7 +179,7 @@ class Avance:
     brief_normalizado: bool = False
     contexto_validado: bool = False
     plan: bool = False
-    # Hay notas de «cambios» del comprador en aprobacion_plan que el Arquitecto no ha atendido.
+    # Hay notas de «cambios» del comprador en aprobacion_plan que el planificador no ha atendido.
     notas_plan_pendientes: bool = False
     personajes: bool = False
     mundo: bool = False
@@ -311,7 +311,7 @@ class Resolucion:
 AGENTES_DEL_ESTADO: dict[E, tuple[A, ...]] = {
     E.INTAKE: (A.EXTRACTOR_HECHOS, A.AGENTE_CONTEXTO),
     E.CONTEXTO: (A.AGENTE_CONTEXTO,),
-    E.PLANIFICACION: (A.ARQUITECTO, A.PERSONAJES, A.MUNDO, A.ESTILO),
+    E.PLANIFICACION: (A.PLANIFICADOR,),
     E.ESCALETA: (A.ESCALETISTA,),
     E.CAPITULOS: (A.ESCRITOR, A.EDITOR_ESTILO, A.JUEZ_CAPITULO, A.BIBLIOTECARIO),
     E.REGENERACION: (A.ESCRITOR, A.EDITOR_ESTILO, A.JUEZ_CAPITULO, A.BIBLIOTECARIO),
@@ -335,10 +335,7 @@ REGISTRADOS_POR_HOOK = frozenset({A.ESCRITOR, A.EDITOR_ESTILO, A.REVISOR})
 
 _ENTRADAS: dict[A, tuple[Entrada, ...]] = {
     A.EXTRACTOR_HECHOS: (Entrada.TEXTO_LIBRE,),
-    A.ARQUITECTO: (Entrada.CONTEXTO,),
-    A.PERSONAJES: (Entrada.CONTEXTO, Entrada.PLAN),
-    A.MUNDO: (Entrada.CONTEXTO, Entrada.PLAN, Entrada.PERSONAJES),
-    A.ESTILO: (Entrada.CONTEXTO, Entrada.PERSONAJES),
+    A.PLANIFICADOR: (Entrada.CONTEXTO,),
     A.ESCALETISTA: (
         Entrada.CONTEXTO,
         Entrada.PLAN,
@@ -388,7 +385,7 @@ def _lanzar(inst: Instantanea, agente: A, intento: int, capitulo: int | None = N
     else:
         base = _ENTRADAS[agente]
     extra: list[Entrada] = []
-    if agente is A.ARQUITECTO and inst.avance.notas_plan_pendientes:
+    if agente is A.PLANIFICADOR and inst.avance.notas_plan_pendientes:
         extra.append(Entrada.NOTAS_PLAN)
     if intento > 1:
         extra.append(Entrada.INFORME_ANTERIOR)
@@ -507,13 +504,8 @@ def siguiente_orden(inst: Instantanea) -> Decision:
         case E.CONTEXTO:
             return _lanzar(inst, A.AGENTE_CONTEXTO, siguiente)
         case E.PLANIFICACION:
-            if not a.plan or a.notas_plan_pendientes:
-                return _lanzar(inst, A.ARQUITECTO, siguiente)
-            if not a.personajes:
-                return _lanzar(inst, A.PERSONAJES, siguiente)
-            if not a.mundo:
-                return _lanzar(inst, A.MUNDO, siguiente)
-            return _lanzar(inst, A.ESTILO, siguiente)
+            # AJ-1: una sola orden; el planificador escribe plan, personajes, mundo y guía.
+            return _lanzar(inst, A.PLANIFICADOR, siguiente)
         case E.APROBACION_PLAN:
             return EsperarHumano(MotivoEspera.APROBACION_PLAN)
         case E.ESCALETA:
@@ -594,7 +586,7 @@ def _desenlace_de_paso(
         case A.EXTRACTOR_HECHOS:
             avance = replace(aceptado.avance, extraccion_hecha=True)
             return replace(aceptado, avance=avance), ()
-        case A.ARQUITECTO:
+        case A.PLANIFICADOR:
             avance = replace(aceptado.avance, notas_plan_pendientes=False)
             return replace(aceptado, avance=avance), ()
         case A.JUEZ_MANUSCRITO:

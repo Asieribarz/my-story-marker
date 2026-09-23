@@ -260,7 +260,7 @@ SELECT
   EXISTS (SELECT 1 FROM plan) AS plan,
   (SELECT count(*) FROM decision_humana WHERE tipo = 'aprobacion_plan' AND decision = 'cambios')
     AS cambios_plan,
-  (SELECT count(*) FROM orden WHERE agente = :arquitecto AND desenlace = 'aceptada')
+  (SELECT count(*) FROM orden WHERE agente = :planificador AND desenlace = 'aceptada')
     AS planes,
   EXISTS (SELECT 1 FROM personaje) AS personajes,
   EXISTS (SELECT 1 FROM localizacion) AND EXISTS (SELECT 1 FROM ruta) AS mundo,
@@ -294,7 +294,7 @@ def _gates(conexion: sqlite3.Connection) -> ResultadoGates:
 
 def _instantanea(conexion: sqlite3.Connection) -> Instantanea:
     fila = conexion.execute("SELECT * FROM proyecto WHERE id = 1").fetchone()
-    a = conexion.execute(_AVANCE, {"arquitecto": Agente.ARQUITECTO.value}).fetchone()
+    a = conexion.execute(_AVANCE, {"planificador": Agente.PLANIFICADOR.value}).fetchone()
     capitulos = conexion.execute(
         _CAPITULOS,
         {"bibliotecario": Agente.BIBLIOTECARIO.value, "escritor": Agente.ESCRITOR.value},

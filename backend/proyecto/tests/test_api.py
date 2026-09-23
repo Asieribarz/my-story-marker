@@ -95,14 +95,14 @@ def test_de_intake_a_planificacion_con_texto_libre_y_hechos(api: ClienteApi) -> 
         ]
         assert abierto.conexion.execute("SELECT count(*) FROM contexto").fetchone()[0] == 1
 
-    # Q8: el Arquitecto aún no tiene esquema; su orden sigue vigente y no gasta intento.
-    arquitecto = api.orden(proyecto, token)
-    assert arquitecto["agente"] == "arquitecto"
-    sin_esquema = api.registrar(proyecto, token, arquitecto["id"], {"plan": {}})
+    # Q8: el planificador aún no tiene esquema; su orden sigue vigente y no gasta intento.
+    planificador = api.orden(proyecto, token)
+    assert planificador["agente"] == "planificador"
+    sin_esquema = api.registrar(proyecto, token, planificador["id"], {"plan": {}})
     assert error(sin_esquema) == (501, "agente_sin_esquema", "RF-77a")
     assert "paso 4" in sin_esquema.json()["detalle"]
     leido = api.estado(proyecto)
-    assert (leido["orden_vigente"]["id"], leido["intentos_paso"]) == (arquitecto["id"], 0)
+    assert (leido["orden_vigente"]["id"], leido["intentos_paso"]) == (planificador["id"], 0)
 
 
 def test_sin_texto_libre_no_hay_extraccion(api: ClienteApi) -> None:

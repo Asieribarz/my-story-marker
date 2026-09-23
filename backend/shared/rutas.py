@@ -65,6 +65,10 @@ class DisposicionProyecto:
         return self.raiz / "export"
 
     @property
+    def verificacion(self) -> Path:
+        return self.raiz / "verificacion"
+
+    @property
     def brief(self) -> Path:
         """Texto no confiable del comprador (RF-14): solo se entrega por /mcp/entrada."""
         return self.raiz / "brief"
@@ -87,14 +91,34 @@ class DisposicionProyecto:
         carpeta, nombre = _clave_capitulo(numero, version, intento)
         return self.capitulos / carpeta / f"{nombre}.md"
 
+    def borrador(self, numero: int, version: int, intento: int) -> Path:
+        """La salida del Escritor tal cual (§4.1.5); `capitulo()` es el texto que edita el
+        Editor."""
+        carpeta, nombre = _clave_capitulo(numero, version, intento)
+        return self.capitulos / carpeta / f"{nombre}.borrador.md"
+
     def prompt(self, numero: int, version: int, intento: int) -> Path:
+        """El prompt entero, para auditoría (RF-58)."""
         carpeta, nombre = _clave_capitulo(numero, version, intento)
         return self.prompts / carpeta / f"{nombre}.prompt.md"
+
+    def prompt_parte(self, numero: int, version: int, intento: int, parte: int) -> Path:
+        """§4.1.4: la parte `parte` (desde 1) del prompt, que es lo que lee el Escritor."""
+        if parte < 1:
+            raise ValueError(f"parte de prompt no válida: {parte}")
+        carpeta, nombre = _clave_capitulo(numero, version, intento)
+        return self.prompts / carpeta / f"{nombre}.prompt.parte-{parte}.md"
 
     def desglose(self, numero: int, version: int, intento: int) -> Path:
         """Desglose por bloque del ensamblado (RF-59b), junto a su prompt."""
         carpeta, nombre = _clave_capitulo(numero, version, intento)
         return self.prompts / carpeta / f"{nombre}.desglose.json"
+
+    def pasada(self, numero: int) -> Path:
+        """AJ-3: los ficheros de los gates de una pasada de verificación de manuscrito."""
+        if numero < 1:
+            raise ValueError(f"pasada no válida: {numero}")
+        return self.verificacion / f"pasada-{numero}"
 
     def version_novela(self, numero: int) -> Path:
         if numero < 1:
@@ -118,5 +142,13 @@ class DisposicionProyecto:
         return DisposicionProyecto(self.identificador, self.raiz.with_name(nombre))
 
     def crear_directorios(self) -> None:
-        for carpeta in (self.capitulos, self.prompts, self.export, self.brief, self.cambios):
+        carpetas = (
+            self.capitulos,
+            self.prompts,
+            self.export,
+            self.verificacion,
+            self.brief,
+            self.cambios,
+        )
+        for carpeta in carpetas:
             carpeta.mkdir(parents=True, exist_ok=True)

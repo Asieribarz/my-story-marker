@@ -1,13 +1,18 @@
 """Qué hace el backend con el resultado de cada agente, y qué entrada lleva cada orden.
 
-Dos registros, uno por agente, para que cada paso del plan añada lo suyo sin tocar la
-máquina ni la persistencia:
+Registros por agente, para que cada paso del plan añada lo suyo sin tocar la máquina ni la
+persistencia:
 
-- `MANEJADORES`: valida el resultado contra el esquema de salida del agente (RF-77a), lo
-  persiste en su rebanada si procede y devuelve el desenlace. Escribe **solo** datos de su
-  rebanada: el estado del grafo y los contadores los escribe `persistencia.py` con lo que
-  calcula `maquina.aplicar_desenlace`. Corre dentro de la transacción del registro, así que
-  sus escrituras, el cierre de la orden y la transición van juntos o no van.
+- Los manejadores (`Manejador`): validan el resultado contra el esquema de salida del agente
+  (RF-77a), lo persisten en su rebanada si procede y devuelven el desenlace. Escriben
+  **solo** datos de su rebanada: el estado del grafo y los contadores los escribe
+  `persistencia.py` con lo que calcula `maquina.aplicar_desenlace`. Corren dentro de la
+  transacción del registro, así que sus escrituras, el cierre de la orden y la transición
+  van juntos o no van. Cada rebanada con agentes expone los suyos en
+  `<rebanada>/manejadores.py` como `MANEJADORES: Mapping[Agente, Manejador]`, y
+  `manejador_de` los agrega (ver `_de_las_rebanadas`). Los de `extractor-hechos` y
+  `agente-contexto` viven aquí, en `MANEJADORES`, que además es donde las pruebas
+  sustituyen uno: manda sobre los de las rebanadas.
 - `CONSTRUCTORES_DE_ENTRADA`: completa la entrada de una orden al emitirla, dentro de la
   transacción que la persiste. Es donde el Extractor recibe el identificador de un solo uso
   de `/mcp/entrada` en vez del texto libre (RF-14).
@@ -17,12 +22,11 @@ máquina ni la persistencia:
   su id, su agente y su intento (RF-08a), y la devuelve. Si sirve, la orden va idéntica.
 
 Un agente sin manejador da `AgenteSinEsquema` con el paso en que llega; la orden sigue
-vigente y no gasta intento (Q8). Hoy solo tienen manejador `extractor-hechos` y
-`agente-contexto`.
+vigente y no gasta intento (Q8).
 """
 
 import sqlite3
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -41,10 +45,7 @@ from backend.shared.tipos import Agente, EstadoProyecto, RecursoEntrada
 
 # Q8: en qué paso de specs/plan-backend-v1.md llega el esquema de salida de cada agente.
 PASO_QUE_LO_TRAE: dict[Agente, str] = {
-    Agente.ARQUITECTO: "paso 4",
-    Agente.PERSONAJES: "paso 4",
-    Agente.MUNDO: "paso 4",
-    Agente.ESTILO: "paso 4",
+    Agente.PLANIFICADOR: "paso 4",
     Agente.ESCALETISTA: "paso 4",
     Agente.ESCRITOR: "paso 7",
     Agente.EDITOR_ESTILO: "paso 7",
@@ -82,6 +83,14 @@ class Salida:
 
 
 Manejador = Callable[[ContextoManejo, object], Salida]
+"""Registra el resultado de la orden `contexto.orden` y devuelve su `Salida`.
+
+El segundo argumento es la salida ya extraída de `salida_cruda` por el cerebro (§4.1.7): el
+Markdown como `str`, sin la línea del sello, para Escritor, Editor y Revisor; el valor del
+bloque JSON para el resto. El manejador la valida contra el esquema de su agente: si no
+encaja, devuelve `Desenlace.forma()` —o `Desenlace.contenido()` si es el Escritor— con los
+errores en `detalle`, y no persiste nada (RF-77a). No lanza por una salida mal formada.
+"""
 
 MANEJADORES: dict[Agente, Manejador] = {}
 
@@ -94,8 +103,30 @@ def manejador(agente: Agente) -> Callable[[Manejador], Manejador]:
     return registrar
 
 
+def _de_las_rebanadas() -> dict[Agente, Manejador]:
+    """Los `MANEJADORES` de cada rebanada con agentes, en uno. Se importan aquí dentro y no
+    arriba porque cada rebanada importa de este módulo `Manejador`, `ContextoManejo` y
+    `Salida`. Un agente con manejador en dos rebanadas es un error de construcción."""
+    from backend.capitulo import manejadores as capitulo
+    from backend.escaleta import manejadores as escaleta
+    from backend.planificacion import manejadores as planificacion
+
+    agregados: dict[Agente, Manejador] = {}
+    rebanadas: tuple[Mapping[Agente, Manejador], ...] = (
+        planificacion.MANEJADORES,
+        escaleta.MANEJADORES,
+        capitulo.MANEJADORES,
+    )
+    for suyos in rebanadas:
+        repetidos = agregados.keys() & suyos.keys()
+        if repetidos:
+            raise RuntimeError(f"agentes con manejador en dos rebanadas: {sorted(repetidos)}")
+        agregados.update(suyos)
+    return agregados
+
+
 def manejador_de(agente: Agente) -> Manejador:
-    encontrado = MANEJADORES.get(agente)
+    encontrado = MANEJADORES.get(agente) or _de_las_rebanadas().get(agente)
     if encontrado is None:
         raise AgenteSinEsquema(agente, PASO_QUE_LO_TRAE.get(agente, "un paso posterior"))
     return encontrado

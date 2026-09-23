@@ -290,6 +290,29 @@ def _hechos(n: Novela, hoy: date) -> Iterator[Hallazgo]:
 
 
 @regla
+def _exclusiones(n: Novela, hoy: date) -> Iterator[Hallazgo]:
+    """B-18: solo un `evento` excluye, y a la fuente de un personaje real de la novela: sin
+    él, la materialización no tiene a quién llevar la exclusión."""
+    fuentes = {p.origen.fuente for p in n.personajes if p.origen.tipo == "real"}
+    for i, hecho in enumerate(n.personalizacion.hechos):
+        if hecho.excluye is None:
+            continue
+        ruta = f"novela.personalizacion.hechos.{i}.excluye"
+        if hecho.tipo is not TipoHecho.EVENTO:
+            yield _hallazgo(
+                "exclusion_en_evento", ruta, hecho.tipo.value, "solo un `evento` excluye"
+            )
+        elif hecho.excluye.fuente not in fuentes:
+            yield _hallazgo(
+                "exclusion_con_fuente",
+                f"{ruta}.fuente",
+                hecho.excluye.fuente,
+                "la fuente de un personaje real: `destinatario`, `segundo_destinatario` o el "
+                "id de un hecho `ser_querido`",
+            )
+
+
+@regla
 def _subgeneros(n: Novela, hoy: date) -> Iterator[Hallazgo]:
     s = n.tipo_aventura.subgenero
     if s.primario in s.secundarios or len(set(s.secundarios)) != len(s.secundarios):

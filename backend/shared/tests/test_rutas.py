@@ -45,6 +45,9 @@ def test_la_disposicion_es_la_de_la_spec(tmp_path: Path) -> None:
     assert d.relativa(d.texto_libre) == "brief/texto_libre.txt"
     assert d.relativa(d.peticion(7)) == "cambios/peticion-7.txt"
     assert d.relativa(d.version_novela(2)) == "export/v2"
+    assert d.relativa(d.borrador(3, 2, 1)) == "capitulos/cap-03/v2-intento1.borrador.md"
+    assert d.relativa(d.prompt_parte(3, 2, 1, 2)) == "prompts/cap-03/v2-intento1.prompt.parte-2.md"
+    assert d.relativa(d.pasada(4)) == "verificacion/pasada-4"
 
 
 @pytest.mark.parametrize(
@@ -65,7 +68,7 @@ def test_una_ruta_guardada_no_sale_del_proyecto(tmp_path: Path) -> None:
 def test_crear_directorios(tmp_path: Path) -> None:
     d = DisposicionProyecto.de("0" * 32, tmp_path)
     d.crear_directorios()
-    for carpeta in (d.capitulos, d.prompts, d.export, d.brief, d.cambios):
+    for carpeta in (d.capitulos, d.prompts, d.export, d.verificacion, d.brief, d.cambios):
         assert carpeta.is_dir()
 
 

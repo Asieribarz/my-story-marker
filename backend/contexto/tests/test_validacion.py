@@ -304,6 +304,14 @@ def _ruta_por_lugar_inexistente(d: dict[str, Any]) -> None:
     _n(d)["mundo"]["ruta"][2]["id"] = "castillo"
 
 
+def _exclusion_sin_personaje(d: dict[str, Any]) -> None:
+    _n(d)["personalizacion"]["hechos"][1]["excluye"] = {"fuente": "h3", "tipo": "muerte"}
+
+
+def _exclusion_fuera_de_evento(d: dict[str, Any]) -> None:
+    _n(d)["personalizacion"]["hechos"][2]["excluye"] = {"fuente": "h1", "tipo": "partida"}
+
+
 def _reglas_en_mundo_contemporaneo(d: dict[str, Any]) -> None:
     _n(d)["mundo"]["reglas"] = [{"regla": "magia", "limites": "una vez", "costes": "cansancio"}]
 
@@ -321,6 +329,8 @@ COHERENCIA: list[tuple[str, Mutacion, str]] = [
     ("evento fuera del mundo", _evento_fuera_del_mundo, "evento_en_localizacion"),
     ("hecho duplicado", _hecho_duplicado, "hecho_id_unico"),
     ("seis obligatorios", _seis_obligatorios, "hechos_obligatorios"),
+    ("exclusión sin personaje", _exclusion_sin_personaje, "exclusion_con_fuente"),
+    ("exclusión fuera de un evento", _exclusion_fuera_de_evento, "exclusion_en_evento"),
     ("secundario repite primario", _secundario_repite_primario, "subgeneros_distintos"),
     ("tramos con hueco", _tramos_con_hueco, "estructura_tramos"),
     ("clímax fuera del desenlace", _climax_fuera_del_desenlace, "estructura_hitos"),
@@ -395,6 +405,17 @@ def test_el_informe_recoge_todos_los_fallos_no_solo_el_primero() -> None:
     _ruta_por_lugar_inexistente(datos)
     reglas = {h.regla.split(" · ")[-1] for h in _validar(datos).hallazgos}
     assert {"tono_por_edad", "final_por_ocasion", "ruta_sobre_localizaciones"} <= reglas
+
+
+def test_un_evento_puede_excluir_a_un_ser_querido() -> None:
+    # B-18, control: la partida de Nala (h1, que tiene personaje) no dispara nada.
+    datos = referencia()
+    _n(datos)["personalizacion"]["hechos"][1]["excluye"] = {"fuente": "h1", "tipo": "partida"}
+    informe = _validar(datos)
+    assert informe.hallazgos == ()
+    assert informe.contexto is not None
+    excluye = informe.contexto.novela.personalizacion.hechos[1].excluye
+    assert excluye is not None and excluye.tipo == "partida"
 
 
 def test_la_edad_que_cumple_se_admite() -> None:

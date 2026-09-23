@@ -16,7 +16,8 @@ class OrdenEmitida:
     """Qué subagente lanzar, con qué entrada y dónde registrar el resultado.
 
     `entrada` es la persistida: pedir otra vez la orden vigente devuelve esta misma, con los
-    mismos identificadores de un solo uso mientras se puedan entregar.
+    mismos identificadores de un solo uso mientras se puedan entregar. `sello` es
+    `<proyecto>:<orden>:<generación>` (AJ-4, `sello.py`): cambia al volver a sellarla.
     """
 
     id: int
@@ -27,6 +28,7 @@ class OrdenEmitida:
     entrada: dict[str, Any]
     registro: ViaRegistro
     emitida: str
+    sello: str
 
     @property
     def vigente(self) -> OrdenVigente:
@@ -45,6 +47,7 @@ def orden_de_fila(fila: sqlite3.Row) -> OrdenEmitida:
         entrada=entrada,
         registro=via_de_registro(agente),
         emitida=fila["emitida"],
+        sello=fila["sello"] or "",
     )
 
 

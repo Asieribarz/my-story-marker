@@ -21,12 +21,20 @@ from fastmcp.utilities.lifespan import combine_lifespans
 from starlette.applications import Starlette
 
 from backend.contexto.router import router as router_contexto
+from backend.escaleta.router import router as router_escaleta
 from backend.intake.router import router as router_intake
 from backend.mcp import entrada as mcp_entrada
+from backend.planificacion.router import router as router_planificacion
 from backend.proyecto.errores_http import MANEJADORES_DE_ERROR
 from backend.proyecto.router import router as router_proyecto
 
-ROUTERS: tuple[APIRouter, ...] = (router_proyecto, router_intake, router_contexto)
+ROUTERS: tuple[APIRouter, ...] = (
+    router_proyecto,
+    router_intake,
+    router_contexto,
+    router_planificacion,
+    router_escaleta,
+)
 
 Superficie = tuple[str, Callable[[], Starlette]]
 

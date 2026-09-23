@@ -10,6 +10,10 @@
 --     Texto de capítulo, prompts y exportaciones son ficheros, no blobs (C-4).
 --   · Cada paso del plan afina las columnas de sus tablas; no hay migraciones en la v1
 --     (spec1.md §2.5).
+--   · Biblia con historia por capítulo (B-2): la fila de estado vale desde su `capitulo`,
+--     0 es el estado inicial de la planificación, y toda lectura es «a fecha N−1». El SQL
+--     de estas tablas vive en capitulo/biblia.py y, para la siembra, en
+--     planificacion/materializar.py, planificacion/consultas.py y escaleta/consultas.py.
 
 BEGIN;
 
@@ -37,6 +41,10 @@ CREATE TABLE proyecto (
   -- RF-07a: intentos de la orden en curso que no es ciclo de capítulo, y de los agentes
   -- posteriores al Escritor dentro del capítulo. Vuelve a cero en cada avance.
   intentos_paso      INTEGER NOT NULL DEFAULT 0 CHECK (intentos_paso BETWEEN 0 AND 3),
+  -- AJ-3: suma 1 cada vez que se entra en verificacion_manuscrito; nunca vuelve a cero.
+  pasadas            INTEGER NOT NULL DEFAULT 0 CHECK (pasadas >= 0),
+  -- AJ-4: suma 1 cada vez que toma el bloqueo un titular distinto o uno que había caducado.
+  generacion_bloqueo INTEGER NOT NULL DEFAULT 0 CHECK (generacion_bloqueo >= 0),
   -- RF-09b: el titular es un token opaco; el tipo dice si es la sesión o el worker.
   bloqueo_titular    TEXT,
   bloqueo_tipo       TEXT    CHECK (bloqueo_tipo IN ('sesion', 'worker')),
@@ -59,10 +67,9 @@ CREATE TABLE orden (
                      'publicacion', 'publicada', 'cambio_solicitado', 'regeneracion',
                      'detenida')),
   agente           TEXT    NOT NULL CHECK (agente IN (
-                     'agente-contexto', 'extractor-hechos', 'arquitecto', 'personajes',
-                     'mundo', 'estilo', 'escaletista', 'escritor', 'editor-estilo',
-                     'juez-capitulo', 'bibliotecario', 'juez-manuscrito', 'revisor',
-                     'exportador', 'interprete-cambios')),
+                     'agente-contexto', 'extractor-hechos', 'planificador', 'escaletista',
+                     'escritor', 'editor-estilo', 'juez-capitulo', 'bibliotecario',
+                     'juez-manuscrito', 'revisor', 'exportador', 'interprete-cambios')),
   capitulo         INTEGER REFERENCES capitulo (numero),
   intento          INTEGER NOT NULL CHECK (intento BETWEEN 1 AND 3),
   entrada          TEXT    NOT NULL CHECK (json_valid(entrada)),
@@ -70,6 +77,10 @@ CREATE TABLE orden (
   cerrada          TEXT,
   desenlace        TEXT    CHECK (desenlace IN ('aceptada', 'rechazada', 'caducada')),
   detalle          TEXT    CHECK (detalle IS NULL OR json_valid(detalle)),
+  -- AJ-4, §4.1.2: `<proyecto>:<orden>:<generación>`; cambia al volver a sellar la orden.
+  sello            TEXT    UNIQUE,
+  -- §4.1.8: modelo, tokens y duración que envía el hook con el resultado; todo opcional.
+  metadatos        TEXT    CHECK (metadatos IS NULL OR json_valid(metadatos)),
   CHECK ((cerrada IS NULL) = (desenlace IS NULL))
 ) STRICT;
 
@@ -216,19 +227,37 @@ CREATE TABLE plan (
   contenido           TEXT NOT NULL CHECK (json_valid(contenido))
 ) STRICT;
 
+-- B-4: `nombre` es NULL hasta la planificación, salvo el de los destinatarios, que lo fija
+-- el contexto (B-1). Estado y saber no van aquí: tienen historia por capítulo (B-2).
 CREATE TABLE personaje (
   id                TEXT PRIMARY KEY,
-  nombre            TEXT NOT NULL,
+  nombre            TEXT,
+  alias             TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(alias)
+                                                      AND json_type(alias) = 'array'),
+  descripcion       TEXT,
   origen            TEXT NOT NULL CHECK (origen IN ('real', 'ficticio')),
   fuente            TEXT,
   ficha             TEXT NOT NULL CHECK (json_valid(ficha)),
   arco              TEXT NOT NULL CHECK (arco IN (
                       'positivo', 'negativo', 'plano', 'redencion', 'corrupcion')),
   evolucion         TEXT CHECK (evolucion IS NULL OR json_valid(evolucion)),
-  estado_actual     TEXT CHECK (estado_actual IS NULL OR json_valid(estado_actual)),
-  sabe              TEXT CHECK (sabe IS NULL OR json_valid(sabe)),
   fecha_nacimiento  TEXT,
   CHECK ((origen = 'real') = (fuente IS NOT NULL))
+) STRICT;
+
+CREATE TABLE personaje_estado (
+  personaje  TEXT    NOT NULL REFERENCES personaje (id),
+  capitulo   INTEGER NOT NULL CHECK (capitulo BETWEEN 0 AND 10),
+  estado     TEXT    NOT NULL,
+  PRIMARY KEY (personaje, capitulo)
+) STRICT;
+
+-- Lo que sabe, un dato por fila y acumulativo: a fecha N−1 sabe lo aprendido antes de N.
+CREATE TABLE personaje_sabe (
+  personaje  TEXT    NOT NULL REFERENCES personaje (id),
+  capitulo   INTEGER NOT NULL CHECK (capitulo BETWEEN 0 AND 10),
+  dato       TEXT    NOT NULL,
+  PRIMARY KEY (personaje, capitulo, dato)
 ) STRICT;
 
 CREATE TABLE relacion (
@@ -244,12 +273,21 @@ CREATE TABLE relacion (
 ) STRICT;
 
 CREATE TABLE localizacion (
-  id      TEXT PRIMARY KEY,
-  nivel   TEXT NOT NULL CHECK (nivel IN ('macro', 'meso', 'micro')),
-  padre   TEXT REFERENCES localizacion (id),
-  hito    TEXT,
-  estado  TEXT,
+  id           TEXT PRIMARY KEY,
+  nivel        TEXT NOT NULL CHECK (nivel IN ('macro', 'meso', 'micro')),
+  padre        TEXT REFERENCES localizacion (id),
+  nombre       TEXT,
+  descripcion  TEXT,
+  hito         TEXT CHECK (hito IN (
+                 'detonante', 'primer_umbral', 'punto_medio', 'crisis', 'climax')),
   CHECK ((nivel = 'macro') = (padre IS NULL))
+) STRICT;
+
+CREATE TABLE localizacion_estado (
+  localizacion  TEXT    NOT NULL REFERENCES localizacion (id),
+  capitulo      INTEGER NOT NULL CHECK (capitulo BETWEEN 0 AND 10),
+  estado        TEXT    NOT NULL,
+  PRIMARY KEY (localizacion, capitulo)
 ) STRICT;
 
 CREATE TABLE ruta (
@@ -266,6 +304,13 @@ CREATE TABLE regla_mundo (
   excepciones  TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(excepciones))
 ) STRICT;
 
+-- B-4: los objetos del mundo; quién tiene cada uno lo dice `inventario`.
+CREATE TABLE objeto (
+  id      TEXT PRIMARY KEY,
+  nombre  TEXT NOT NULL,
+  alias   TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(alias) AND json_type(alias) = 'array')
+) STRICT;
+
 CREATE TABLE guia_estilo (
   id          INTEGER PRIMARY KEY CHECK (id = 1),
   narrador    TEXT NOT NULL CHECK (narrador IN (
@@ -280,25 +325,40 @@ CREATE TABLE guia_estilo (
 
 -- ─── escaleta/ ──────────────────────────────────────────────────────────────
 
--- Personajes presentes y hechos que usa van en tablas propias, no en JSON: el
--- Recuperador arma sus bloques con consultas parametrizadas por la ficha (plan, paso 4).
+-- B-5. Hitos, personajes y hechos van en tablas propias, no en JSON: el Recuperador arma
+-- sus bloques con consultas parametrizadas por la ficha. `plantar` es [{clave,
+-- descripcion}], `cobrar` [clave] y `traspasos` [{objeto, a}], tal como los da la escaleta.
 CREATE TABLE ficha_capitulo (
   numero             INTEGER PRIMARY KEY CHECK (numero BETWEEN 1 AND 10),
-  hito               TEXT,
+  objetivo           TEXT    NOT NULL,
   escenas            TEXT    NOT NULL CHECK (json_valid(escenas)),
-  pov                TEXT    REFERENCES personaje (id),
-  localizacion       TEXT    REFERENCES localizacion (id),
+  pov                TEXT    NOT NULL REFERENCES personaje (id),
+  localizacion       TEXT    NOT NULL REFERENCES localizacion (id),
+  -- B-6: día previsto de la historia, D1…Dn.
+  dia                INTEGER NOT NULL CHECK (dia >= 1),
   tension            INTEGER NOT NULL CHECK (tension BETWEEN 0 AND 10),
   palabras_objetivo  INTEGER NOT NULL CHECK (palabras_objetivo BETWEEN 1000 AND 1500),
   cierre             TEXT    NOT NULL CHECK (cierre IN (
                        'cliffhanger', 'pausa', 'giro', 'pregunta', 'imagen')),
   plantar            TEXT    NOT NULL DEFAULT '[]' CHECK (json_valid(plantar)),
-  cobrar             TEXT    NOT NULL DEFAULT '[]' CHECK (json_valid(cobrar))
+  cobrar             TEXT    NOT NULL DEFAULT '[]' CHECK (json_valid(cobrar)),
+  traspasos          TEXT    NOT NULL DEFAULT '[]' CHECK (json_valid(traspasos))
 ) STRICT;
 
+-- B-3: un capítulo puede tener varios hitos, y cada hito está en una sola ficha (RF-42).
+CREATE TABLE ficha_capitulo_hito (
+  capitulo  INTEGER NOT NULL REFERENCES ficha_capitulo (numero),
+  hito      TEXT    NOT NULL CHECK (hito IN (
+              'detonante', 'primer_umbral', 'punto_medio', 'crisis', 'climax')),
+  PRIMARY KEY (capitulo, hito),
+  UNIQUE (hito)
+) STRICT;
+
+-- R-2: `mencionado` es quien solo sale en un recuerdo; no cuenta como presente.
 CREATE TABLE ficha_capitulo_personaje (
   capitulo   INTEGER NOT NULL REFERENCES ficha_capitulo (numero),
   personaje  TEXT    NOT NULL REFERENCES personaje (id),
+  papel      TEXT    NOT NULL CHECK (papel IN ('presente', 'mencionado')),
   PRIMARY KEY (capitulo, personaje)
 ) STRICT;
 
@@ -320,48 +380,61 @@ CREATE TABLE capitulo (
 ) STRICT;
 
 -- RF-06: la idempotencia la garantiza la clave única, no una comprobación previa.
+-- `ruta_borrador` es la salida del Escritor tal cual (§4.1.5); `ruta`, el texto vigente de
+-- la versión, que reescribe el Editor. `dia_fin` y `localizacion_fin` los registra el
+-- Bibliotecario (B-6, B-16).
 CREATE TABLE capitulo_version (
-  id              INTEGER PRIMARY KEY,
-  capitulo        INTEGER NOT NULL REFERENCES capitulo (numero),
-  version         INTEGER NOT NULL CHECK (version >= 1),
-  intento         INTEGER NOT NULL CHECK (intento BETWEEN 1 AND 3),
-  estado          TEXT    NOT NULL CHECK (estado IN (
-                    'borrador', 'editado', 'verificado', 'aprobado', 'revision_humana')),
-  ruta            TEXT    NOT NULL,
-  ruta_prompt     TEXT,
-  semilla         TEXT,
-  version_prompt  TEXT,
-  version_modelo  TEXT,
-  creado          TEXT    NOT NULL,
+  id                INTEGER PRIMARY KEY,
+  capitulo          INTEGER NOT NULL REFERENCES capitulo (numero),
+  version           INTEGER NOT NULL CHECK (version >= 1),
+  intento           INTEGER NOT NULL CHECK (intento BETWEEN 1 AND 3),
+  estado            TEXT    NOT NULL CHECK (estado IN (
+                      'borrador', 'editado', 'verificado', 'aprobado', 'revision_humana')),
+  ruta              TEXT    NOT NULL,
+  ruta_borrador     TEXT,
+  ruta_prompt       TEXT,
+  semilla           TEXT,
+  version_prompt    TEXT,
+  version_modelo    TEXT,
+  dia_fin           INTEGER CHECK (dia_fin IS NULL OR dia_fin >= 1),
+  localizacion_fin  TEXT    REFERENCES localizacion (id),
+  creado            TEXT    NOT NULL,
   UNIQUE (capitulo, version, intento)
 ) STRICT;
 
+-- RF-78: un informe por verificador y versión de capítulo, con sus hallazgos como lista
+-- JSON de `Hallazgo` (shared/tipos.py). `severidad` es la mayor, NULL si no hay hallazgos.
 CREATE TABLE informe (
   id                INTEGER PRIMARY KEY,
-  capitulo_version  INTEGER REFERENCES capitulo_version (id),
-  ambito            TEXT NOT NULL CHECK (ambito IN ('capitulo', 'manuscrito')),
-  verificador       TEXT NOT NULL,
-  severidad         TEXT NOT NULL CHECK (severidad IN ('baja', 'media', 'alta', 'bloqueante')),
-  regla             TEXT NOT NULL,
-  localizacion      TEXT NOT NULL,
-  evidencia         TEXT NOT NULL,
-  esperado          TEXT,
-  momento           TEXT NOT NULL,
-  CHECK ((ambito = 'capitulo') = (capitulo_version IS NOT NULL))
+  capitulo_version  INTEGER NOT NULL REFERENCES capitulo_version (id),
+  verificador       TEXT    NOT NULL,
+  severidad         TEXT    CHECK (severidad IN ('baja', 'media', 'alta', 'bloqueante')),
+  hallazgos         TEXT    NOT NULL CHECK (json_valid(hallazgos)
+                                            AND json_type(hallazgos) = 'array'),
+  metricas          TEXT    CHECK (metricas IS NULL OR json_valid(metricas)),
+  momento           TEXT    NOT NULL,
+  UNIQUE (capitulo_version, verificador)
 ) STRICT;
 
 -- ─── capitulo/ · biblia ─────────────────────────────────────────────────────
 
+-- B-6: dos escalas. Un recuerdo lleva `momento` (fecha parcial o periodo, anterior a D1);
+-- la historia lleva `dia` (D1…Dn) y, si se sabe, la franja. `capitulo` NULL: viene del
+-- contexto (B-1) y cuenta como capítulo 0 (R-2).
 CREATE TABLE evento (
   id              INTEGER PRIMARY KEY,
-  descripcion     TEXT NOT NULL,
-  momento         TEXT NOT NULL,
-  lugar           TEXT NOT NULL REFERENCES localizacion (id),
+  descripcion     TEXT    NOT NULL,
+  momento         TEXT,
+  dia             INTEGER CHECK (dia IS NULL OR dia >= 1),
+  franja          TEXT    CHECK (franja IN ('manana', 'tarde', 'noche')),
+  lugar           TEXT    NOT NULL REFERENCES localizacion (id),
   capitulo        INTEGER CHECK (capitulo IS NULL OR capitulo BETWEEN 1 AND 10),
-  excluye         TEXT REFERENCES personaje (id),
-  tipo_exclusion  TEXT CHECK (tipo_exclusion IN ('muerte', 'partida')),
-  hecho           TEXT REFERENCES hecho (id),
-  CHECK ((excluye IS NULL) = (tipo_exclusion IS NULL))
+  excluye         TEXT    REFERENCES personaje (id),
+  tipo_exclusion  TEXT    CHECK (tipo_exclusion IN ('muerte', 'partida')),
+  hecho           TEXT    REFERENCES hecho (id),
+  CHECK ((excluye IS NULL) = (tipo_exclusion IS NULL)),
+  CHECK ((momento IS NULL) <> (dia IS NULL)),
+  CHECK (franja IS NULL OR dia IS NOT NULL)
 ) STRICT;
 
 CREATE TABLE evento_personaje (
@@ -377,35 +450,62 @@ CREATE TABLE hecho_uso (
   PRIMARY KEY (hecho, capitulo, version)
 ) STRICT;
 
--- Una fila por traspaso: desde este capítulo, el objeto lo tiene este poseedor.
+-- Una fila por traspaso: desde este capítulo, el objeto lo tiene este poseedor (NULL:
+-- nadie). El capítulo 0 es el poseedor inicial que da el mundo (B-4).
 CREATE TABLE inventario (
-  id        INTEGER PRIMARY KEY,
-  objeto    TEXT    NOT NULL,
+  objeto    TEXT    NOT NULL REFERENCES objeto (id),
   poseedor  TEXT    REFERENCES personaje (id),
-  capitulo  INTEGER NOT NULL CHECK (capitulo BETWEEN 1 AND 10),
-  UNIQUE (objeto, capitulo)
+  capitulo  INTEGER NOT NULL CHECK (capitulo BETWEEN 0 AND 10),
+  PRIMARY KEY (objeto, capitulo)
 ) STRICT;
 
+-- B-16: nacen de `ficha.plantar` al registrar la escaleta (`plantar_en`, y `cobrar_en` si
+-- alguna ficha lo cobra), o los abre el Bibliotecario de un capítulo (`abierto_en`). El
+-- estado lleva historia por capítulo en `presagio_estado`, como el resto de la biblia.
 CREATE TABLE presagio (
   id           INTEGER PRIMARY KEY,
+  clave        TEXT    NOT NULL UNIQUE,
   descripcion  TEXT    NOT NULL,
-  plantado_en  INTEGER NOT NULL CHECK (plantado_en BETWEEN 1 AND 10),
-  cobrado_en   INTEGER CHECK (cobrado_en IS NULL OR cobrado_en > plantado_en)
+  plantar_en   INTEGER CHECK (plantar_en BETWEEN 1 AND 10),
+  cobrar_en    INTEGER CHECK (cobrar_en BETWEEN 1 AND 10),
+  abierto_en   INTEGER CHECK (abierto_en BETWEEN 1 AND 10),
+  CHECK ((plantar_en IS NULL) <> (abierto_en IS NULL))
 ) STRICT;
 
+CREATE TABLE presagio_estado (
+  presagio  INTEGER NOT NULL REFERENCES presagio (id),
+  capitulo  INTEGER NOT NULL CHECK (capitulo BETWEEN 0 AND 10),
+  estado    TEXT    NOT NULL CHECK (estado IN ('previsto', 'plantado', 'cobrado')),
+  PRIMARY KEY (presagio, capitulo)
+) STRICT;
+
+-- B-10: `referencia` es el id del personaje, la localización o el objeto; NULL si `otro`.
 CREATE TABLE glosario (
-  termino    TEXT PRIMARY KEY,
-  categoria  TEXT NOT NULL,
-  nota       TEXT
+  id          INTEGER PRIMARY KEY,
+  termino     TEXT    NOT NULL,
+  categoria   TEXT    NOT NULL CHECK (categoria IN (
+                'personaje', 'localizacion', 'objeto', 'otro')),
+  referencia  TEXT,
+  tipo        TEXT    NOT NULL CHECK (tipo IN ('canonico', 'alias')),
+  capitulo    INTEGER NOT NULL CHECK (capitulo BETWEEN 0 AND 10),
+  nota        TEXT,
+  UNIQUE (termino, capitulo),
+  CHECK ((categoria = 'otro') = (referencia IS NULL))
 ) STRICT;
 
+-- RF-86, RF-87, B-17: `numero` es el capítulo o el acto (1 a 3); `capitulo` y `version`,
+-- la versión de capítulo cuyo Bibliotecario lo escribió. No se borra al compactar.
 CREATE TABLE resumen (
-  id      INTEGER PRIMARY KEY,
-  ambito  TEXT    NOT NULL CHECK (ambito IN ('capitulo', 'acto')),
-  numero  INTEGER NOT NULL CHECK (numero >= 1),
-  texto   TEXT    NOT NULL,
-  creado  TEXT    NOT NULL,
-  UNIQUE (ambito, numero)
+  id        INTEGER PRIMARY KEY,
+  ambito    TEXT    NOT NULL CHECK (ambito IN ('capitulo', 'acto')),
+  numero    INTEGER NOT NULL CHECK (numero >= 1),
+  capitulo  INTEGER NOT NULL CHECK (capitulo BETWEEN 1 AND 10),
+  version   INTEGER NOT NULL CHECK (version >= 1),
+  texto     TEXT    NOT NULL,
+  creado    TEXT    NOT NULL,
+  UNIQUE (ambito, numero, capitulo, version),
+  CHECK (ambito = 'acto' OR numero = capitulo),
+  CHECK (ambito = 'capitulo' OR numero BETWEEN 1 AND 3)
 ) STRICT;
 
 -- ─── Guardarraíl y jueces ───────────────────────────────────────────────────
@@ -415,8 +515,20 @@ CREATE TABLE palabra_prohibida (
   termino  TEXT NOT NULL,
   nivel    TEXT NOT NULL CHECK (nivel IN ('global', 'publico', 'novela')),
   publico  TEXT CHECK (publico IN ('infantil', 'juvenil', 'adulto', 'crossover')),
-  UNIQUE (termino, nivel, publico),
   CHECK ((nivel = 'publico') = (publico IS NOT NULL))
+) STRICT;
+
+-- Un UNIQUE con `publico` NULL admitiría duplicados de las listas global y de novela.
+CREATE UNIQUE INDEX palabra_prohibida_unica
+  ON palabra_prohibida (termino, nivel, coalesce(publico, ''));
+
+-- TC-4, AJ-3: un resultado por gate y pasada de verificación de manuscrito.
+CREATE TABLE gate_resultado (
+  pasada   INTEGER NOT NULL CHECK (pasada >= 1),
+  gate     TEXT    NOT NULL CHECK (gate IN ('cobertura', 'lean', 'juez')),
+  ok       INTEGER NOT NULL CHECK (ok IN (0, 1)),
+  detalle  TEXT    NOT NULL CHECK (json_valid(detalle)),
+  PRIMARY KEY (pasada, gate)
 ) STRICT;
 
 -- RF-113, RF-114: una fila por criterio; `evaluacion` agrupa las cinco de una pasada.

@@ -22,6 +22,7 @@ class CodigoError(StrEnum):
     BLOQUEO_AJENO = "bloqueo_ajeno"
     BLOQUEO_REQUERIDO = "bloqueo_requerido"
     ORDEN_AJENA = "orden_ajena"
+    SELLO_INVALIDO = "sello_invalido"
     AGENTE_SIN_ESQUEMA = "agente_sin_esquema"
     DECISION_HUMANA_INVALIDA = "decision_humana_invalida"
     ENTRADA_NO_CANJEABLE = "entrada_no_canjeable"
@@ -101,6 +102,18 @@ class OrdenAjena(ErrorProyecto):
         super().__init__(f"el resultado para la orden {orden} se rechaza: {motivo}; {cual}")
         self.orden = orden
         self.vigente = vigente
+
+
+class SelloInvalido(ErrorProyecto):
+    """AJ-4, RF-08a: el sello no es el de la orden vigente. Es de una orden que no existe o de
+    una generación anterior del bloqueo: un ejecutor caído, o un subagente suyo que acaba
+    tarde. Su resultado o su escritura no se registran."""
+
+    codigo = CodigoError.SELLO_INVALIDO
+    requisito = "RF-08a"
+
+    def __init__(self, motivo: str) -> None:
+        super().__init__(f"el sello no es el de la orden vigente: {motivo}")
 
 
 class AgenteSinEsquema(ErrorProyecto):

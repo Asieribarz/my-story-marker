@@ -142,14 +142,8 @@ def simular_manejador(
             a = replace(a, brief_normalizado=True)
         case A.AGENTE_CONTEXTO:
             a = replace(a, contexto_validado=True)
-        case A.ARQUITECTO:
-            a = replace(a, plan=True)
-        case A.PERSONAJES:
-            a = replace(a, personajes=True)
-        case A.MUNDO:
-            a = replace(a, mundo=True)
-        case A.ESTILO:
-            a = replace(a, guia_estilo=True)
+        case A.PLANIFICADOR:
+            a = replace(a, plan=True, personajes=True, mundo=True, guia_estilo=True)
         case A.ESCALETISTA:
             a = replace(a, fichas=10)
         case A.JUEZ_MANUSCRITO:

@@ -213,10 +213,10 @@ def _camino_feliz(inst: Instantanea) -> tuple[list[A], Instantanea]:
                         a,
                         brief_normalizado=a.brief_normalizado or inst.estado is E.INTAKE,
                         contexto_validado=a.contexto_validado or inst.estado is E.CONTEXTO,
-                        plan=a.plan or decision.agente is A.ARQUITECTO,
-                        personajes=a.personajes or decision.agente is A.PERSONAJES,
-                        mundo=a.mundo or decision.agente is A.MUNDO,
-                        guia_estilo=a.guia_estilo or decision.agente is A.ESTILO,
+                        plan=a.plan or decision.agente is A.PLANIFICADOR,
+                        personajes=a.personajes or decision.agente is A.PLANIFICADOR,
+                        mundo=a.mundo or decision.agente is A.PLANIFICADOR,
+                        guia_estilo=a.guia_estilo or decision.agente is A.PLANIFICADOR,
                         fichas=10 if decision.agente is A.ESCALETISTA else a.fichas,
                         gates=ResultadoGates.VERDES,
                     ),
@@ -240,16 +240,9 @@ def _camino_feliz(inst: Instantanea) -> tuple[list[A], Instantanea]:
 def test_el_camino_feliz_llega_a_publicada(paradas: bool) -> None:
     agentes, final = _camino_feliz(Instantanea(parada_plan=paradas, parada_final=paradas))
     assert final.estado is E.PUBLICADA
-    assert agentes[:6] == [
-        A.AGENTE_CONTEXTO,
-        A.AGENTE_CONTEXTO,
-        A.ARQUITECTO,
-        A.PERSONAJES,
-        A.MUNDO,
-        A.ESTILO,
-    ]
+    assert agentes[:3] == [A.AGENTE_CONTEXTO, A.AGENTE_CONTEXTO, A.PLANIFICADOR]
     del_bucle = [A.ESCRITOR, A.EDITOR_ESTILO, A.JUEZ_CAPITULO, A.BIBLIOTECARIO]
-    assert agentes[6:] == [A.ESCALETISTA, *del_bucle * 10, A.JUEZ_MANUSCRITO, A.EXPORTADOR]
+    assert agentes[3:] == [A.ESCALETISTA, *del_bucle * 10, A.JUEZ_MANUSCRITO, A.EXPORTADOR]
     assert all(c.terminado for c in final.capitulos)
 
 
@@ -436,20 +429,19 @@ def test_cada_avance_pone_a_cero_el_contador_de_paso() -> None:
     assert inst.intentos_paso == 2
     base, lanzar = _lanzar(inst)
     con, orden = _con_orden(base, lanzar)
-    con = replace(con, avance=replace(con.avance, plan=True))
     inst = aplicar_desenlace(con, orden, Desenlace.aceptado()).instantanea
     assert inst.intentos_paso == 0
     _, lanzar = _lanzar(inst)
-    assert (lanzar.agente, lanzar.intento) == (A.PERSONAJES, 1)
+    assert (lanzar.agente, lanzar.intento) == (A.PLANIFICADOR, 1)
 
 
-def test_los_cambios_del_plan_vuelven_al_arquitecto_con_las_notas() -> None:
+def test_los_cambios_del_plan_vuelven_al_planificador_con_las_notas() -> None:
     completo = Avance(plan=True, personajes=True, mundo=True, guia_estilo=True)
     inst = Instantanea(estado=E.APROBACION_PLAN, avance=completo, parada_plan=True)
     efecto = aplicar_accion_humana(inst, AccionHumana.CAMBIOS_PLAN)
     assert efecto.instantanea.estado is E.PLANIFICACION
     _, lanzar = _lanzar(efecto.instantanea)
-    assert lanzar.agente is A.ARQUITECTO
+    assert lanzar.agente is A.PLANIFICADOR
     assert Entrada.NOTAS_PLAN in lanzar.entrada
     # Con el plan revisado, la parada vuelve a pedir la aprobación.
     revisado = _aplicar(efecto.instantanea, Desenlace.aceptado())

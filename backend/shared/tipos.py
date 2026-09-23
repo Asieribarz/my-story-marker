@@ -39,15 +39,13 @@ class EstadoCapitulo(StrEnum):
 
 
 class Agente(StrEnum):
-    """Los subagentes de architecture.md §3 y sus jueces, con el nombre de su fichero en
-    `.claude/agents/` (specs/plan-entrega.md §4). La tabla `orden` repite la lista."""
+    """Los 12 subagentes (R-1, AJ-1), con el nombre de su fichero en `.claude/agents/`. El
+    `planificador` produce en una sola salida plan, personajes, mundo y guía de estilo. La
+    tabla `orden` repite la lista."""
 
     AGENTE_CONTEXTO = "agente-contexto"
     EXTRACTOR_HECHOS = "extractor-hechos"
-    ARQUITECTO = "arquitecto"
-    PERSONAJES = "personajes"
-    MUNDO = "mundo"
-    ESTILO = "estilo"
+    PLANIFICADOR = "planificador"
     ESCALETISTA = "escaletista"
     ESCRITOR = "escritor"
     EDITOR_ESTILO = "editor-estilo"
@@ -57,6 +55,62 @@ class Agente(StrEnum):
     REVISOR = "revisor"
     EXPORTADOR = "exportador"
     INTERPRETE_CAMBIOS = "interprete-cambios"
+
+
+class Hito(StrEnum):
+    """B-3: catálogo único de hitos para los tres modelos estructurales. Los tres últimos
+    se copian del contexto; los dos primeros los sitúa el planificador en el planteamiento."""
+
+    DETONANTE = "detonante"
+    PRIMER_UMBRAL = "primer_umbral"
+    PUNTO_MEDIO = "punto_medio"
+    CRISIS = "crisis"
+    CLIMAX = "climax"
+
+
+class PapelEnFicha(StrEnum):
+    """B-5, R-2: quien actúa en el presente del capítulo, o solo sale en un recuerdo."""
+
+    PRESENTE = "presente"
+    MENCIONADO = "mencionado"
+
+
+class EstadoPresagio(StrEnum):
+    """B-16: previsto por la escaleta, plantado o cobrado por el Bibliotecario."""
+
+    PREVISTO = "previsto"
+    PLANTADO = "plantado"
+    COBRADO = "cobrado"
+
+
+class CategoriaTermino(StrEnum):
+    """B-10: a qué apunta la `referencia` de un término del glosario."""
+
+    PERSONAJE = "personaje"
+    LOCALIZACION = "localizacion"
+    OBJETO = "objeto"
+    OTRO = "otro"
+
+
+class TipoTermino(StrEnum):
+    CANONICO = "canonico"
+    ALIAS = "alias"
+
+
+class Franja(StrEnum):
+    """§4.2: franja del día de un evento de la historia; opcional."""
+
+    MANANA = "manana"
+    TARDE = "tarde"
+    NOCHE = "noche"
+
+
+class Gate(StrEnum):
+    """TC-4: los tres gates de manuscrito, guardados por pasada (AJ-3)."""
+
+    COBERTURA = "cobertura"
+    LEAN = "lean"
+    JUEZ = "juez"
 
 
 class DesenlaceOrden(StrEnum):
@@ -110,12 +164,14 @@ class Hallazgo(BaseModel):
 
 
 class Informe(BaseModel):
-    """Salida común de todo verificador: entra el objeto verificado, sale esto."""
+    """Salida común de todo verificador: entra el objeto verificado, sale esto. `metricas`
+    lleva lo medido, como la desviación de Longitud de RF-79 (B-14)."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     verificador: str
     hallazgos: tuple[Hallazgo, ...] = Field(default=())
+    metricas: dict[str, float] | None = None
 
     @property
     def corta_el_ciclo(self) -> bool:

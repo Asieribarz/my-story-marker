@@ -6,8 +6,20 @@ from pathlib import Path
 
 import pytest
 
+from backend.contexto.modelos import TipoExclusion
 from backend.shared.db import conectar, crear_base, transaccion
-from backend.shared.tipos import EstadoCapitulo, EstadoProyecto, Severidad
+from backend.shared.tipos import (
+    CategoriaTermino,
+    EstadoCapitulo,
+    EstadoPresagio,
+    EstadoProyecto,
+    Franja,
+    Gate,
+    Hito,
+    PapelEnFicha,
+    Severidad,
+    TipoTermino,
+)
 
 SPEC = Path(__file__).resolve().parents[3] / "specs" / "spec1.md"
 AHORA = "2026-09-23T10:00:00Z"
@@ -62,6 +74,26 @@ def test_las_listas_de_estado_coinciden_con_los_tipos(base: sqlite3.Connection) 
     assert en_version == set(EstadoCapitulo) - {EstadoCapitulo.PENDIENTE}
 
 
+def test_las_listas_de_la_biblia_coinciden_con_los_tipos(base: sqlite3.Connection) -> None:
+    assert _lista_check(base, "ficha_capitulo_hito", "hito") == set(Hito)
+    assert _lista_check(base, "localizacion", "hito") == set(Hito)
+    assert _lista_check(base, "ficha_capitulo_personaje", "papel") == set(PapelEnFicha)
+    assert _lista_check(base, "presagio_estado", "estado") == set(EstadoPresagio)
+    assert _lista_check(base, "glosario", "categoria") == set(CategoriaTermino)
+    assert _lista_check(base, "glosario", "tipo") == set(TipoTermino)
+    assert _lista_check(base, "evento", "franja") == set(Franja)
+    assert _lista_check(base, "evento", "tipo_exclusion") == set(TipoExclusion)
+    assert _lista_check(base, "gate_resultado", "gate") == set(Gate)
+
+
+def test_una_palabra_prohibida_no_se_repite_en_su_lista(base: sqlite3.Connection) -> None:
+    sql = "INSERT INTO palabra_prohibida (termino, nivel, publico) VALUES (?, ?, ?)"
+    base.execute(sql, ("veto", "novela", None))
+    base.execute(sql, ("veto", "publico", "infantil"))
+    with pytest.raises(sqlite3.IntegrityError, match="UNIQUE"):
+        base.execute(sql, ("veto", "novela", None))
+
+
 def test_las_claves_ajenas_se_aplican(base: sqlite3.Connection) -> None:
     with pytest.raises(sqlite3.IntegrityError, match="FOREIGN KEY"):
         base.execute(
@@ -107,17 +139,17 @@ def test_una_version_publicada_no_se_modifica(base: sqlite3.Connection) -> None:
 
 def test_la_transaccion_deshace_si_falla(base: sqlite3.Connection) -> None:
     with pytest.raises(RuntimeError), transaccion(base):
-        base.execute("INSERT INTO glosario (termino, categoria) VALUES ('Nala', 'nombre')")
+        base.execute("INSERT INTO cache (clave, valor, creado) VALUES ('Nala', '', '')")
         raise RuntimeError("fallo a mitad")
-    assert base.execute("SELECT count(*) FROM glosario").fetchone()[0] == 0
+    assert base.execute("SELECT count(*) FROM cache").fetchone()[0] == 0
 
     with transaccion(base):
-        base.execute("INSERT INTO glosario (termino, categoria) VALUES ('Nala', 'nombre')")
-    assert base.execute("SELECT count(*) FROM glosario").fetchone()[0] == 1
+        base.execute("INSERT INTO cache (clave, valor, creado) VALUES ('Nala', '', '')")
+    assert base.execute("SELECT count(*) FROM cache").fetchone()[0] == 1
 
 
 def test_la_transaccion_anidada_se_compone_con_la_exterior(base: sqlite3.Connection) -> None:
-    sql = "INSERT INTO glosario (termino, categoria) VALUES (?, 'nombre')"
+    sql = "INSERT INTO cache (clave, valor, creado) VALUES (?, '', '')"
     with transaccion(base):
         base.execute(sql, ("Nala",))
         with pytest.raises(RuntimeError), transaccion(base):
@@ -126,14 +158,14 @@ def test_la_transaccion_anidada_se_compone_con_la_exterior(base: sqlite3.Connect
         with transaccion(base):
             base.execute(sql, ("Brújula",))
         assert base.in_transaction
-    terminos = {f["termino"] for f in base.execute("SELECT termino FROM glosario")}
+    terminos = {f["clave"] for f in base.execute("SELECT clave FROM cache")}
     assert terminos == {"Nala", "Brújula"}
 
     with pytest.raises(RuntimeError), transaccion(base):
         with transaccion(base):
             base.execute(sql, ("Faro",))
         raise RuntimeError("falla la exterior después de confirmar la interior")
-    assert base.execute("SELECT count(*) FROM glosario").fetchone()[0] == 2
+    assert base.execute("SELECT count(*) FROM cache").fetchone()[0] == 2
 
 
 def test_no_se_crea_dos_veces_la_misma_base(tmp_path: Path) -> None:

@@ -30,6 +30,7 @@ ESTADO_HTTP: dict[CodigoError, int] = {
     CodigoError.NO_ENCONTRADO: 404,
     CodigoError.TRANSICION_INVALIDA: 409,
     CodigoError.ORDEN_AJENA: 409,
+    CodigoError.SELLO_INVALIDO: 409,
     CodigoError.DECISION_HUMANA_INVALIDA: 409,
     CodigoError.BLOQUEO_AJENO: 423,
     # Falta la cabecera del token, nadie ha tomado el bloqueo o caducó: hay que tomarlo antes.
