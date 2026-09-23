@@ -13,7 +13,7 @@ flowchart TB
     U2["API REST / SDK"]
   end
   subgraph ORQ["Capa de orquestación · Claude Code"]
-    O1["Sesión de Claude Code · recorre el grafo de estados"]
+    O1["Sesión de Claude Code · ejecuta las órdenes del backend"]
     O2["Cola de trabajos · un trabajo por regeneración · backend"]
   end
   subgraph AG["Capa de agentes · subagentes de Claude Code"]
@@ -43,7 +43,7 @@ flowchart TB
   VER --> LLM
 ```
 
-**Quién orquesta:** una sesión de Claude Code, no código propio. Recorre el grafo de estados como protocolo escrito, lanza cada agente como subagente y aplica la política de reintentos. El backend se queda con todo lo que no consume modelo: verificadores deterministas, persistencia, índice y exportación.
+**Quién orquesta:** una sesión de Claude Code ejecuta y el backend decide. El backend calcula en cada momento la **siguiente orden** —qué subagente lanzar y con qué entrada, o esperar a un humano— a partir del estado persistido, con los contadores y los topes; la sesión la pide, lanza el subagente indicado y registra el resultado. El backend se queda además con todo lo que no consume modelo: verificadores deterministas, persistencia, índice y exportación.
 
 **El texto no confiable no viaja.** La anécdota o carta del comprador y la petición del lector solo las lee quien las procesa: el Extractor de hechos y el Intérprete de cambios. **Tampoco pasan por la ventana del orquestador**: el orquestador recibe del backend un identificador opaco de un solo uso y se lo pasa al agente, que es quien pide el texto. El resto trabaja con los hechos validados y confirmados por el comprador.
 
@@ -124,7 +124,7 @@ flowchart LR
 
 | Agente | Responsabilidad | Entrada | Salida | Modelo |
 |---|---|---|---|---|
-| **Claude Code · orquestador** | Recorre el grafo de estados como protocolo, lanza los subagentes, aplica la política de reintentos y para en los puntos de aprobación humana. No genera prosa de la novela. | Estado del proyecto | Transiciones e invocaciones de subagente | Sesión de Claude Code |
+| **Claude Code · orquestador** | Pide al backend la siguiente orden, lanza el subagente que indica con la entrada que indica y registra el resultado. **No decide** qué paso toca, ni si se reintenta, ni cuándo parar: eso es del backend. No genera prosa de la novela. | Siguiente orden del backend | Invocaciones de subagente y resultados registrados | Sesión de Claude Code |
 | **Agente de Contexto** | Convierte el brief en el objeto de contexto de la ontología, rellena valores por defecto según el pipeline de decisión y pregunta lo que falte. | Brief | Contexto YAML validado | `sonnet` |
 | **Extractor de hechos** | Lee el texto libre del comprador —contenido no confiable— y devuelve solo hechos en el esquema cerrado de `definitions.md` §9. **Una sola herramienta, de solo lectura**: recibe el identificador opaco de un solo uso y devuelve ese texto y nada más. No puede escribir, no ve la biblia ni otros proyectos, y una salida fuera del esquema falla la validación, así que una instrucción inyectada no tiene efecto fuera de su salida. Descarta los datos excluidos (§10). | Identificador del texto libre | Hechos propuestos, pendientes de confirmación | `haiku` |
 | **Arquitecto narrativo** | Elige modelo estructural, reparte hitos por capítulo, define curva de tensión, pregunta dramática y tipo de final. | Contexto | Plan estructural | `sonnet` |
@@ -144,6 +144,8 @@ El **Recuperador de contexto** de §5 no está en esta tabla a propósito: no es
 ### 3.1 El grafo de estados
 
 La sesión de Claude Code no guarda el estado en su propia ventana. El estado del proyecto es una fila en SQLite y la sesión es un **ejecutor sin memoria propia**: lee dónde está, lanza un subagente, escribe el resultado y vuelve a leer. Un fin de ventana de contexto, un portátil cerrado y una pausa de tres días esperando una aprobación son el mismo caso, y reanudar es siempre lo mismo: leer la fila y seguir.
+
+**Quién decide el siguiente paso.** El backend expone la **siguiente orden** de un proyecto. Su elección es una función determinista del estado persistido, y la orden **se persiste al emitirse** —con los identificadores de un solo uso y el fichero de prompt que necesite—, así que pedirla otra vez mientras sigue vigente devuelve la misma. Indica qué subagente lanzar, con qué entrada (el prompt ensamblado o los identificadores que necesita) y dónde registrar el resultado; o bien `esperar_humano`, que el proyecto está en `publicada` o `detenida`, o `error_ensamblado` cuando el Recuperador no consigue que el prompt quepa (D-9, abierta). Cada orden lleva su número de intento, con tope 3 para cualquier agente. El resultado se registra contra la orden vigente: el backend valida su esquema, lo persiste y **escribe él la transición**; la sesión no escribe transiciones. Reintentos, topes, paradas y `detenida` se deciden ahí, con los contadores que ya viven en la base. La sesión no interpreta el grafo: pide, ejecuta, registra y vuelve a pedir. Así lo más frágil del sistema —un modelo aplicando reglas— pasa a ser código con pruebas, y la especificación TLA+ de §3.4 modela esa función.
 
 Esto es lo que convierte «el grafo de estados» de metáfora en tabla. Hay dos máquinas anidadas: la del **proyecto**, que recorre las fases de §2, y la del **capítulo**, que es el bucle de §5 y cuyos estados ya estaban definidos en §6 (`borrador`, `editado`, `verificado`, `aprobado`, `revision_humana`).
 
@@ -194,7 +196,9 @@ flowchart LR
 
 ### 3.2 Reintentos, fallos y reanudación
 
-El contador de intentos **no vive en la cabeza del orquestador**, vive en la fila del capítulo. Es la única forma de que el tope de 3 ciclos de §4 siga significando algo después de que la sesión se reinicie: una sesión nueva lee `intentos = 2` y sabe que le queda uno, en vez de empezar a contar desde cero y regenerar el mismo capítulo nueve veces.
+El contador de intentos **no vive en la cabeza del orquestador**, vive en la fila del capítulo, y es el backend quien decide con él si toca reintentar. Es la única forma de que el tope de 3 ciclos de §4 siga significando algo después de que la sesión se reinicie: una sesión nueva pide la siguiente orden y recibe el tercer intento, en vez de empezar a contar desde cero y regenerar el mismo capítulo nueve veces.
+
+**Un solo ejecutor por proyecto.** Hay dos formas de lanzar trabajo sobre una novela: la sesión interactiva con `/generar` y el worker con `/regenerar`. Para que nunca escriban a la vez, el proyecto tiene un **bloqueo** en su fila: quien empieza lo toma, lo renueva mientras trabaja y lo suelta al acabar, y caduca si la sesión muere, para que un proyecto no quede bloqueado para siempre. Con el bloqueo tomado, la siguiente orden se deniega a cualquier otro: el trabajo del worker espera en la cola y la sesión interactiva recibe un error explicativo.
 
 Cada transición se escribe **antes** de lanzar el siguiente subagente. Si la sesión muere a mitad, lo que se pierde es como mucho el trabajo de un subagente, nunca la posición en el grafo.
 
@@ -210,8 +214,9 @@ Esto es **protocolo, no algo que el backend pueda imponer**. El backend clavea l
 
 ### 3.3 Lo que el orquestador no hace
 
-Tres cosas, y conviene que estén escritas porque las tres son tentadoras cuando quien orquesta es un modelo:
+Cuatro cosas, y conviene que estén escritas porque las cuatro son tentadoras cuando quien orquesta es un modelo:
 
+- **No decide el siguiente paso.** Lo pide al backend y ejecuta la orden tal como llega, aunque crea que otra sería mejor.
 - **No escribe prosa de la novela.** Ni un párrafo de relleno, ni un arreglo rápido de una frase que el Editor dejó torcida. Si hace falta texto, se lanza el agente que corresponde.
 - **No escribe en la biblia.** Solo el Bibliotecario, y solo tras la verificación. La regla no depende de la buena voluntad del orquestador: la superficie de escritura se declara solo en la definición del Bibliotecario, así que la sesión principal no la ve, y el hook de policy la deniega a cualquier otro llamante (§7, §8).
 - **No se salta una parada humana activa.** Las paradas `aprobacion_plan` y `aprobacion_final` son configurables por proyecto y están desactivadas por defecto: para un regalo, el punto de control natural del comprador es leer y pedir cambios. Cuando están activas, no tienen transición automática de salida, ni siquiera con todos los verificadores en verde. `publicada`, `cambio_solicitado` y `detenida` tampoco salen sin acción humana.
@@ -220,17 +225,18 @@ Tres cosas, y conviene que estén escritas porque las tres son tentadoras cuando
 
 ### 3.4 La especificación TLA+ del grafo
 
-El grafo de §3.1 se especifica en TLA+ y se verifica con TLC en desarrollo (§7). Cada acción de la especificación es una fila de la tabla de transiciones; la correspondencia acción → transición del código se documenta junto a la especificación.
+El grafo de §3.1 se especifica en TLA+ y se verifica con TLC en desarrollo (§7). La especificación modela la **función que calcula la siguiente orden** y la tabla de transiciones, que son código del backend; cada acción de la especificación corresponde a una rama de esa función o a una fila de la tabla, y la correspondencia se documenta junto a la especificación. Incluye el bloqueo por proyecto, para comprobar que dos ejecutores nunca trabajan a la vez.
 
-Modelo pequeño: 5 capítulos, 2 intentos por capítulo, 2 ciclos de revisión, 1 cambio del lector y caídas de la sesión en cualquier estado seguidas de reanudación.
+Modelo pequeño: 5 capítulos, 2 intentos por orden, 2 ciclos de revisión, 1 cambio del lector, dos ejecutores que compiten por el bloqueo y caídas de la sesión en cualquier estado seguidas de reanudación.
 
 Invariantes de seguridad:
 
 1. **Nunca se publica una versión con un capítulo que no ha pasado todos los validadores.**
 2. **La reanudación desde checkpoint no duplica ni pierde capítulos**: tras una caída, cada capítulo tiene exactamente una versión vigente dentro de la versión de novela en curso.
 3. **La versión anterior se conserva siempre tras una regeneración**: publicar la N+1 no modifica la N.
-4. **Los reintentos nunca superan el límite**: ni los intentos por capítulo ni los ciclos de revisión.
+4. **Los reintentos nunca superan el límite**: ni los intentos de una orden ni los ciclos de revisión.
 5. **Una parada humana activa no se sale sin acción humana.**
+6. **Dos ejecutores nunca trabajan a la vez sobre el mismo proyecto.**
 
 Liveness: **toda generación termina en `publicada` o en `detenida`**, y todo cambio confirmado termina en una versión nueva o en un cambio fallido. Se verifica con equidad débil sobre las acciones del sistema, y suponiendo que el humano acaba respondiendo en las paradas activas; «reintentar» desde `detenida` se acota en el modelo con una constante, porque es un humano quien lo decide.
 
@@ -241,6 +247,7 @@ Se distinguen dos familias: los **deterministas** (código, baratos, siempre se 
 ```mermaid
 flowchart LR
   V["Verificadores"] --> D["Deterministas · código"]
+  D --> D0["Esquema de salida por agente · al registrar"]
   V --> J["LLM-juez · rúbrica"]
   D --> D1["Esquema · el contexto cumple la ontología"]
   D --> D2["Longitud · capítulo y manuscrito dentro de tolerancia"]
@@ -261,7 +268,8 @@ flowchart LR
 
 | Verificador | Momento | Tipo | Severidad si falla | Acción |
 |---|---|---|---|---|
-| Esquema del contexto | Tras instanciar la ontología | Determinista (JSON Schema) | Bloqueante | Agente de Contexto corrige |
+| Esquema de salida por agente | Al registrar cualquier resultado de un subagente | Determinista (Pydantic, un modelo por agente) | Bloqueante | Nueva invocación del mismo agente; cuenta como intento de la orden |
+| Esquema del contexto | Tras instanciar la ontología | Determinista (Pydantic) | Bloqueante | Agente de Contexto corrige |
 | Longitud | Cada capítulo y al final | Determinista | Media | Editor amplía o recorta |
 | Métricas de estilo | Cada capítulo | Determinista | Baja / Media | Editor de estilo |
 | Nombres y grafías | Cada capítulo | Determinista contra glosario | Media | Editor de estilo |
@@ -308,33 +316,36 @@ Tres listas en SQLite: **global** (insultos y términos ofensivos), **por públi
 
 ```mermaid
 sequenceDiagram
-  participant O as Claude Code
-  participant R as Recuperador de contexto
-  participant B as Biblia
+  participant O as Sesión de Claude Code
+  participant K as Backend
   participant W as Escritor
   participant E as Editor de estilo
-  participant VD as Verificadores deterministas
-  participant VJ as Verificadores LLM-juez
+  participant J as Juez de capítulo
   participant L as Bibliotecario
 
-  O->>R: ficha del capítulo n
-  R->>B: estado actual, resumen acumulado, fichas de personajes presentes, localización, presagios pendientes
-  B-->>R: paquete de contexto
-  R-->>W: prompt ensamblado (ficha + contexto + guía de estilo)
-  W-->>E: borrador
-  E-->>VD: borrador editado
-  VD-->>O: informe determinista
+  O->>K: siguiente orden
+  K-->>O: lanzar Escritor · prompt ensamblado por el Recuperador
+  O->>W: prompt
+  W-->>K: borrador · lo registra el hook de validación
+  O->>K: siguiente orden
+  K-->>O: lanzar Editor de estilo · borrador y guía de estilo
+  O->>E: borrador
+  E-->>K: borrador editado · hook: esquema, deterministas y guardarraíl
   alt fallo bloqueante o alto
-    O->>W: regenerar con informe
+    O->>K: siguiente orden
+    K-->>O: nuevo intento del Escritor con el informe
   else ok
-    VD-->>VJ: borrador
-    VJ-->>O: informe de jueces
+    O->>K: siguiente orden
+    K-->>O: lanzar juez de capítulo
+    O->>J: capítulo y biblia como evidencia
+    J-->>K: informe del juez
     alt fallo
-      O->>W: regenerar pasaje con informe
+      K-->>O: nuevo intento del Escritor con el informe
     else ok
-      O->>L: capítulo aprobado
-      L->>B: hechos nuevos, resumen, estado de objetos y personajes
-      O->>O: siguiente capítulo
+      K-->>O: lanzar Bibliotecario · capítulo verificado
+      O->>L: capítulo
+      L->>K: hechos, uso de hechos y resumen · por /mcp/escritura
+      K-->>O: siguiente capítulo
     end
   end
 ```
@@ -480,7 +491,7 @@ El margen no cuesta nada en el caso normal. 100.000 ÷ 1,35 ≈ 74k tokens de `t
 Dos consecuencias de implementación:
 
 - El estimador vive **detrás de una interfaz estrecha** —recibe texto, devuelve un entero—, con la misma disciplina que el módulo de similitud. El día que haya acceso a `count_tokens` o a un tokenizador de Claude, se cambia ese módulo y nada más lo nota. El factor de inflación es una constante de ese módulo: medible y ajustable en un sitio único.
-- El fichero BPE de la codificación se **versiona en el repositorio**, con `TIKTOKEN_CACHE_DIR` apuntando a él. `tiktoken` se lo descarga de la red la primera vez que se usa; si el estimador depende de esa descarga, se caen a la vez el determinismo y el arranque sin red.
+- El fichero BPE de la codificación se **versiona en el repositorio**, con `TIKTOKEN_CACHE_DIR` apuntando a él, y **marcado como binario en `.gitattributes`**: `tiktoken` comprueba su SHA-256 y, si no coincide, borra la copia y la vuelve a descargar, y una conversión de saltos de línea de Git (`core.autocrlf`) basta para romper ese hash. `tiktoken` se lo descarga de la red la primera vez que se usa; si el estimador depende de esa descarga, se caen a la vez el determinismo y el arranque sin red.
 
 #### Dos mecanismos, no uno
 
@@ -524,10 +535,10 @@ Lo decidido hasta ahora es solo esto:
 |---|---|
 | Backend | Python + FastAPI |
 | Frontend | React con Vite |
-| Orquestación de agentes | Claude Code: la sesión recorre el grafo y los agentes son subagentes suyos |
+| Orquestación de agentes | Claude Code ejecuta: la sesión pide al backend la siguiente orden y lanza el subagente que indica. El backend decide |
 | Base de datos | SQLite local, un fichero por proyecto, en modo WAL: relacional, vectorial y caché en la misma base |
 | Almacén de objetos | Ficheros en disco, sin servicio aparte |
-| Acceso de Claude Code a la biblia | **Servidor MCP con FastMCP, montado dentro del FastAPI**, sobre la misma base SQLite y en el mismo proceso, en **tres superficies**: `/mcp/lectura`, declarada en `.mcp.json`, y `/mcp/escritura`, declarada **solo** en el campo `mcpServers` de la definición del Bibliotecario; y `/mcp/entrada`, que entrega el texto no confiable al Extractor y al Intérprete, y solo ellos la declaran (§8). Herramientas tipadas, nunca SQL libre |
+| Acceso de Claude Code a la biblia | **Servidor MCP con el paquete `fastmcp`, montado dentro del FastAPI** —el `lifespan` de cada superficie montada se combina con el de la aplicación, porque Starlette no arranca el de las subaplicaciones—, sobre la misma base SQLite y en el mismo proceso, en **tres superficies**: `/mcp/lectura`, declarada en `.mcp.json`, y `/mcp/escritura`, declarada **solo** en el campo `mcpServers` de la definición del Bibliotecario; y `/mcp/entrada`, que entrega el texto no confiable al Extractor y al Intérprete, y solo ellos la declaran (§8). Herramientas tipadas, nunca SQL libre |
 | Estado del orquestador | Una fila en SQLite, no la ventana de la sesión (§3.1) |
 | Cola de trabajos | Una **tabla en SQLite** y un worker del backend que procesa un trabajo cada vez —el escritor único de SQLite lo exige— lanzando **`claude -p`** en modo headless con un comando propio de regeneración. El backend lanza un proceso, no llama a un modelo: sigue sin cliente LLM y el gasto sigue siendo de suscripción |
 | Estimación de tokens del Recuperador | `tiktoken` con `o200k_base` × 1,35, como **estimador conservador**, con el fichero BPE versionado en el repositorio. No es el tokenizador de Claude: ver §6.3 |
@@ -535,7 +546,7 @@ Lo decidido hasta ahora es solo esto:
 | Model checking del grafo de estados | **TLA+** puro, verificado con **TLC** (`tla2tools.jar`, requiere Java). Se ejecuta en desarrollo, no en cada generación |
 | Validación de la ontología | **Pydantic v2** como fuente única; el JSON Schema se genera desde los modelos |
 | Entorno y dependencias | **`uv`** con `pyproject.toml` y `uv.lock`, **Python 3.12** |
-| Pruebas y análisis estático | **`pytest`** con **`Hypothesis`** para las propiedades, **`mypy --strict`**, **`ruff`**, y **`mutmut`** solo sobre el validador de ontología y los verificadores |
+| Pruebas y análisis estático | **`pytest`** con **`Hypothesis`** para las propiedades, **`mypy --strict`**, **`ruff`**, y **`cosmic-ray`** solo sobre el validador de ontología y los verificadores. Se descartó `mutmut` 3 porque no funciona en Windows sin WSL |
 | Legibilidad en español | Índice de **Szigriszt-Pazos** con la escala **INFLESZ**, en código propio |
 | Inspección visual de la lectura web | **Playwright MCP**, declarado en `.mcp.json`. Lo usa la sesión de desarrollo, no ningún agente de la novela |
 
@@ -577,7 +588,7 @@ backend/
 
 Dos carpetas están en el árbol pero **fuera del reparto por fases**, y conviene que la excepción esté escrita en vez de deducirse:
 
-- **`proyecto/`** contiene lo transversal al proyecto entero: crearlo, su fila de estado, la tabla de transiciones permitidas, el historial y las dos aprobaciones humanas. No es una tarea de §2 porque las atraviesa todas. Las alternativas son peores: en `shared/` metería la máquina de estados entera en la carpeta que §8 quiere pequeña, y repartida entre rebanadas dispersaría una tabla de transiciones que es una sola cosa y el único sitio donde se hacen cumplir las paradas humanas.
+- **`proyecto/`** contiene lo transversal al proyecto entero: crearlo, su fila de estado, la tabla de transiciones permitidas, la función de siguiente orden, el bloqueo, el historial y las aprobaciones humanas. No es una tarea de §2 porque las atraviesa todas. Las alternativas son peores: en `shared/` metería la máquina de estados entera en la carpeta que §8 quiere pequeña, y repartida entre rebanadas dispersaría una tabla de transiciones que es una sola cosa y el único sitio donde se hacen cumplir las paradas humanas.
 - **`mcp/`** es un segundo canal de entrada a los mismos datos, igual que el router REST de cada rebanada. Sus herramientas delegan en la lógica de las rebanadas en vez de reimplementarla; si una herramienta necesita una consulta que no existe, la consulta se añade a su rebanada y la herramienta la llama.
 
 Las carpetas **aparecen cuando hay código que poner dentro**, no antes: no se crean vacías por simetría con este árbol.
@@ -594,7 +605,7 @@ Los agentes **no viven en `backend/`**: son configuración de Claude Code, versi
 .claude/
   agents/            · un fichero por agente de §3 y por juez: escritor.md, extractor-hechos.md, juez-manuscrito.md…
   skills/
-    orquestar-novela/  · la skill reutilizable: el protocolo del grafo de §3.1
+    orquestar-novela/  · la skill reutilizable: el bucle de ejecución de §3.1
     generar/           · punto de entrada interactivo · /generar
     regenerar/         · punto de entrada headless · /regenerar <trabajo>, lo lanza el worker
   settings.json      · hooks y permisos del proyecto
@@ -610,11 +621,11 @@ Los agentes **no viven en `backend/`**: son configuración de Claude Code, versi
 | Bibliotecario | `/mcp/lectura` y `/mcp/escritura`, esta última declarada en su propio `mcpServers` |
 | El resto | `/mcp/lectura` |
 
-**La skill reutilizable es el protocolo del grafo.** `orquestar-novela` recoge cómo se recorre §3.1: leer el estado, decidir qué subagente toca, escribir la transición antes de lanzarlo, aplicar los topes y parar donde toca. La invocan dos puntos de entrada finos: `/generar`, en la terminal, y `/regenerar`, que el worker lanza con `claude -p`. El worker **nunca** usa el modo `--bare`: en ese modo Claude Code lee una clave de API en vez de la suscripción, y además no carga hooks ni MCP.
+**La skill reutilizable es el bucle de ejecución.** `orquestar-novela` recoge cómo se ejecuta §3.1: tomar el bloqueo del proyecto, pedir la siguiente orden, lanzar el subagente que indica con la entrada que indica, registrar el resultado —salvo los borradores de capítulo, que registra el hook de validación— y repetir hasta recibir `esperar_humano`, `publicada` o `detenida`. No contiene reglas de decisión: esas viven en el backend. La invocan dos puntos de entrada finos: `/generar`, en la terminal, y `/regenerar`, que el worker lanza con `claude -p`. El worker **nunca** usa el modo `--bare`: en ese modo Claude Code lee una clave de API en vez de la suscripción, y además no carga hooks ni MCP.
 
 **Dos hooks, en `.claude/settings.json`:**
 
-- **Validación de capítulo** (`SubagentStop` del Editor de estilo y del Revisor). Registra el borrador que devuelve el subagente como versión de `(capítulo, versión, intento)` y ejecuta en el backend los verificadores deterministas y el guardarraíl. Garantiza que ningún borrador avanza sin verificar, se acuerde o no el orquestador. **No fuerza al subagente a seguir**: eso convertiría un reintento en una continuación dentro de la misma invocación, lo que §3.2 prohíbe. El informe queda en el backend, y el grafo no deja pasar el capítulo a `verificado` sin él; el reintento es una invocación nueva.
+- **Validación de capítulo** (`SubagentStop` del Escritor, el Editor de estilo y el Revisor). Es quien **registra** los borradores de capítulo: envía el que devuelve el subagente al backend como resultado de la orden vigente, y el backend valida su esquema y, sobre los del Editor y el Revisor, ejecuta los verificadores deterministas y el guardarraíl. Las demás salidas las registra la skill; nunca hay dos vías para lo mismo. Garantiza que ningún borrador avanza sin verificar, se acuerde o no el orquestador. **No fuerza al subagente a seguir**: eso convertiría un reintento en una continuación dentro de la misma invocación, lo que §3.2 prohíbe. El reintento lo decide el backend y es una invocación nueva.
 - **Policy** (`PreToolUse`). Hace cumplir las reglas de §3.3 que no cubre la configuración: deniega las herramientas de escritura de la biblia a cualquier llamada cuyo `agent_type` no sea `bibliotecario`; deniega escribir con las herramientas de fichero en los datos del proyecto —la base, `capitulos/`, `export/`—, a los que solo se entra por la API o el MCP; y deniega leer con ellas el texto libre y las peticiones del lector. Cada decisión, permitida o denegada, queda en el audit log (`auditoria`).
 
 Se commitea todo lo anterior. `.claude/settings.local.json` no: son permisos personales.

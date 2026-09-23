@@ -6,7 +6,7 @@
 >
 > - La skill `verificacion` es el **procedimiento**: cómo se elige un método para una afirmación nueva. No repite este reparto.
 > - Este documento es el **reparto por pieza**: qué método cubre cada pieza de la arquitectura, y qué se ha descartado y por qué.
-> - [specs/spec1.md](../specs/spec1.md) §9 es el **criterio de aceptación por requisito** del backend v1: `V-1` a `V-31`. Cuando una fila de aquí tiene un `V-n`, ese es su enunciado exacto y este documento no lo reescribe.
+> - [specs/spec1.md](../specs/spec1.md) §9 es el **criterio de aceptación por requisito** del backend v1: `V-1` a `V-35`. Cuando una fila de aquí tiene un `V-n`, ese es su enunciado exacto y este documento no lo reescribe.
 >
 > La dirección importa: si las dos vistas discrepan, manda `spec1.md`, porque un criterio de aceptación es un compromiso y esto es su mapa.
 
@@ -91,6 +91,9 @@ La forma de la batería la fija **D-4**, ya resuelta ([spec1.md](../specs/spec1.
 | Afirmación | Método | Tipo | Criterio |
 |---|---|---|---|
 | Matar el proceso en cualquier estado y reanudar pierde como mucho el trabajo de un subagente | Prueba de integración que mata y reanuda en cada estado del grafo | T | V-1 |
+| El diseño del grafo —tabla de transiciones, función de siguiente orden y bloqueo— cumple sus invariantes de seguridad y su liveness | Model checking: especificación TLA+ verificada con TLC sobre un modelo pequeño | A | V-25 |
+| La siguiente orden es determinista, respeta la tabla de transiciones y nunca supera los topes | Propiedades sobre estados generados | T | V-33 |
+| Dos ejecutores nunca trabajan a la vez sobre el mismo proyecto, y un bloqueo caducado se puede retomar | Prueba de integración | T | V-34 |
 | Repetir un paso ya completado no duplica filas ni ficheros | Prueba basada en propiedades sobre paso × número de repeticiones | T | V-2 |
 | No existe secuencia de llamadas que salga de una parada humana activa, ni de `publicada`, `cambio_solicitado` o `detenida`, sin acción humana | Prueba de integración sobre la tabla de transiciones | T | V-14 |
 | El contador de intentos sobrevive al reinicio y el tope de 3 sigue significando algo | Las mismas pruebas de V-1 y V-2, leyendo el contador tras el reinicio | T | V-1 |
@@ -146,6 +149,7 @@ Aquí el objeto verificado es **nuestro código**, no el manuscrito. Lo que se c
 |---|---|---|---|
 | Continuidad dura (presencia, inventario, tiempo) dispara ante cada infracción y **no** dispara en los casos de control | Biblias y capítulos construidos para infringir cada regla, más casos de control | T | V-12 |
 | Longitud, métricas de estilo, lista negra y nombres devuelven informe con severidad y localización, y nunca corrigen | Pruebas unitarias por verificador | T | — |
+| Ninguna salida de subagente mal formada se persiste, y cada una cuenta como intento | Por agente, salidas válidas y mal formadas | T | V-35 |
 | El guardarraíl detecta cada nivel —global, por público, por novela— y las variantes de acento y plural, y no dispara en los casos de control | Pruebas por nivel y por variante | T | V-26 |
 | Las frases literales se detectan en los capítulos que las usan | Pruebas con frases presentes y ausentes | T | V-28 |
 | Los deterministas de un capítulo terminan en segundos | Prueba con capítulo de tamaño máximo y umbral de tiempo | T | V-7 |
@@ -199,7 +203,7 @@ Las tres son `A` y no `T` a propósito: son afirmaciones sobre el **texto del re
 
 ## 3. Verificación del comportamiento de los agentes
 
-Los agentes son subagentes de Claude Code y el backend no llama a ningún modelo, así que lo que aquí se verifica no es código del backend sino prompts, definiciones de subagente y el grafo que recorre la sesión.
+Los agentes son subagentes de Claude Code y el backend no llama a ningún modelo, así que lo que aquí se verifica no es código del backend sino prompts y definiciones de subagente. La decisión de qué paso toca es código del backend y se verifica en §2.3.
 
 | Afirmación | Método | Tipo | Fase | Criterio |
 |---|---|---|---|---|
@@ -208,9 +212,8 @@ Los agentes son subagentes de Claude Code y el backend no llama a ningún modelo
 | El Editor de estilo no cambia hechos, solo prosa | Evals con juez sobre el diff entre borrador y borrador editado | I | 1 | — |
 | Los jueces LLM coinciden con el criterio humano | Revisión humana de al menos una novela completa con la misma rúbrica del juez ([architecture.md](architecture.md) §4.1), y comparación criterio a criterio | I | 1 | — |
 | El Extractor de hechos y el Intérprete de cambios no obedecen instrucciones inyectadas en el texto del comprador o del lector, ni devuelven datos de otro proyecto o datos excluidos | Red teaming: briefs adversariales con resultado esperado, y un red-team log con cada caso, qué lo detectó y cómo se resolvió | T | 1 | V-29 |
-| El diseño del grafo de estados cumple sus invariantes de seguridad y su liveness | Model checking: especificación TLA+ del grafo verificada con TLC sobre un modelo pequeño | A | 1 | V-25 |
 | El coste y la latencia por capítulo se mantienen en lo estimado | Observabilidad y trazas en ejecución | D | 1 | — |
-| **La sesión de Claude Code sigue el grafo verificado** | **Ninguno** — ver §5 | **U** | — | V-18 |
+| **La sesión ejecuta la orden que recibe del backend** | **Ninguno** — ver §5 | **U** | — | V-18 |
 
 Tres notas sobre por qué el reparto queda así:
 
@@ -237,7 +240,7 @@ Las dos siguen siendo deseables, y la primera es una decisión ya tomada de la a
 
 ## 4. El manuscrito: aquí no
 
-Los verificadores de [architecture.md](architecture.md) §4 **no son métodos de este documento**. Son funcionalidad del producto, con su tabla de severidades y su política de 3 reintentos. Eso vale para los doce de aquella tabla, deterministas y jueces por igual: Esquema, Longitud, Métricas de estilo, Nombres, Continuidad dura, Hito estructural, Coherencia blanda, Voz y POV, Contenido y líneas rojas, Verificación de acto, Verificación de manuscrito y Originalidad.
+Los verificadores de [architecture.md](architecture.md) §4 **no son métodos de este documento**. Son funcionalidad del producto, con su tabla de severidades y su política de 3 reintentos. Eso vale para todos los de aquella tabla, deterministas y jueces por igual: Esquema, Longitud, Métricas de estilo, Nombres, Continuidad dura, Hito estructural, Coherencia blanda, Voz y POV, Contenido y líneas rojas, Verificación de acto, Verificación de manuscrito y Originalidad.
 
 Los deterministas de esa lista aparecen además en §2.2 y §2.6, y eso no es una contradicción sino la doble condición que ya anunciaba §1.1: **son producto y son código nuestro a la vez**. Como producto, juzgan el manuscrito y no se discuten aquí. Como código nuestro, hay que comprobar que detectan lo que dicen detectar, y eso sí es §2. Los jueces LLM tienen una segunda cara más pequeña: su juicio es producto, pero el umbral que el backend aplica sobre su informe es código nuestro y se prueba (V-32, §2.8).
 
@@ -260,7 +263,7 @@ Las tres afirmaciones marcadas `U` arriba, juntas y con su motivo. «Que el manu
 | Afirmación | Por qué no se verifica | Qué lo acota mientras tanto |
 |---|---|---|
 | **Los deterministas detectan toda incoherencia** (V-17) | Detectan las reglas escritas, no la incoherencia en general. Los falsos negativos son consustanciales al método, no un defecto de la batería | Los jueces de coherencia blanda y el de manuscrito, que atacan justo lo que un determinista no ve, y la cronología formal de Lean para lo temporal |
-| **La sesión sigue el grafo verificado** (V-18) | TLC verifica el **diseño** del grafo (V-25), no que la sesión lo recorra: el backend rechaza transiciones inválidas pero no puede garantizar que la sesión intente las correctas. Incluye la regla de que **una invocación es un intento** ([architecture.md](architecture.md) §3.2): el backend clavea por `(capítulo, versión, intento)` y cuenta hasta tres, pero no puede distinguir dos intentos en dos invocaciones de dos dentro de la misma | La tabla de transiciones permitidas, que es la que TLC modela, y las paradas humanas. El riesgo queda acotado a la distancia entre la especificación y la sesión |
+| **La sesión ejecuta la orden que recibe** (V-18) | Quién decide el siguiente paso ya es el backend, y eso se verifica (V-25, V-33). Lo que no se puede verificar es que la sesión ejecute la orden tal como llega, incluida la regla de que **una invocación es un intento** ([architecture.md](architecture.md) §3.2) | La skill no contiene reglas que interpretar, solo el bucle pedir-ejecutar-registrar; y el backend rechaza cualquier resultado que no corresponda a la orden vigente |
 | **El factor 1,35 del estimador basta** (§2.5) | No existe la verdad contra la que comparar: el `count_tokens` de Anthropic exige una clave que no tenemos, y usarla rompería el determinismo de V-3a | El margen es amplio en el caso normal —74k efectivos frente a ~43k esperados—, el factor vive en un sitio único y es medible el día que haya con qué medirlo |
 
 A esta lista se suma **D-9** de [spec1.md](../specs/spec1.md) §10, que no es un riesgo aceptado sino un hueco abierto: qué hace el Recuperador cuando ni la ficha sola cabe. Mientras no se decida, fallar de forma ruidosa es el comportamiento correcto — y eso sí es verificable con `T`, así que tiene su fila en §2.5 aunque todavía no tenga criterio. La prueba no espera a la decisión: es justamente lo que impide resolverla sobre la marcha truncando en silencio.
@@ -278,7 +281,7 @@ No se borran del mapa: se marcan, para que dentro de seis meses nadie los vuelva
 | **Ejecución en sandbox** | Descartado en fases 1 y 2 | La ejecución es local, de un solo comprador y sobre un fichero por proyecto. El aislamiento lo da RNF-09, que desde ahora se sostiene con V-24 en §2.9 y no como supuesto. Se revisa con el multiusuario de fase 3 |
 | **Despliegue progresivo** | Descartado | No hay despliegue: D-8 sigue abierta y la ejecución es local. Sin tráfico que dividir, no hay nada que liberar por porcentajes |
 | **Red teaming** | Adoptado (§3) | Se descartó cuando el brief lo escribía el propio editor y no había entrada de terceros. Con el texto libre del comprador ya la hay: es contenido no confiable y el vector de inyección hacia el Extractor de hechos |
-| **Model checking** | Adoptado (§3) | TLA+ con TLC sobre el grafo de [architecture.md](architecture.md) §3.1 (V-25). Se aplazó porque las pruebas de integración (V-14, V-19) bastaban con un grafo pequeño; con reintentos, reanudación y regeneración por el lector deja de serlo, y es el único método que ataca V-18 de frente. Las pruebas de integración se mantienen: verifican el código, TLC el diseño |
+| **Model checking** | Adoptado (§2.3) | TLA+ con TLC sobre la tabla de transiciones y la función de siguiente orden de [architecture.md](architecture.md) §3.1 (V-25). Se aplazó porque las pruebas de integración (V-14, V-19) bastaban con un grafo pequeño; con reintentos, reanudación y regeneración por el lector deja de serlo, y es lo que permitió reducir V-18: la decisión la verifica TLC, y a la sesión solo le queda ejecutarla. Las pruebas de integración se mantienen: verifican el código, TLC el diseño |
 | **Revisión humana en el bucle** | Adoptado, pero como producto | Las dos paradas de [architecture.md](architecture.md) §10 son funcionalidad del generador, no un método de verificación de nuestro código. Aparecen aquí para que no se cuenten dos veces. La revisión humana **de evaluación**, con la rúbrica del juez, sí es método y está en §3 |
 | **Verificación multiagente** | Candidato de fase 2 | Los jueces LLM de `architecture.md` §4 son ya un caso de crítico/verificador, aplicado al manuscrito. Como método sobre **nuestro** proceso —autoconsistencia entre ejecuciones, debate— no se adopta: multiplica coste de modelo sin criterio de parada claro |
 
@@ -297,8 +300,8 @@ flowchart LR
 
   A --> AT["T · evals con dataset · Bibliotecario · red teaming del Extractor"]
   A --> AI["I · evals con juez · Escritor, Editor · revisión humana frente al juez"]
-  A --> AA["A · model checking del grafo con TLC"]
-  A --> AD["D · trazas · coste y latencia · fase 3 · depende de D-3"]
+  C --> CM["A · model checking con TLC · siguiente orden y transiciones"]
+  A --> AD["D · trazas · coste y latencia · fase 1 · depende de D-3"]
 
   V --> U["§5 · Riesgo aceptado · V-17, V-18, factor 1,35"]
   V -.-> CTL["§3.1 · Controles · superficies MCP, CI · no verifican"]
@@ -314,4 +317,4 @@ Cuando aparece una afirmación nueva que hay que sostener:
 1. Se invoca la skill `verificacion`, que es el procedimiento de elección: escribir la afirmación en forma comprobable, decidir de cuál de las tres columnas de §1.1 habla, y elegir la garantía más barata que la sostenga.
 2. Si la afirmación es un requisito del backend v1, su criterio se escribe en [spec1.md](../specs/spec1.md) §9 como un `V-n` nuevo, y **aquí** se añade la fila que lo mapea a su pieza.
 3. Si ningún método la sostiene, se marca `U` y se añade a §5 con su motivo. Eso cierra el asunto de forma explícita, que es el objetivo.
-4. Si el método elegido exige una herramienta que no está en [architecture.md](architecture.md) §7, la herramienta **no se introduce aquí**: se propone como decisión y entra en esa tabla en el mismo cambio. Las herramientas que sostienen los métodos de este documento —`pytest`, `Hypothesis`, `mypy`, `ruff`, `mutmut`, Lean 4 y TLC— ya están en esa tabla (D-7).
+4. Si el método elegido exige una herramienta que no está en [architecture.md](architecture.md) §7, la herramienta **no se introduce aquí**: se propone como decisión y entra en esa tabla en el mismo cambio. Las herramientas que sostienen los métodos de este documento —`pytest`, `Hypothesis`, `mypy`, `ruff`, `cosmic-ray`, Lean 4 y TLC— ya están en esa tabla (D-7).

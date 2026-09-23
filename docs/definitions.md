@@ -114,7 +114,7 @@ Cuando el protagonista es el destinatario real, el **defecto fatal** y los arcos
 | **Tiempo verbal** | Tiempo base de la narración. | `preterito` (defecto), `presente` |
 | **Registro** | Nivel de formalidad del lenguaje narrativo. | Enum |
 | **Voz autoral** | Personalidad estilística global; puede referirse a un tono o tradición, nunca a la copia de un autor concreto. | Descripción + 2-3 rasgos |
-| **Diálogo** | Reglas de construcción del habla de los personajes. | `proporcion %`, `tratamiento`, `raya|comillas` |
+| **Diálogo** | Reglas de construcción del habla de los personajes. | `proporcion %`, `tratamiento`, `raya` o `comillas` |
 | **Prosa** | Métricas de la escritura. | `frase_media_palabras`, `descriptivo 1-5`, `legibilidad` |
 | Léxico especializado | Vocabulario técnico del subgénero que aporta verosimilitud. | Lista de dominios |
 | Convención onomástica | Reglas para crear nombres coherentes (fonética, sufijos, cultura). No se aplica a los personajes reales, que conservan su nombre. | Texto + ejemplos |
@@ -267,7 +267,7 @@ novela:
   tipo_aventura:
     subgenero: {primario: tesoro, secundarios: [expedicion]}
     mision: busqueda
-    macguffin: "El mapa escondido en la caja de la brújula"
+    macguffin: {nombre: "El mapa de la brújula", descripcion: "Un mapa escondido en la caja de la brújula del abuelo", por_que_importa: "Lleva al tesoro que el abuelo nunca llegó a buscar"}
     conflicto: {externo: [persona_vs_naturaleza, persona_vs_persona], interno: "no sabe pedir ayuda"}
     contenido: {violencia: 1, romance: 0, lenguaje: 0, sensibles: 0}
   formato:
@@ -303,13 +303,16 @@ novela:
       arco: redencion
   mundo:
     tipo: contemporaneo
-    epoca: "actualidad"
+    epoca: {fecha_inicio: 2026, duracion_historia: "tres días"}
     localizaciones:
-      - {id: pueblo, nivel: macro, padre: null}
+      - {id: comarca, nivel: macro, padre: null}
+      - {id: pueblo, nivel: meso, padre: comarca}
+      - {id: bosque, nivel: meso, padre: comarca}
+      - {id: costa, nivel: meso, padre: comarca}
       - {id: casa_abuela, nivel: micro, padre: pueblo}
-      - {id: bosque, nivel: meso, padre: pueblo}
-      - {id: faro, nivel: micro, padre: bosque}
       - {id: cueva_final, nivel: micro, padre: bosque}
+      - {id: faro, nivel: micro, padre: costa}
+      - {id: playa, nivel: micro, padre: costa}
     ruta:
       - {id: casa_abuela, dias_viaje: 0}
       - {id: bosque, dias_viaje: 1}

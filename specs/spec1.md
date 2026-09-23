@@ -86,7 +86,7 @@ Los términos del dominio (acto, hito, escaleta, presagio, biblia, arco…) est�
 
 ### 2.1 Perspectiva del producto
 
-El backend **no orquesta**. Quien recorre el grafo es una sesión de Claude Code ([docs/architecture.md](../docs/architecture.md) §1, §3). El backend es el sustrato que esa sesión usa: guarda el estado, le da contexto ensamblado, ejecuta las comprobaciones baratas y sirve los datos al panel.
+**La sesión ejecuta y el backend decide.** Quien lanza los subagentes es una sesión de Claude Code ([docs/architecture.md](../docs/architecture.md) §1, §3), pero no elige qué toca: se lo pide al backend, que calcula la siguiente orden (RF-08). El backend es además el sustrato que esa sesión usa: guarda el estado, ensambla el contexto, ejecuta las comprobaciones baratas y sirve los datos a la web.
 
 ```mermaid
 flowchart LR
@@ -107,7 +107,7 @@ Consecuencia de diseño que atraviesa todo el documento: **el backend nunca llam
 
 1. Validar el objeto de contexto contra la ontología.
 2. Persistir proyecto, contexto, plan, fichas, capítulos, biblia e informes.
-3. Mantener y exponer el estado del grafo, con reintentos contados en la fila del capítulo.
+3. Mantener el estado del grafo, decidir la siguiente orden con los contadores y topes persistidos, y garantizar con un bloqueo que solo un ejecutor trabaja en cada proyecto.
 4. Ensamblar el prompt del Escritor por debajo del tope de 100.000 tokens de entrada.
 5. Ejecutar los verificadores deterministas y devolver informes.
 6. Dar acceso tipado a la biblia a los subagentes que declaran `/mcp/lectura` —no al Escritor, que trabaja con el prompt del Recuperador—, escritura solo al Bibliotecario, y el texto no confiable solo al Extractor y al Intérprete.
@@ -118,7 +118,7 @@ Consecuencia de diseño que atraviesa todo el documento: **el backend nunca llam
 | Actor | Qué hace contra el backend |
 |---|---|
 | **Comprador** | Crea el proyecto, responde a la entrevista, confirma hechos y cambios, aprueba en las paradas si las activa, lee la novela y pide cambios. Vía web → API REST. |
-| **Sesión de Claude Code** | Lee y escribe estado, lanza pasos, pide contexto ensamblado, ejecuta verificadores. Vía API REST y MCP. |
+| **Sesión de Claude Code** | Toma el bloqueo, pide la siguiente orden, lanza el subagente que indica y registra el resultado. No escribe transiciones. Vía API REST. |
 | **Subagente** | Lee la biblia si declara `/mcp/lectura`; solo el Bibliotecario escribe; solo el Extractor y el Intérprete leen el texto no confiable. Vía MCP. |
 
 ### 2.4 Restricciones
@@ -155,7 +155,7 @@ backend/
   revision/        · informe de fallos → capítulos a corregir
   exportacion/     · publicación de versión: lectura web, PDF, manuscrito Markdown y metadatos
   shared/          · conexión SQLite con pragmas, esquema de la ontología, tipos comunes, rutas del proyecto
-  proyecto/        · estado del grafo, transiciones, aprobaciones humanas
+  proyecto/        · estado del grafo, transiciones, siguiente orden, bloqueo, aprobaciones humanas
   mcp/             · las tres superficies MCP, montadas en el FastAPI
   cambio/          · petición del lector → cambio de hecho confirmado → trabajo
 ```
@@ -180,15 +180,18 @@ Cada requisito tiene identificador estable, enunciado, y la sección de `docs/` 
 |---|---|---|---|
 | RF-01 | Crear un proyecto genera su fichero SQLite, su directorio en disco y su fila de estado inicial en `intake`. | M | §6, §3.1 |
 | RF-02 | El estado del proyecto se lee y se escribe como fila en SQLite; el backend no mantiene estado en memoria entre peticiones. | M | §3.1 |
-| RF-03 | Cada transición se persiste **antes** de que se lance el siguiente paso. | M | §3.2 |
+| RF-03 | La posición en el grafo se persiste **antes** de que se lance el siguiente paso: la orden queda registrada como vigente antes de devolverse a la sesión. La transición la escribe el backend al registrar el resultado de esa orden; la sesión no escribe transiciones. | M | §3.2 |
 | RF-04 | Las transiciones permitidas son exactamente las de la tabla de §3.1; una transición no contemplada se rechaza con error y no modifica la fila. | M | §3.1 |
 | RF-05 | Las paradas `aprobacion_plan` y `aprobacion_final` se activan por proyecto y están **inactivas por defecto**. Cuando están activas no tienen transición automática de salida: solo salen por una acción humana explícita en la API. | M | §3.3 |
 | RF-05a | `publicada`, `cambio_solicitado` y `detenida` solo salen por acción humana. | M | §3.1, §3.3 |
-| RF-06 | Toda escritura de resultado de paso está claveada por `(capítulo, versión, intento)`; repetir un paso ya completado produce la misma fila, no una duplicada. | M | §3.2 |
+| RF-06 | Toda escritura de resultado de paso está claveada por `(capítulo, versión, intento)` o por la orden que la produjo; registrar de nuevo el mismo resultado para la misma orden devuelve la fila existente, no una duplicada. | M | §3.2 |
 | RF-07 | El contador de intentos vive en la fila del capítulo, no en la sesión, y sobrevive al reinicio. | M | §3.2 |
-| RF-08 | Existe un endpoint de reanudación que devuelve, a partir del identificador de proyecto, el estado actual y qué paso toca. | M | §3.1 |
+| RF-07a | Toda orden lleva su número de intento, con tope 3 para cualquier agente. Agotado en una orden que no es de capítulo: `detenida` en la generación inicial; `publicada` con el cambio fallido en una regeneración. | M | §3.1, §3.2 |
+| RF-08 | El backend calcula la **siguiente orden** de un proyecto: qué subagente lanzar, con qué entrada —prompt ensamblado o identificadores— y dónde registrar el resultado; o `esperar_humano`, `publicada`, `detenida` o `error_ensamblado` —con el desglose del Recuperador, mientras D-9 siga abierta—. Reintentos, topes, paradas y `detenida` se deciden aquí con los contadores persistidos, no en la sesión. | M | §3.1 |
+| RF-08a | La elección de la orden es una función determinista del estado persistido. La orden **se persiste al emitirse**, con los identificadores de un solo uso y el fichero de prompt que necesite; pedir la siguiente orden mientras hay una vigente devuelve esa misma orden. Nunca indica una transición que la tabla de RF-04 no permita ni un intento por encima de los topes. Al registrar: un resultado para la orden vigente se valida y avanza el grafo; el mismo resultado otra vez es idempotente (RF-06); un resultado para otra orden se rechaza. | M | §3.1, §3.4 |
 | RF-09 | Se registra un historial append-only de transiciones con marca de tiempo, estado origen, estado destino y quién la provocó. | S | §3.1, §10 |
 | RF-09a | Borrar un proyecto elimina su fichero SQLite y su directorio en disco enteros. No hay retención automática. | M | §10 |
+| RF-09b | Bloqueo por proyecto en su fila: se toma al empezar a ejecutar, se renueva mientras se trabaja, se suelta al acabar y caduca si nadie lo renueva. Con el bloqueo tomado por otro ejecutor, la siguiente orden se deniega: el trabajo del worker sigue en la cola y la sesión interactiva recibe un error explicativo. | M | §3.2 |
 
 ### 4.2 Rebanada `intake`
 
@@ -270,7 +273,7 @@ Cada requisito tiene identificador estable, enunciado, y la sección de `docs/` 
 | RF-61 | El texto de cada versión es un fichero en disco, legible con `grep` y comparable con `diff`; la base guarda la ruta y los metadatos. | M | §6 |
 | RF-62 | Se guarda por capítulo: semilla, versión de prompt, versión de modelo y contexto exacto. | M | §10 |
 | RF-63 | Tope de 3 intentos por capítulo. Agotados, el capítulo pasa a `revision_humana` con los informes adjuntos. | M | §4, §3.2 |
-| RF-64 | Un capítulo en `revision_humana` no bloquea el bucle: la sesión sigue con el siguiente. Pero la versión no se publica: al acabar el bucle, el proyecto pasa a `detenida` —o, en una regeneración, vuelve a `publicada` con el cambio fallido—. | M | §3.2 |
+| RF-64 | Un capítulo en `revision_humana` no bloquea el bucle: la siguiente orden pasa al capítulo siguiente. Pero la versión no se publica: al acabar el bucle, el proyecto pasa a `detenida` —o, en una regeneración, vuelve a `publicada` con el cambio fallido—. | M | §3.2 |
 | RF-64a | Tope de 3 ciclos entre `verificacion_manuscrito` y `revision`. Agotado: `detenida` en la generación inicial; `publicada` con la versión anterior vigente y el cambio fallido en una regeneración. El contador vive en la fila del proyecto. | M | §3.2 |
 | RF-64b | Desde `detenida`, la acción humana «reintentar» reabre los capítulos en `revision_humana` con su contador a cero, pone a cero el contador de ciclos de revisión del proyecto y vuelve a `capitulos`; queda registrada en el historial. | M | §3.1 |
 | RF-65 | El backend rechaza cualquier escritura en la biblia que no venga de la herramienta del Bibliotecario, y cualquiera que se intente antes de que el capítulo esté verificado. | M | §1, §3.3 |
@@ -299,6 +302,7 @@ Y dos requisitos sobre cómo se ejecutan:
 
 | ID | Requisito | Prio | Origen |
 |---|---|---|---|
+| RF-77a | **Esquema de salida por agente:** todo resultado de un subagente se valida al registrarse contra el modelo Pydantic de salida de ese agente —el del Escritor es un sobre con título y texto del capítulo—. Si no encaja, no se persiste y cuenta como intento fallido. Es el primer determinista que se ejecuta. | M | §4 |
 | RF-77 | Los deterministas se ejecutan **siempre** y **antes** que cualquier juez. Un fallo alto o bloqueante corta el ciclo sin llegar a los jueces. | M | §4, §5 |
 | RF-78 | El informe lista hallazgos con: verificador, severidad, localización (capítulo, y offset o número de párrafo), evidencia citada, y regla infringida. | M | §4 |
 | RF-79 | El informe de Longitud declara la desviación en palabras y en porcentaje sobre el objetivo de la ficha, no solo si está dentro o fuera del rango: es la señal que el Recuperador necesita para explicar un prompt inflado. | S | §6.3 |
@@ -379,8 +383,10 @@ Cada rebanada aporta su router. Rutas indicativas, agrupadas por rebanada; la fo
 | Método y ruta | Rebanada | Para qué |
 |---|---|---|
 | `POST /proyectos` | transversal | Crear proyecto (RF-01) |
-| `GET /proyectos/{id}/estado` | transversal | Reanudación: dónde está y qué toca (RF-08) |
-| `POST /proyectos/{id}/transicion` | transversal | Registrar transición (RF-03, RF-04) |
+| `GET /proyectos/{id}/estado` | transversal | Estado actual y reanudación (RF-02) |
+| `POST /proyectos/{id}/siguiente` | transversal | Siguiente orden; idempotente mientras la orden siga vigente (RF-08, RF-08a) |
+| `POST /proyectos/{id}/bloqueo` · `DELETE …/bloqueo` | transversal | Tomar, renovar y soltar el bloqueo (RF-09b) |
+| `POST /proyectos/{id}/resultado` | transversal | Registrar el resultado de la orden vigente: el backend valida el esquema, persiste y escribe la transición (RF-03, RF-08a, RF-77a) |
 | `POST /proyectos/{id}/brief` | `intake` | Enviar brief (RF-10) |
 | `PUT /proyectos/{id}/contexto` | `contexto` | Guardar contexto; dispara validación (RF-21) |
 | `POST /proyectos/{id}/contexto/validar` | `contexto` | Validar sin guardar |
@@ -431,7 +437,7 @@ Un fichero SQLite por proyecto, en WAL. Entidades derivadas de [docs/architectur
 
 | Tabla | Contenido | Requisitos |
 |---|---|---|
-| `proyecto` | Identidad, ruta del directorio, versión de ontología, estado actual, paradas activas, ciclos de revisión | RF-01, RF-02, RF-05, RF-64a |
+| `proyecto` | Identidad, ruta del directorio, versión de ontología, estado actual, paradas activas, ciclos de revisión, bloqueo con su titular y caducidad | RF-01, RF-02, RF-05, RF-09b, RF-64a |
 | `version_novela` | Número, cambio que la originó, fecha | RF-94 |
 | `version_novela_capitulo` | Versión de novela → versión de capítulo | RF-94, RF-96 |
 | `cambio_lector` | Petición, cambio propuesto, valor anterior, estado | RF-120 a RF-123 |
@@ -537,18 +543,21 @@ Los identificadores van en orden de incorporación y no de importancia: los dos 
 | V-15 | Cobertura real de la batería | Pruebas de mutación sobre verificadores y validador de ontología | T |
 | V-16 | Que el manuscrito sea bueno | Juez de manuscrito con la rúbrica de cinco criterios, calibrado con la revisión humana de al menos una novela con la misma rúbrica (RF-113, RF-114) | I |
 | V-17 | **Que los verificadores deterministas detecten toda incoherencia real** | Detectan las reglas escritas, no la incoherencia en general. Los falsos negativos se aceptan y los acotan los jueces y la cronología formal de Lean | **U** |
-| V-18 | **Comportamiento del orquestador** | El grafo lo recorre una sesión de Claude Code: el backend puede rechazar transiciones inválidas, pero no puede garantizar que la sesión intente las correctas. Cubre también la regla de que **una invocación es un intento** ([docs/architecture.md](../docs/architecture.md) §3.2): el backend clavea por `(capítulo, versión, intento)` y cuenta hasta tres, pero no puede distinguir dos intentos hechos en dos invocaciones de dos hechos dentro de la misma. El **diseño** del grafo lo verifica V-25; lo que queda como riesgo aceptado es que la sesión lo siga | **U** |
+| V-18 | **La sesión ejecuta la orden que recibe** | El backend decide el siguiente paso (RF-08) y esa decisión se verifica con V-25 y V-33. Lo que queda sin verificar es solo que la sesión ejecute la orden tal como llega, incluida la regla de que **una invocación es un intento** ([docs/architecture.md](../docs/architecture.md) §3.2): el backend no puede distinguir dos intentos hechos en dos invocaciones de dos hechos dentro de la misma | **U** |
 | V-19 | Nada entra en la biblia antes de verificar (RN-2, RF-106) | Prueba de integración: una escritura sobre un capítulo que no está en `verificado` o posterior se rechaza, y la misma escritura se acepta cuando sí lo está. **No la cubre V-13**: aquella comprueba *quién* llama, esta *cuándo* se puede llamar, y [docs/architecture.md](../docs/architecture.md) §7 deja dicho que la segunda vive en el backend con independencia del reparto de superficies | T |
 | V-20 | Bloqueo por esquema inválido (RF-22) | Prueba de integración sobre el grafo: con un contexto que infringe una regla del esquema, ninguna secuencia de llamadas mueve el proyecto fuera del estado `contexto`. **No la cubre V-11**: aquella comprueba que el validador *detecta* la infracción, esta que el hallazgo *bloquea* la transición | T |
 | V-21 | Coherencia de la escaleta (RF-41, RF-42) | Batería de escaletas válidas e inválidas: número de fichas frente al número de capítulos del contexto, reparto por actos frente a los porcentajes, y cada hito obligatorio del modelo estructural en **exactamente una** ficha —con casos de hito ausente y de hito duplicado, porque las dos direcciones fallan distinto | T |
 | V-22 | La memoria de proyecto es derivada (RF-87, RF-88, RN-7) | Prueba basada en propiedades: para cualquier proyecto con actos cerrados, todo hecho presente en el resumen acumulado sigue siendo reconstruible desde los capítulos aprobados y desde los resúmenes por capítulo, que la compactación no borra | T |
 | V-23 | Contrato del resultado vacío (RF-50c, RF-57, RN-5) | Pruebas por rama: la similitud vacía no emite encabezado, no registra recorte y el ensamblado continúa; la estructurada vacía aborta el ensamblado con mensaje accionable | T |
-| V-25 | Diseño del grafo de estados | Especificación TLA+ del grafo verificada con TLC sobre un modelo de 5 capítulos, 2 intentos, 2 ciclos de revisión y 1 cambio del lector, con caídas y reanudación, y la configuración en el repositorio. Las cinco invariantes de seguridad y la liveness de [docs/architecture.md](../docs/architecture.md) §3.4 | A |
+| V-25 | Diseño del grafo de estados | Especificación TLA+ de la función de siguiente orden y de la tabla de transiciones, verificada con TLC sobre un modelo de 5 capítulos, 2 intentos, 2 ciclos de revisión, 1 cambio del lector y dos ejecutores con bloqueo, con caídas y reanudación, y la configuración en el repositorio. Las invariantes de seguridad y la liveness de [docs/architecture.md](../docs/architecture.md) §3.4 | A |
 | V-26 | Guardarraíl (RF-72a) | Pruebas con al menos un caso por cada nivel y un caso de variante (acento o plural), más casos de control que no deben disparar | T |
 | V-27 | Cronología formal (RF-111, RF-112) | Cronologías construidas para infringir cada invariante, y casos de control; y al menos un caso real en que Lean detecta una incoherencia que los demás verificadores no detectaron, o la justificación de por qué no se encontró | T |
 | V-28 | Cobertura y frases literales (RF-110, RF-73a) | Pruebas con hechos obligatorios sin uso y frases ausentes, y casos de control | T |
 | V-29 | Resistencia a inyección del Extractor y del Intérprete (RF-14, RF-15, RF-120, RF-121) | Red teaming: briefs y peticiones adversariales con resultado esperado, registrados en un red-team log. Incluye como caso obligatorio la exfiltración: una instrucción inyectada que intenta obtener el texto o los datos de otro proyecto, y la prueba de que un identificador ajeno, usado o caducado devuelve error | T |
 | V-32 | Umbral del juez de manuscrito (RF-113) | Pruebas con informes de juez construidos en los bordes del umbral —un criterio a 2, media a 3,4 y a 3,5— y casos de control | T |
+| V-33 | Siguiente orden (RF-03, RF-07a, RF-08, RF-08a) | Prueba basada en propiedades: para cualquier estado generado, la orden respeta la tabla de transiciones y nunca supera los topes; pedirla dos veces devuelve la misma orden persistida; registrar el mismo resultado dos veces es idempotente y un resultado para otra orden se rechaza | T |
+| V-34 | Bloqueo por proyecto (RF-09b) | Prueba de integración: con el bloqueo tomado, un segundo ejecutor no recibe orden; al caducar, puede tomarlo | T |
+| V-35 | Esquema de salida por agente (RF-77a) | Por agente, salidas válidas y salidas mal formadas; ninguna mal formada se persiste y cada una cuenta como intento | T |
 | V-30 | La versión anterior se conserva (RF-95, RN-9) | Prueba basada en propiedades: para cualquier secuencia de publicaciones, las filas y ficheros de toda versión anterior son idénticos antes y después | T |
 | V-31 | Alcance de una regeneración (RF-122, RF-125) | Prueba de integración: los capítulos regenerados son los que `hecho_uso` asocia al hecho, más los que corrija el Revisor, y ninguno más | T |
 | V-24 | Aislamiento por proyecto (RNF-09) | Análisis estático: toda ruta de fichero y toda conexión de `backend/` se derivan de la disposición de directorio de `shared/`, y ninguna se construye hacia un proyecto distinto del que la petición identifica | A |
@@ -567,7 +576,7 @@ Ninguna de estas se resuelve en este documento. Están enumeradas porque hay req
 | D-4 | ~~Validación de la ontología~~ — **resuelta**: Pydantic v2 como fuente única; el JSON Schema se genera desde los modelos, no se mantiene a mano | RF-20 | — |
 | D-5 | ~~Contador de tokens del Recuperador~~ — **resuelta**: estimador conservador `tiktoken` `o200k_base` × 1,35, en la tabla de §7 de la arquitectura | RF-52, RF-52a a RF-52c | — |
 | D-6 | ~~Legibilidad en español~~ — **resuelta**: índice de perspicuidad de Szigriszt-Pazos con la escala INFLESZ, en código propio. Umbral mínimo por público: infantil 65, juvenil 55, adulto 40 | RF-71 | — |
-| D-7 | ~~Pruebas y tipos~~ — **resuelta**: `pytest` + `Hypothesis`, `mypy --strict`, `ruff`, y `mutmut` solo sobre el validador de ontología y los verificadores; entorno con `uv` y Python 3.12 | V-6, V-15 y todos los criterios `T` | — |
+| D-7 | ~~Pruebas y tipos~~ — **resuelta**: `pytest` + `Hypothesis`, `mypy --strict`, `ruff`, y `cosmic-ray` solo sobre el validador de ontología y los verificadores; entorno con `uv` y Python 3.12 | V-6, V-15 y todos los criterios `T` | — |
 | D-8 | Mecanismo de exportación a PDF | RF-98 | Sí, para ese requisito |
 | D-10 | Despliegue | Fuera de alcance: la ejecución es local | No |
 | D-11 | ~~Cómo llega el texto no confiable al Extractor y al Intérprete~~ — **resuelta**: superficie `/mcp/entrada` declarada solo en esos dos agentes, con una herramienta de solo lectura que canjea un identificador opaco de un solo uso (RF-14, RF-120) | RF-14, RF-120 | — |
@@ -584,13 +593,13 @@ Ninguna decisión abierta bloquea ya la primera línea: **D-2, D-4, D-5, D-6, D-
 | Origen en `docs/` | Requisitos que se derivan |
 |---|---|
 | architecture §1 | RF-65, RN-1, RNF-10 |
-| architecture §2 | RF-10, RF-11, estructura de rebanadas de §3 |
-| architecture §3.1 | RF-02, RF-04, RF-05, RF-05a, RF-08, RF-35, RF-64b, RF-93, RF-122, RF-123 |
-| architecture §3.2 | RF-03, RF-06, RF-07, RF-63, RF-64, RF-64a, RF-125, V-18 |
-| architecture §3.4 | V-25 |
-| architecture §6 (versiones) | RF-94 a RF-98, V-30 |
+| architecture §2 | RF-10, RF-11, RF-12, RF-15, RF-120 a RF-124, estructura de rebanadas de §3 |
+| architecture §3.1 | RF-01, RF-02, RF-04, RF-05, RF-05a, RF-08, RF-08a, V-33, RF-35, RF-64b, RF-93, RF-122, RF-123 |
+| architecture §3.2 | RF-03, RF-06, RF-07, RF-07a, RF-09b, RF-63, RF-64, RF-64a, RF-125, V-18, V-34 |
+| architecture §3.4 | RF-08a, V-25 |
+| architecture §6 (versiones) | RF-90, RF-92, RF-94 a RF-98, V-30 |
 | architecture §3.3 | RF-05, RN-1, RN-3 |
-| architecture §4 | RF-22, RF-70 a RF-78, RF-63 |
+| architecture §4 | RF-22, RF-70 a RF-78, RF-77a, RF-63, V-35 |
 | architecture §5 | RF-50, RF-77, RF-103 |
 | architecture §6 | RF-60, RF-61, RF-80 a RF-86, RF-89, §6 completo |
 | architecture §6.1 | RF-88, RN-7 |
@@ -602,7 +611,7 @@ Ninguna decisión abierta bloquea ya la primera línea: **D-2, D-4, D-5, D-6, D-
 | architecture §10 | RF-09, RF-09a, RF-13, RF-62, RF-105, C-8 |
 | architecture §4.1-§4.3 | RF-72a, RF-73a, RF-110 a RF-115, V-16, V-26 a V-28, V-32 |
 | architecture §11 | §1.2 completo |
-| definitions §1-§9 | RF-23 a RF-27, RF-31 a RF-33, RF-40 a RF-42, RF-82, RF-89, RF-91 |
+| definitions §1-§9 | RF-20, RF-21, RF-23 a RF-28, RF-30, RF-31 a RF-34, RF-36, RF-40 a RF-43, RF-82, RF-89, RF-91 |
 | definitions §10 | RF-24 |
 | definitions §12 | V-11 |
 | validators §1-§3 | §9 completo |
@@ -622,7 +631,8 @@ flowchart LR
   P5 --> P6["6 · Recuperador con tope de entrada"]
   P6 --> P7["7 · verificadores deterministas y guardarraíl"]
   P7 --> P8["8 · escritura MCP del Bibliotecario"]
-  P8 --> P8a["8a · gates de manuscrito · cobertura, Lean, umbral del juez"]
+  P8 --> PS["S · esqueleto de extremo a extremo · 2 capítulos"]
+  PS --> P8a["8a · gates de manuscrito · cobertura, Lean, umbral del juez"]
   P8a --> P9["9 · publicación de versiones · lectura y PDF"]
   P9 --> P9a["9a · cambio del lector y cola de trabajos"]
   P9a --> P10["10 · API REST para el panel y la lectura"]
@@ -630,4 +640,6 @@ flowchart LR
 
 La razón de que el Recuperador vaya antes que los verificadores: es la pieza con la restricción más dura (el tope de 100.000 tokens) y la que condiciona la forma de la biblia. Descubrir en el paso 6 que la biblia no se puede consultar por bloques obliga a rehacer el paso 4; descubrirlo en el paso 8, a rehacer también el 7.
 
-La razón de que la API REST vaya al final: es la superficie más fácil de cambiar y la única que no tiene consumidor hasta que exista el panel.
+El **paso S** no es backend: es la primera vez que todo lo anterior trabaja junto con agentes reales —la skill mínima, el hook de validación, Escritor, Editor de estilo, juez de capítulo y Bibliotecario— sobre un contexto válido de 10 capítulos escrito a mano, del que se generan los dos primeros. Va aquí porque es el primer punto en que existe todo lo que necesita, incluida la escritura del Bibliotecario, y antes que nada de lo que se apoye en ello. Sirve para descubrir pronto los problemas de integración y tener una primera medida de coste y calidad.
+
+La razón de que la API REST vaya al final: es la superficie más fácil de cambiar y la única que no tiene consumidor hasta que exista el panel. Las rutas que la sesión necesita —siguiente orden, bloqueo, prompt, registro de versiones— llegan antes, con el paso que las usa.
