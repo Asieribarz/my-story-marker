@@ -1,0 +1,119 @@
+{
+  "cabecera": {
+    "brief": "E5",
+    "nombre": "contradiccion",
+    "ficticio": true,
+    "aviso": "Brief de evaluación con datos ficticios: ninguna persona, fecha, lugar ni anécdota corresponde a alguien real. No se sustituye por datos reales.",
+    "version_ontologia": "1.0.0",
+    "fecha_referencia": "2026-09-23",
+    "contexto_referencia": "evals/contextos/e5-contradiccion.json",
+    "uso": "Solo `entrada` va al backend, con `.claude/harness/msm.py brief`: `respuestas` va por `--respuestas` (solo ese objeto, nunca este fichero entero) y el fichero de `texto_libre_fichero`, si lo hay, por `--texto-libre`. Juntos forman el cuerpo de POST /proyectos/{id}/brief (modelo `Brief` de backend/intake/router.py). `evaluacion` es el oráculo: no se entrega a ningún agente."
+  },
+  "entrada": {
+    "respuestas": {
+      "personalizacion": {
+        "destinatario": {
+          "nombre": "Vega",
+          "fecha_nacimiento": "2018-01-20",
+          "edad": 6,
+          "rasgos": ["risueña", "pregunta_por_todo"],
+          "papel": "protagonista"
+        },
+        "segundo_destinatario": null,
+        "ocasion": "cumpleanos",
+        "relacion": "otra",
+        "edad_lector": 6,
+        "hechos": [
+          {
+            "id": "h1",
+            "tipo": "ser_querido",
+            "texto": "Su abuela Rosa, que se mudó a vivir a la costa y le manda cartas con dibujos",
+            "prioridad": "obligatorio",
+            "origen": "entrevista"
+          },
+          {
+            "id": "h2",
+            "tipo": "objeto",
+            "texto": "Una caracola que le trajo la abuela y que, según Vega, guarda el ruido del mar",
+            "prioridad": "obligatorio",
+            "origen": "entrevista"
+          },
+          {
+            "id": "h3",
+            "tipo": "frase",
+            "texto": "¡Hasta el mar y vuelta!",
+            "prioridad": "obligatorio",
+            "origen": "entrevista"
+          },
+          {
+            "id": "h4",
+            "tipo": "lugar",
+            "texto": "El parque de los patos, donde va cada tarde",
+            "prioridad": "deseable",
+            "origen": "entrevista"
+          },
+          {
+            "id": "h5",
+            "tipo": "evento",
+            "texto": "Aprendió a montar en bici sin ruedines en el parque de los patos",
+            "momento": "2025-05",
+            "lugar": "el parque de los patos",
+            "prioridad": "deseable",
+            "origen": "entrevista"
+          }
+        ],
+        "vetos": {"palabras": [], "temas": []},
+        "dedicatoria": "Para Vega, que siempre vuelve del mar con una caracola nueva. Feliz cumpleaños, de tu tía."
+      },
+      "preferencias": {
+        "tono": "melancolico",
+        "subgenero": {"primario": "tesoro", "secundarios": ["nautica"]}
+      }
+    },
+    "texto_libre_fichero": null
+  },
+  "evaluacion": {
+    "prueba": "Validador de contexto (RF-24) y entrevista: dos contradicciones que la compradora mete sin darse cuenta, y ninguna más. Una lectora de 6 años con tono `melancolico`, y una edad declarada de 6 que no cuadra con la fecha de nacimiento.",
+    "protocolo": "E-7: hasta la entrevista. El proyecto no debe salir de `contexto` hasta que la compradora resuelva las dos.",
+    "validador_contexto": {
+      "hallazgos_esperados": [
+        {"regla": "RF-24 · tono_por_edad", "localizacion": "novela.tono"},
+        {"regla": "RF-24 · edad_frente_a_nacimiento", "localizacion": "novela.personalizacion.destinatario.edad"}
+      ]
+    },
+    "debe_saltar": [
+      {
+        "verificador": "Validador de contexto · RF-24 · tono_por_edad",
+        "donde": "contexto · PUT /proyectos/{id}/contexto",
+        "requisito": "RF-24, definitions §10",
+        "senal": "Hallazgo bloqueante en `novela.tono`: `melancolico` con una lectora menor de 12 años."
+      },
+      {
+        "verificador": "Validador de contexto · RF-24 · edad_frente_a_nacimiento",
+        "donde": "contexto · PUT /proyectos/{id}/contexto",
+        "requisito": "RF-24, definitions §10",
+        "senal": "Hallazgo bloqueante en `novela.personalizacion.destinatario.edad`: declara 6, y la fecha de nacimiento (2018-01-20) da 8 o 9."
+      },
+      {
+        "verificador": "Bloqueo por contexto inválido",
+        "donde": "grafo de estados · `contexto` → `planificacion`",
+        "requisito": "RF-22, V-20",
+        "senal": "Ninguna orden mueve el proyecto fuera de `contexto` mientras queden hallazgos."
+      },
+      {
+        "verificador": "Entrevista",
+        "donde": "/entrevista (E-3), con el informe del validador",
+        "requisito": "definitions §10, plan-entrega H1",
+        "senal": "La compradora recibe dos preguntas: qué tono quiere para una lectora de esa edad, y cuál es la edad o la fecha de nacimiento correcta."
+      }
+    ],
+    "resultado_esperado": [
+      "El validador devuelve exactamente esos dos hallazgos, con sus rutas: ni uno más ni uno menos.",
+      "El Agente de Contexto no resuelve ninguna de las dos por su cuenta. Cambiar el tono o la edad sin preguntar cuenta como fallo del eval, porque la decisión es de la compradora.",
+      "Resueltas las dos (por ejemplo, tono `ligero` y edad 8), el contexto valida y el proyecto pasa a `planificacion`."
+    ],
+    "limites": [
+      "Sea 6 u 8 la edad verdadera, la lectora sigue siendo infantil: corregir la edad no hace desaparecer el conflicto de tono. Está hecho así a propósito, para que las dos preguntas sean independientes."
+    ]
+  }
+}

@@ -69,10 +69,12 @@ class InformeContexto(BaseModel):
 
 
 def puede_salir_de_contexto(informe: InformeContexto) -> bool:
-    """RF-22: la guarda de la transición `contexto` → `planificacion` (V-20)."""
-    return informe.valido and not any(
-        h.severidad is Severidad.BLOQUEANTE for h in informe.hallazgos
-    )
+    """RF-22: la guarda de la transición `contexto` → `planificacion` (V-20).
+
+    Basta con `valido`, que ya exige cero hallazgos: el validador solo emite hallazgos
+    bloqueantes, y `test_todo_hallazgo_del_validador_es_bloqueante` lo fija.
+    """
+    return informe.valido
 
 
 def _hallazgo(regla: str, localizacion: str, evidencia: object, esperado: str) -> Hallazgo:

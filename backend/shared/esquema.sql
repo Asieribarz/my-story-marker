@@ -26,14 +26,54 @@ CREATE TABLE proyecto (
                        'capitulos', 'verificacion_manuscrito', 'revision', 'aprobacion_final',
                        'publicacion', 'publicada', 'cambio_solicitado', 'regeneracion',
                        'detenida')),
+  -- De qué fase viene `detenida`: «reintentar» vuelve a ella. La lista son los orígenes
+  -- de las aristas a `detenida` de proyecto/transiciones.py (lo comprueba una prueba).
+  detenida_desde     TEXT    CHECK (detenida_desde IN (
+                       'intake', 'contexto', 'planificacion', 'escaleta', 'capitulos',
+                       'verificacion_manuscrito', 'revision', 'publicacion')),
   parada_plan        INTEGER NOT NULL DEFAULT 0 CHECK (parada_plan IN (0, 1)),
   parada_final       INTEGER NOT NULL DEFAULT 0 CHECK (parada_final IN (0, 1)),
   ciclos_revision    INTEGER NOT NULL DEFAULT 0 CHECK (ciclos_revision BETWEEN 0 AND 3),
+  -- RF-07a: intentos de la orden en curso que no es ciclo de capítulo, y de los agentes
+  -- posteriores al Escritor dentro del capítulo. Vuelve a cero en cada avance.
+  intentos_paso      INTEGER NOT NULL DEFAULT 0 CHECK (intentos_paso BETWEEN 0 AND 3),
+  -- RF-09b: el titular es un token opaco; el tipo dice si es la sesión o el worker.
   bloqueo_titular    TEXT,
+  bloqueo_tipo       TEXT    CHECK (bloqueo_tipo IN ('sesion', 'worker')),
   bloqueo_caduca     TEXT,
   creado             TEXT    NOT NULL,
-  CHECK ((bloqueo_titular IS NULL) = (bloqueo_caduca IS NULL))
+  CHECK ((bloqueo_titular IS NULL) = (bloqueo_caduca IS NULL)),
+  CHECK ((bloqueo_titular IS NULL) = (bloqueo_tipo IS NULL)),
+  CHECK ((estado = 'detenida') = (detenida_desde IS NOT NULL))
 ) STRICT;
+
+-- RF-03, RF-08a: una fila por orden emitida, persistida antes de devolverse a la sesión.
+-- La vigente es la que no está cerrada, y el índice único parcial impide que haya dos.
+-- `detalle` guarda la huella del resultado registrado (RF-06) y su informe, que la orden
+-- siguiente lleva como entrada cuando es un reintento.
+CREATE TABLE orden (
+  id               INTEGER PRIMARY KEY,
+  estado_proyecto  TEXT    NOT NULL CHECK (estado_proyecto IN (
+                     'intake', 'contexto', 'planificacion', 'aprobacion_plan', 'escaleta',
+                     'capitulos', 'verificacion_manuscrito', 'revision', 'aprobacion_final',
+                     'publicacion', 'publicada', 'cambio_solicitado', 'regeneracion',
+                     'detenida')),
+  agente           TEXT    NOT NULL CHECK (agente IN (
+                     'agente-contexto', 'extractor-hechos', 'arquitecto', 'personajes',
+                     'mundo', 'estilo', 'escaletista', 'escritor', 'editor-estilo',
+                     'juez-capitulo', 'bibliotecario', 'juez-manuscrito', 'revisor',
+                     'exportador', 'interprete-cambios')),
+  capitulo         INTEGER REFERENCES capitulo (numero),
+  intento          INTEGER NOT NULL CHECK (intento BETWEEN 1 AND 3),
+  entrada          TEXT    NOT NULL CHECK (json_valid(entrada)),
+  emitida          TEXT    NOT NULL,
+  cerrada          TEXT,
+  desenlace        TEXT    CHECK (desenlace IN ('aceptada', 'rechazada', 'caducada')),
+  detalle          TEXT    CHECK (detalle IS NULL OR json_valid(detalle)),
+  CHECK ((cerrada IS NULL) = (desenlace IS NULL))
+) STRICT;
+
+CREATE UNIQUE INDEX orden_una_vigente ON orden ((cerrada IS NULL)) WHERE cerrada IS NULL;
 
 -- RF-09: historial append-only.
 CREATE TABLE transicion (
@@ -70,14 +110,18 @@ CREATE TABLE auditoria (
   detalle  TEXT NOT NULL CHECK (json_valid(detalle))
 ) STRICT;
 
--- RF-14, RF-120: identificadores opacos de un solo uso para /mcp/entrada.
+-- RF-14, RF-120: identificadores opacos de un solo uso para /mcp/entrada. Se guarda la
+-- huella SHA-256 del secreto, no el secreto: el identificador entero solo viaja en la
+-- entrada de la orden que lo lleva (intake/entrada.py).
 CREATE TABLE identificador_entrada (
-  token       TEXT PRIMARY KEY,
+  huella      TEXT PRIMARY KEY CHECK (length(huella) = 64),
   recurso     TEXT NOT NULL CHECK (recurso IN ('texto_libre', 'peticion')),
   ruta        TEXT NOT NULL,
   emitido     TEXT NOT NULL,
   caduca      TEXT NOT NULL,
-  consumido   TEXT
+  consumido   TEXT,
+  CHECK (caduca > emitido),
+  CHECK (consumido IS NULL OR consumido >= emitido)
 ) STRICT;
 
 CREATE TABLE cache (
@@ -97,12 +141,16 @@ CREATE TABLE llamada_mcp (
 
 -- ─── intake/ y contexto/ ────────────────────────────────────────────────────
 
+-- `extraccion`: la orden del Extractor que extrajo el texto libre vigente (RF-14, RF-15). Es
+-- NULL si aún no se ha extraído, y vuelve a NULL si el comprador cambia el texto.
 CREATE TABLE brief (
   id                INTEGER PRIMARY KEY CHECK (id = 1),
   respuestas        TEXT NOT NULL CHECK (json_valid(respuestas)),
   ruta_texto_libre  TEXT,
   normalizado       TEXT CHECK (normalizado IS NULL OR json_valid(normalizado)),
-  creado            TEXT NOT NULL
+  extraccion        INTEGER REFERENCES orden (id),
+  creado            TEXT NOT NULL,
+  CHECK (extraccion IS NULL OR ruta_texto_libre IS NOT NULL)
 ) STRICT;
 
 CREATE TABLE hecho_propuesto (

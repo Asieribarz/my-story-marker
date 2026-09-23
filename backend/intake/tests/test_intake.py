@@ -13,6 +13,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
+from backend.intake import persistencia as persistencia_de_intake
 from backend.intake.datos_excluidos import FORMAS, depurar, tipo_por_clave, tipo_por_forma
 from backend.intake.persistencia import (
     DecisionInvalida,
@@ -166,6 +167,62 @@ def test_reenviar_el_brief_lo_sustituye_sin_duplicar(
     guardar_brief(conexion, disposicion, {"nombre": "Aitana", "edad": 9}, None, AHORA)
     filas = conexion.execute("SELECT respuestas FROM brief").fetchall()
     assert [json.loads(f["respuestas"]) for f in filas] == [{"nombre": "Aitana", "edad": 9}]
+
+
+def _brief_y_texto(
+    conexion: sqlite3.Connection, disposicion: DisposicionProyecto
+) -> tuple[tuple[object, ...], str, list[str]]:
+    fila = tuple(conexion.execute("SELECT * FROM brief").fetchone())
+    ficheros = sorted(f.name for f in disposicion.brief.iterdir())
+    return fila, disposicion.texto_libre.read_text(encoding="utf-8"), ficheros
+
+
+def test_si_la_base_falla_el_texto_en_disco_sigue_siendo_el_del_brief_guardado(
+    proyecto: tuple[sqlite3.Connection, DisposicionProyecto], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """El texto nuevo solo sustituye al anterior después de escribir la fila: si algo falla
+    antes, ni el fichero ni la base cambian, y no queda ningún temporal."""
+    conexion, disposicion = proyecto
+    guardar_brief(conexion, disposicion, {"nombre": "Aitana"}, "El texto de antes.", AHORA)
+    antes = _brief_y_texto(conexion, disposicion)
+
+    def rota(*argumentos: object) -> None:
+        raise sqlite3.OperationalError("database or disk is full")
+
+    monkeypatch.setattr(persistencia_de_intake, "auditar_descartes", rota)
+    with pytest.raises(sqlite3.OperationalError):
+        guardar_brief(conexion, disposicion, {"nombre": "Aitana", "edad": 9}, "Otro.", AHORA)
+    assert _brief_y_texto(conexion, disposicion) == antes
+
+
+@pytest.mark.parametrize(
+    ("respuestas", "texto"),
+    [
+        ({"nombre": "Aitana", "edad": float("nan")}, "Otro."),
+        ({"nombre": "Aitana\ud800"}, "Otro."),
+        ({"nombre": "Aitana"}, "Otro \ud800 texto."),
+    ],
+)
+def test_lo_que_la_base_no_guardaria_se_rechaza_antes_de_tocar_el_disco(
+    proyecto: tuple[sqlite3.Connection, DisposicionProyecto],
+    respuestas: dict[str, Any],
+    texto: str,
+) -> None:
+    conexion, disposicion = proyecto
+    guardar_brief(conexion, disposicion, {"nombre": "Aitana"}, "El texto de antes.", AHORA)
+    antes = _brief_y_texto(conexion, disposicion)
+    with pytest.raises(ValueError):
+        guardar_brief(conexion, disposicion, respuestas, texto, AHORA)
+    assert _brief_y_texto(conexion, disposicion) == antes
+
+
+def test_el_texto_libre_se_guarda_sin_traducir_los_saltos_de_linea(
+    proyecto: tuple[sqlite3.Connection, DisposicionProyecto],
+) -> None:
+    conexion, disposicion = proyecto
+    texto = "Primera línea.\r\nSegunda.\nTercera."
+    guardar_brief(conexion, disposicion, {"nombre": "Aitana"}, texto, AHORA)
+    assert disposicion.texto_libre.read_bytes() == texto.encode("utf-8")
 
 
 def test_el_normalizado_va_junto_al_original(

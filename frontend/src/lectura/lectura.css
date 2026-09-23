@@ -1,0 +1,462 @@
+/* La lectura: barra, portada, índice, capítulo, fichas y estados. */
+
+/* Barra */
+
+.barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
+  padding: 0.85rem var(--margen);
+  border-bottom: 1px solid var(--filete);
+  font-family: var(--serif-pequena);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.barra-titulo {
+  color: var(--tinta);
+  font-style: italic;
+  text-decoration: none;
+}
+
+.barra-titulo:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+}
+
+.barra-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 1.25rem;
+}
+
+.barra-nav a[aria-current='page'] {
+  color: var(--tinta);
+  text-decoration: none;
+}
+
+.barra-version {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  color: var(--tinta-suave);
+}
+
+.barra-version select {
+  padding: 0.1rem 0.3rem;
+  border: 1px solid var(--filete);
+  border-radius: 3px;
+  background: var(--papel);
+  color: var(--tinta);
+  font-size: 0.9rem;
+}
+
+.aviso-version {
+  margin: 0;
+  padding: 0.6rem var(--margen);
+  border-bottom: 1px solid var(--filete);
+  color: var(--tinta-suave);
+  font-family: var(--serif-pequena);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+/* La cinta de marcapáginas: la marca de capítulo cambiado (plan-frontend.md F-5). */
+
+.cinta {
+  display: inline-block;
+  flex: none;
+  width: 0.7rem;
+  height: 1.6rem;
+  background: var(--cinta);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 74%, 0 100%);
+}
+
+.enlace-cambiado::after {
+  content: '';
+  display: inline-block;
+  width: 0.38em;
+  height: 0.85em;
+  margin-left: 0.18em;
+  vertical-align: -0.05em;
+  background: var(--cinta);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 74%, 0 100%);
+}
+
+/* Portada */
+
+.portada {
+  padding: 3rem var(--margen) 4rem;
+}
+
+.cubierta {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: min(21rem, 100%);
+  aspect-ratio: 2 / 3;
+  margin: 0 auto;
+  padding: 2.5rem 2.25rem;
+  border-radius: 3px 6px 6px 3px;
+  background-color: var(--tela);
+  /* El tejido de la tela: dos tramas finas, sin imágenes. */
+  background-image:
+    repeating-linear-gradient(0deg, rgb(255 255 255 / 0.03) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgb(0 0 0 / 0.08) 0 1px, transparent 1px 3px);
+  /* El canal del lomo y la sombra del libro sobre la mesa. */
+  box-shadow:
+    inset 0.9rem 0 0 -0.8rem rgb(0 0 0 / 0.35),
+    inset 1.2rem 0 0.4rem -1rem rgb(255 255 255 / 0.07),
+    0 1.2rem 2rem -1.2rem rgb(20 30 35 / 0.55);
+}
+
+/* Doble filete dorado, como el de un estampado en caliente. */
+.cubierta::before {
+  content: '';
+  position: absolute;
+  inset: 1rem 1rem 1rem 1.4rem;
+  border: 3px double color-mix(in srgb, var(--oro) 75%, transparent);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.cubierta-titulo {
+  margin: 0;
+  color: var(--oro);
+  font-family: var(--serif-titulo);
+  font-size: clamp(1.9rem, 7vw, 2.55rem);
+  font-weight: 600;
+  line-height: 1.12;
+  text-align: center;
+  text-wrap: balance;
+  text-shadow:
+    0 -1px 0 rgb(0 0 0 / 0.45),
+    0 1px 0 rgb(255 255 255 / 0.06);
+}
+
+.dedicatoria {
+  max-width: 24em;
+  margin: 4.5rem auto 4rem;
+  font-size: 1.125rem;
+  font-style: italic;
+  line-height: 1.7;
+  text-align: center;
+  text-wrap: pretty;
+}
+
+.novedades {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  max-width: 26rem;
+  margin: 0 auto 3rem;
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.novedades p {
+  margin: 0;
+}
+
+.indice {
+  max-width: 26rem;
+  margin: 0 auto;
+}
+
+.indice h2 {
+  margin: 0 0 0.75rem;
+  font-family: var(--serif-titulo);
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.indice ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--filete);
+}
+
+.indice li a {
+  display: grid;
+  grid-template-columns: 1.75rem 1fr 0.7rem;
+  align-items: start;
+  gap: 0.6rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--filete);
+  color: var(--tinta);
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+.indice li a:hover .indice-titulo {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+.indice-numero {
+  color: var(--tinta-suave);
+  text-align: right;
+}
+
+/* La cinta cuelga del filete de arriba, como la de un libro. */
+.indice li .cinta {
+  margin-top: calc(-0.55rem - 1px);
+}
+
+.indice-fichas {
+  margin: 1.5rem 0 0;
+  font-size: 1rem;
+}
+
+/* Capítulo */
+
+.capitulo {
+  position: relative;
+  max-width: calc(var(--medida) + 2 * var(--margen));
+  margin: 0 auto;
+  padding: 4.5rem var(--margen) 3rem;
+}
+
+.capitulo-cinta {
+  position: absolute;
+  top: 0;
+  right: var(--margen);
+  width: 0.95rem;
+  height: 4.25rem;
+}
+
+.capitulo-cabecera {
+  margin-bottom: 3rem;
+  text-align: center;
+}
+
+.capitulo-numero {
+  margin: 0 0 0.5rem;
+  color: var(--tinta-suave);
+  font-family: var(--serif-pequena);
+  font-size: 1rem;
+  font-style: italic;
+}
+
+.capitulo-titulo,
+.fichas-titulo {
+  margin: 0;
+  font-family: var(--serif-titulo);
+  font-size: clamp(1.75rem, 5vw, 2.35rem);
+  font-weight: 600;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.capitulo-cambiado {
+  margin: 0.9rem 0 0;
+  color: var(--cinta);
+  font-family: var(--serif-pequena);
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+/* El texto, compuesto como un libro: sangría y sin blancos entre párrafos. */
+
+.texto p {
+  margin: 0;
+  text-indent: 1.5em;
+  hyphens: auto;
+  text-wrap: pretty;
+}
+
+.texto > p:first-child,
+.texto hr + p,
+.texto blockquote + p,
+.texto blockquote p {
+  text-indent: 0;
+}
+
+.texto > p:first-child::first-line {
+  font-variant-caps: small-caps;
+  letter-spacing: 0.03em;
+}
+
+.texto hr {
+  height: auto;
+  margin: 1.5em 0;
+  overflow: visible;
+  border: 0;
+  color: var(--tinta-suave);
+  text-align: center;
+}
+
+.texto hr::after {
+  content: '⁂';
+}
+
+.texto blockquote {
+  margin: 1.4em 1.5em;
+  text-align: center;
+}
+
+.capitulo-pie {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
+  gap: 1rem;
+  margin-top: 3.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--filete);
+  font-family: var(--serif-pequena);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.pie-anterior,
+.pie-siguiente {
+  display: grid;
+  gap: 0.15rem;
+  text-decoration: none;
+}
+
+.pie-siguiente {
+  text-align: right;
+}
+
+.pie-rotulo {
+  color: var(--tinta-suave);
+}
+
+.pie-titulo {
+  font-style: italic;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+.pie-indice {
+  justify-self: center;
+}
+
+@media (max-width: 30rem) {
+  .capitulo-pie {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .pie-indice {
+    grid-row: 2;
+    grid-column: 1 / -1;
+  }
+}
+
+/* Personajes y lugares */
+
+.fichas {
+  max-width: calc(var(--medida) + 2 * var(--margen));
+  margin: 0 auto;
+  padding: 3.5rem var(--margen) 4rem;
+}
+
+.fichas-titulo {
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.fichas h2 {
+  margin: 2.5rem 0 0;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--filete);
+  font-family: var(--serif-titulo);
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.fichas ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ficha {
+  padding-top: 1.1rem;
+}
+
+.ficha-cabeza {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.1rem 0.6rem;
+}
+
+.ficha-nombre {
+  margin: 0;
+  font-size: 1em;
+  font-weight: 600;
+}
+
+.ficha-rol {
+  color: var(--tinta-suave);
+  font-style: italic;
+}
+
+.ficha p {
+  margin: 0.15rem 0 0;
+}
+
+.ficha .ficha-apariciones {
+  color: var(--tinta-suave);
+  font-size: 0.95rem;
+}
+
+/* La sangría y el filete dicen qué lugar está dentro de cuál. */
+.lugares .lugares {
+  margin-left: 0.3rem;
+  padding-left: 1.1rem;
+  border-left: 1px solid var(--filete);
+}
+
+/* Estados: avisos, carga y errores */
+
+.estado {
+  max-width: 30rem;
+  margin: 5rem auto;
+  padding: 0 var(--margen);
+  text-align: center;
+}
+
+.estado h1 {
+  margin: 0 0 0.75rem;
+  font-family: var(--serif-titulo);
+  font-size: 1.6rem;
+  font-weight: 600;
+}
+
+.estado p {
+  margin: 0 0 1rem;
+}
+
+.estado button {
+  padding: 0.4rem 1.1rem;
+  border: 1px solid var(--tinta-suave);
+  border-radius: 3px;
+  background: transparent;
+  font-family: var(--serif-pequena);
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+/* «Cargando…» solo aparece si la carga tarda más de 0,4 s, para no parpadear. */
+.cargando {
+  margin: 3rem 0;
+  color: var(--tinta-suave);
+  font-style: italic;
+  text-align: center;
+  animation: aparecer 0s linear 0.4s both;
+}
+
+@keyframes aparecer {
+  from {
+    visibility: hidden;
+  }
+}

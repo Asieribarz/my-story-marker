@@ -4,13 +4,16 @@ version = "0.1.0"
 description = "Generador de novelas de aventura personalizadas para regalo: backend."
 requires-python = ">=3.12"
 dependencies = [
+    "fastapi>=0.141.1",
+    "fastmcp>=4.0.5",
     "pydantic>=2.13.5",
     "tiktoken>=0.14.0",
+    "uvicorn>=0.53.0",
 ]
 
 [dependency-groups]
 dev = [
-    "cosmic-ray>=8.7.0",
+    "httpx>=0.28.1",
     "hypothesis>=6.168.1",
     "mypy>=2.3.1",
     "pytest>=9.1.1",

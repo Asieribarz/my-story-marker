@@ -1,0 +1,156 @@
+{
+  "novela": {
+    "personalizacion": {
+      "destinatario": {
+        "nombre": "Vega",
+        "fecha_nacimiento": "2018-01-20",
+        "edad": 6,
+        "rasgos": ["risueña", "pregunta_por_todo"],
+        "papel": "protagonista"
+      },
+      "segundo_destinatario": null,
+      "ocasion": "cumpleanos",
+      "relacion": "otra",
+      "edad_lector": 6,
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "ser_querido",
+          "texto": "Su abuela Rosa, que se mudó a vivir a la costa y le manda cartas con dibujos",
+          "prioridad": "obligatorio",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h2",
+          "tipo": "objeto",
+          "texto": "Una caracola que le trajo la abuela y que, según Vega, guarda el ruido del mar",
+          "prioridad": "obligatorio",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h3",
+          "tipo": "frase",
+          "texto": "¡Hasta el mar y vuelta!",
+          "prioridad": "obligatorio",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h4",
+          "tipo": "lugar",
+          "texto": "El parque de los patos, donde va cada tarde",
+          "prioridad": "deseable",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h5",
+          "tipo": "evento",
+          "texto": "Aprendió a montar en bici sin ruedines en el parque de los patos",
+          "momento": "2025-05",
+          "lugar": "parque_patos",
+          "prioridad": "deseable",
+          "origen": "entrevista"
+        }
+      ],
+      "texto_libre": null,
+      "vetos": {"palabras": [], "temas": []},
+      "dedicatoria": "Para Vega, que siempre vuelve del mar con una caracola nueva. Feliz cumpleaños, de tu tía."
+    },
+    "publico": "infantil",
+    "tono": "melancolico",
+    "tipo_aventura": {
+      "subgenero": {"primario": "tesoro", "secundarios": ["nautica"]},
+      "mision": "busqueda",
+      "macguffin": {
+        "nombre": "La caracola que susurra",
+        "descripcion": "La caracola de la abuela, que una noche empieza a susurrar indicaciones",
+        "por_que_importa": "Lleva hasta la casa de la abuela junto al mar"
+      },
+      "conflicto": {
+        "externo": ["persona_vs_naturaleza"],
+        "interno": "le da miedo ir a sitios nuevos sin su abuela"
+      },
+      "contenido": {"violencia": 0, "romance": 0, "lenguaje": 0, "sensibles": 0}
+    },
+    "formato": {
+      "palabras_objetivo": 11000,
+      "capitulos": 10,
+      "longitud_capitulo": {"min": 1000, "max": 1500},
+      "cierre_capitulo": "pausa",
+      "titulacion": "titulado",
+      "cronologia": "lineal",
+      "curva_tension": [2, 3, 4, 4, 5, 6, 5, 7, 8, 3]
+    },
+    "estructura": {
+      "modelo": "tres_actos",
+      "planteamiento": {
+        "capitulos": [1, 2],
+        "porcentaje": 22,
+        "detonante": "La caracola susurra por primera vez: «ven al mar»"
+      },
+      "nudo": {"capitulos": [3, 8], "porcentaje": 55, "punto_medio": 5, "crisis": 8},
+      "desenlace": {"capitulos": [9, 10], "porcentaje": 23, "climax": 9, "final": "cerrado"}
+    },
+    "personajes": [
+      {
+        "id": "prot",
+        "origen": {"tipo": "real", "fuente": "destinatario"},
+        "rol": ["protagonista"],
+        "deseo": "llegar hasta la casa de la abuela siguiendo a la caracola",
+        "necesidad": "descubrir que puede ser valiente",
+        "defecto": "impaciencia",
+        "arco": "positivo",
+        "voz": {"registro": "coloquial", "tratamiento": "tu"}
+      },
+      {
+        "id": "abuela",
+        "origen": {"tipo": "real", "fuente": "h1"},
+        "rol": ["mentor"],
+        "arco": "plano"
+      },
+      {
+        "id": "gaviota",
+        "origen": {"tipo": "ficticio"},
+        "rol": ["aliado", "alivio_comico"],
+        "arco": "plano"
+      }
+    ],
+    "mundo": {
+      "tipo": "contemporaneo",
+      "epoca": {"fecha_inicio": 2026, "duracion_historia": "un día largo"},
+      "localizaciones": [
+        {"id": "ciudad_y_costa", "nivel": "macro", "padre": null},
+        {"id": "barrio", "nivel": "meso", "padre": "ciudad_y_costa"},
+        {"id": "costa", "nivel": "meso", "padre": "ciudad_y_costa"},
+        {"id": "parque_patos", "nivel": "micro", "padre": "barrio"},
+        {"id": "estacion", "nivel": "micro", "padre": "barrio"},
+        {"id": "playa", "nivel": "micro", "padre": "costa"},
+        {"id": "casa_abuela", "nivel": "micro", "padre": "costa"}
+      ],
+      "ruta": [
+        {"id": "parque_patos", "dias_viaje": 0},
+        {"id": "estacion", "dias_viaje": 0},
+        {"id": "playa", "dias_viaje": 1},
+        {"id": "casa_abuela", "dias_viaje": 0}
+      ],
+      "reglas": []
+    },
+    "lenguaje": {
+      "idioma": "es-ES",
+      "narrador": "tercera_limitada",
+      "tiempo": "preterito",
+      "registro": "estandar",
+      "voz": "tierna_y_juguetona",
+      "dialogo": {"proporcion": 40, "convencion": "raya"},
+      "lexico": ["mar"],
+      "prohibidas": []
+    },
+    "tema": {
+      "central": "la distancia no separa a quien se quiere",
+      "pregunta_dramatica": "¿Encontrará Vega el camino hasta la casa de la abuela?"
+    },
+    "control": {
+      "validaciones": ["cierre_subtramas", "chejov", "coherencia_temporal", "longitud", "cobertura_hechos"],
+      "lineas_rojas": ["sin_contenido_explicito", "vetos_del_comprador"]
+    }
+  }
+}

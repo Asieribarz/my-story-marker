@@ -1,4 +1,4 @@
-"""Tipos comunes a varias rebanadas: estados, severidad, hallazgo e informe.
+"""Tipos comunes a varias rebanadas: estados, agentes, severidad, hallazgo e informe.
 
 Los valores de los enumerados son los de architecture.md §3.1 y §6 y spec1.md §4.6.3.
 `shared/esquema.sql` repite las mismas listas en sus CHECK; una prueba comprueba que
@@ -36,6 +36,52 @@ class EstadoCapitulo(StrEnum):
     VERIFICADO = "verificado"
     APROBADO = "aprobado"
     REVISION_HUMANA = "revision_humana"
+
+
+class Agente(StrEnum):
+    """Los subagentes de architecture.md §3 y sus jueces, con el nombre de su fichero en
+    `.claude/agents/` (specs/plan-entrega.md §4). La tabla `orden` repite la lista."""
+
+    AGENTE_CONTEXTO = "agente-contexto"
+    EXTRACTOR_HECHOS = "extractor-hechos"
+    ARQUITECTO = "arquitecto"
+    PERSONAJES = "personajes"
+    MUNDO = "mundo"
+    ESTILO = "estilo"
+    ESCALETISTA = "escaletista"
+    ESCRITOR = "escritor"
+    EDITOR_ESTILO = "editor-estilo"
+    JUEZ_CAPITULO = "juez-capitulo"
+    BIBLIOTECARIO = "bibliotecario"
+    JUEZ_MANUSCRITO = "juez-manuscrito"
+    REVISOR = "revisor"
+    EXPORTADOR = "exportador"
+    INTERPRETE_CAMBIOS = "interprete-cambios"
+
+
+class DesenlaceOrden(StrEnum):
+    """Cómo se cerró una orden: con su resultado aceptado, rechazado o sin resultado porque
+    una acción humana movió el proyecto mientras estaba vigente."""
+
+    ACEPTADA = "aceptada"
+    RECHAZADA = "rechazada"
+    CADUCADA = "caducada"
+
+
+class TipoEjecutor(StrEnum):
+    """Quién tiene el bloqueo del proyecto (RF-09b): la sesión interactiva o el worker."""
+
+    SESION = "sesion"
+    WORKER = "worker"
+
+
+class RecursoEntrada(StrEnum):
+    """El texto no confiable al que da acceso un identificador de `/mcp/entrada`: el texto
+    libre del comprador (RF-14) o la petición del lector (RF-120). La tabla
+    `identificador_entrada` repite la lista."""
+
+    TEXTO_LIBRE = "texto_libre"
+    PETICION = "peticion"
 
 
 class Severidad(StrEnum):

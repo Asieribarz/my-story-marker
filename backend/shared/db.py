@@ -40,7 +40,21 @@ def transaccion(conexion: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
 
     Empieza ya como escritura para que el ascenso de lectura a escritura no pueda fallar
     con `SQLITE_BUSY` a mitad, que `busy_timeout` no salva.
+
+    Dentro de otra transacción es un `SAVEPOINT`: la escritura de una rebanada se compone
+    con la de quien la llama —registrar un resultado, cerrar su orden y escribir la
+    transición van juntos o no van (RF-03, RF-06)— y solo la exterior confirma.
     """
+    if conexion.in_transaction:
+        conexion.execute("SAVEPOINT anidada")
+        try:
+            yield conexion
+        except BaseException:
+            conexion.execute("ROLLBACK TO anidada")
+            conexion.execute("RELEASE anidada")
+            raise
+        conexion.execute("RELEASE anidada")
+        return
     conexion.execute("BEGIN IMMEDIATE")
     try:
         yield conexion

@@ -1,0 +1,205 @@
+{
+  "novela": {
+    "personalizacion": {
+      "destinatario": {
+        "nombre": "Nerea",
+        "fecha_nacimiento": "1992-12-14",
+        "edad": 34,
+        "rasgos": ["organizada", "competitiva_en_los_juegos_de_mesa"],
+        "papel": "coprotagonista"
+      },
+      "segundo_destinatario": {
+        "nombre": "Daniel",
+        "edad": 36,
+        "rasgos": ["despistado", "cocina_de_maravilla"],
+        "papel": "coprotagonista"
+      },
+      "ocasion": "boda",
+      "relacion": "amigo",
+      "edad_lector": 34,
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "evento",
+          "texto": "Se conocieron al quedarse encerrados en el ascensor de la biblioteca municipal durante una tormenta",
+          "momento": "2019-11",
+          "lugar": "biblioteca",
+          "prioridad": "obligatorio",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h2",
+          "tipo": "ser_querido",
+          "texto": "Su gata, Mostaza, que se tumba encima de cualquier mapa que abran",
+          "prioridad": "obligatorio",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h3",
+          "tipo": "lugar",
+          "texto": "El mirador de la sierra donde Daniel le pidió matrimonio a Nerea",
+          "prioridad": "obligatorio",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h4",
+          "tipo": "objeto",
+          "texto": "Un juego de mesa de exploradores al que juegan desde su primera cita",
+          "prioridad": "obligatorio",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h5",
+          "tipo": "frase",
+          "texto": "Contigo, hasta el ascensor es una aventura",
+          "prioridad": "obligatorio",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h6",
+          "tipo": "rasgo",
+          "texto": "Daniel se pierde incluso con el GPS puesto",
+          "prioridad": "deseable",
+          "origen": "entrevista"
+        }
+      ],
+      "texto_libre": null,
+      "vetos": {"palabras": ["Rubén"], "temas": ["traición"]},
+      "dedicatoria": "Para Nerea y Daniel, que ya saben que la mejor aventura es la compartida. ¡Vivan los novios!"
+    },
+    "publico": "adulto",
+    "tono": "ligero",
+    "tipo_aventura": {
+      "subgenero": {"primario": "fantasia_epica", "secundarios": ["tesoro"]},
+      "mision": "descubrimiento",
+      "macguffin": {
+        "nombre": "El tablero despierto",
+        "descripcion": "El tablero de su juego de exploradores, que una noche amanece convertido en un mapa de la ciudad",
+        "por_que_importa": "Promete llevarles al sitio donde empezó todo"
+      },
+      "conflicto": {
+        "externo": ["persona_vs_desconocido", "persona_vs_persona"],
+        "interno": "cada uno cree que tiene que salvar solo al otro"
+      },
+      "contenido": {"violencia": 1, "romance": 1, "lenguaje": 1, "sensibles": 0}
+    },
+    "formato": {
+      "palabras_objetivo": 12000,
+      "capitulos": 10,
+      "longitud_capitulo": {"min": 1000, "max": 1500},
+      "cierre_capitulo": [
+        "pausa",
+        "giro",
+        "cliffhanger",
+        "pregunta",
+        "giro",
+        "cliffhanger",
+        "pausa",
+        "cliffhanger",
+        "giro",
+        "imagen"
+      ],
+      "titulacion": "numerado_y_titulado",
+      "cronologia": "analepsis",
+      "curva_tension": [3, 4, 5, 6, 6, 7, 6, 8, 9, 4]
+    },
+    "estructura": {
+      "modelo": "tres_actos",
+      "planteamiento": {
+        "capitulos": [1, 2],
+        "porcentaje": 22,
+        "detonante": "La noche antes de la boda, el tablero del juego amanece convertido en un mapa de la ciudad"
+      },
+      "nudo": {"capitulos": [3, 8], "porcentaje": 55, "punto_medio": 5, "crisis": 8},
+      "desenlace": {"capitulos": [9, 10], "porcentaje": 23, "climax": 9, "final": "cerrado"}
+    },
+    "personajes": [
+      {
+        "id": "nerea",
+        "origen": {"tipo": "real", "fuente": "destinatario"},
+        "rol": ["protagonista"],
+        "deseo": "llegar al final del mapa antes del alba",
+        "necesidad": "confiar en que no tiene que controlarlo todo",
+        "defecto": "perfeccionismo",
+        "arco": "positivo",
+        "voz": {"registro": "coloquial", "tratamiento": "tu"}
+      },
+      {
+        "id": "daniel",
+        "origen": {"tipo": "real", "fuente": "segundo_destinatario"},
+        "rol": ["protagonista"],
+        "deseo": "demostrar que esta vez no se va a perder",
+        "necesidad": "aceptar que perderse juntos también vale",
+        "defecto": "despiste",
+        "arco": "positivo",
+        "voz": {"registro": "coloquial", "tratamiento": "tu"}
+      },
+      {
+        "id": "mostaza",
+        "origen": {"tipo": "real", "fuente": "h2"},
+        "rol": ["aliado", "alivio_comico"],
+        "arco": "plano"
+      },
+      {
+        "id": "cartografo",
+        "origen": {"tipo": "ficticio"},
+        "rol": ["antagonista"],
+        "deseo": "quedarse con el tablero para redibujar la ciudad a su gusto",
+        "arco": "redencion"
+      },
+      {
+        "id": "guardiana",
+        "origen": {"tipo": "ficticio"},
+        "rol": ["guardian_umbral"],
+        "arco": "plano"
+      }
+    ],
+    "mundo": {
+      "tipo": "alternativo",
+      "epoca": {"fecha_inicio": 2026, "duracion_historia": "una noche y un día"},
+      "localizaciones": [
+        {"id": "ciudad", "nivel": "macro", "padre": null},
+        {"id": "casco_viejo", "nivel": "meso", "padre": "ciudad"},
+        {"id": "sierra", "nivel": "meso", "padre": "ciudad"},
+        {"id": "biblioteca", "nivel": "micro", "padre": "casco_viejo"},
+        {"id": "mercado_nocturno", "nivel": "micro", "padre": "casco_viejo"},
+        {"id": "mirador", "nivel": "micro", "padre": "sierra"},
+        {"id": "cueva_del_eco", "nivel": "micro", "padre": "sierra"}
+      ],
+      "ruta": [
+        {"id": "biblioteca", "dias_viaje": 0},
+        {"id": "mercado_nocturno", "dias_viaje": 0},
+        {"id": "mirador", "dias_viaje": 1},
+        {"id": "cueva_del_eco", "dias_viaje": 0}
+      ],
+      "reglas": [
+        {
+          "regla": "Los mapas dibujados a mano cambian de noche para mostrar lo que sus dueños buscan juntos",
+          "limites": "Solo entre la medianoche y el alba, y solo si quienes lo miran van juntos",
+          "costes": "Cada cambio deja el mapa más frágil: a la tercera noche se deshace",
+          "excepciones": []
+        }
+      ],
+      "peligros": ["calles que cambian de sitio", "niebla de la sierra"]
+    },
+    "lenguaje": {
+      "idioma": "es-ES",
+      "narrador": "tercera_omnisciente",
+      "tiempo": "preterito",
+      "registro": "estandar",
+      "voz": "comedia_de_aventuras",
+      "dialogo": {"proporcion": 45, "convencion": "raya"},
+      "lexico": ["cartografía", "juegos de mesa"],
+      "prohibidas": ["de repente"]
+    },
+    "tema": {
+      "central": "la confianza se construye a dos",
+      "pregunta_dramatica": "¿Llegarán Nerea y Daniel al final del mapa antes de que se deshaga?",
+      "mensaje": "la mejor aventura es la compartida"
+    },
+    "control": {
+      "validaciones": ["cierre_subtramas", "chejov", "coherencia_temporal", "longitud", "cobertura_hechos"],
+      "lineas_rojas": ["sin_contenido_explicito", "vetos_del_comprador"]
+    }
+  }
+}

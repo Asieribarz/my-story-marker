@@ -5,7 +5,7 @@ __pycache__/
 .ruff_cache/
 .pytest_cache/
 .hypothesis/
-# Bases de proyecto, bitácora de cosmic-ray y proyectos generados: datos, no código.
+# Bases de proyecto y proyectos generados: datos, no código.
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm

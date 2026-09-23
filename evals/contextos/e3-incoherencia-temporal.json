@@ -1,0 +1,189 @@
+{
+  "novela": {
+    "personalizacion": {
+      "destinatario": {
+        "nombre": "Maribel",
+        "fecha_nacimiento": "1961-10-30",
+        "edad": 65,
+        "rasgos": ["tozuda", "madrugadora", "lee_el_tiempo_en_las_nubes"],
+        "papel": "protagonista"
+      },
+      "segundo_destinatario": null,
+      "ocasion": "jubilacion",
+      "relacion": "padre_madre",
+      "edad_lector": 65,
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "ser_querido",
+          "texto": "Su padre, Julián, patrón del pesquero Estrella del Alba, que le enseñó todo lo que sabe del mar",
+          "prioridad": "obligatorio",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h2",
+          "tipo": "evento",
+          "texto": "Julián le dejó llevar el timón del Estrella del Alba por primera vez, a la salida del puerto",
+          "momento": "1972-07",
+          "lugar": "muelle",
+          "prioridad": "obligatorio",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h3",
+          "tipo": "evento",
+          "texto": "Julián murió en su casa del puerto; desde entonces el Estrella del Alba sigue amarrado",
+          "momento": "2020-02-11",
+          "lugar": "casa_puerto",
+          "excluye": {"fuente": "h1", "tipo": "muerte"},
+          "prioridad": "obligatorio",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h4",
+          "tipo": "objeto",
+          "texto": "El sextante de su padre, que ella guarda en la vitrina del salón",
+          "prioridad": "obligatorio",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h5",
+          "tipo": "frase",
+          "texto": "El mar no se pelea, se lee",
+          "prioridad": "obligatorio",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h6",
+          "tipo": "lugar",
+          "texto": "El puerto pesquero donde creció",
+          "prioridad": "deseable",
+          "origen": "entrevista"
+        }
+      ],
+      "texto_libre": null,
+      "vetos": {"palabras": [], "temas": []},
+      "dedicatoria": "Para mamá, que por fin tiene tiempo para volver al mar."
+    },
+    "publico": "adulto",
+    "tono": "melancolico",
+    "tipo_aventura": {
+      "subgenero": {"primario": "nautica", "secundarios": ["tesoro"]},
+      "mision": "busqueda",
+      "macguffin": {
+        "nombre": "La carta de Julián",
+        "descripcion": "Una carta náutica anotada a mano, escondida en el estuche del sextante",
+        "por_que_importa": "Marca el lugar al que Julián siempre quiso volver con ella"
+      },
+      "conflicto": {
+        "externo": ["persona_vs_naturaleza", "persona_vs_persona"],
+        "interno": "cree que a su edad ya es tarde para empezar nada"
+      },
+      "contenido": {"violencia": 0, "romance": 0, "lenguaje": 0, "sensibles": 1}
+    },
+    "formato": {
+      "palabras_objetivo": 13000,
+      "capitulos": 10,
+      "longitud_capitulo": {"min": 1000, "max": 1500},
+      "cierre_capitulo": [
+        "imagen",
+        "pregunta",
+        "giro",
+        "cliffhanger",
+        "pausa",
+        "giro",
+        "cliffhanger",
+        "pregunta",
+        "cliffhanger",
+        "imagen"
+      ],
+      "titulacion": "numerado",
+      "cronologia": "analepsis",
+      "curva_tension": [2, 3, 4, 5, 5, 6, 7, 8, 9, 4]
+    },
+    "estructura": {
+      "modelo": "viaje_heroe",
+      "planteamiento": {
+        "capitulos": [1, 2],
+        "porcentaje": 22,
+        "detonante": "El día de su jubilación, Maribel encuentra la carta náutica en el estuche del sextante"
+      },
+      "nudo": {"capitulos": [3, 8], "porcentaje": 55, "punto_medio": 5, "crisis": 7},
+      "desenlace": {"capitulos": [9, 10], "porcentaje": 23, "climax": 9, "final": "cerrado"}
+    },
+    "personajes": [
+      {
+        "id": "prot",
+        "origen": {"tipo": "real", "fuente": "destinatario"},
+        "rol": ["protagonista"],
+        "deseo": "llegar al punto que su padre marcó en la carta",
+        "necesidad": "aceptar que empezar algo nuevo no borra lo que se perdió",
+        "defecto": "tozudez",
+        "arco": "positivo",
+        "voz": {"registro": "estandar", "tratamiento": "tu"}
+      },
+      {
+        "id": "julian",
+        "origen": {"tipo": "real", "fuente": "h1"},
+        "rol": ["mentor"],
+        "arco": "plano"
+      },
+      {
+        "id": "marinera",
+        "origen": {"tipo": "ficticio"},
+        "rol": ["aliado"],
+        "deseo": "salir por fin a mar abierto",
+        "arco": "positivo"
+      },
+      {
+        "id": "subastador",
+        "origen": {"tipo": "ficticio"},
+        "rol": ["antagonista"],
+        "deseo": "comprar el Estrella del Alba para desguazarlo",
+        "arco": "negativo"
+      }
+    ],
+    "mundo": {
+      "tipo": "contemporaneo",
+      "epoca": {"fecha_inicio": 2026, "duracion_historia": "una semana"},
+      "localizaciones": [
+        {"id": "costa_norte", "nivel": "macro", "padre": null},
+        {"id": "puerto", "nivel": "meso", "padre": "costa_norte"},
+        {"id": "mar_abierto", "nivel": "meso", "padre": "costa_norte"},
+        {"id": "islas", "nivel": "meso", "padre": "costa_norte"},
+        {"id": "casa_puerto", "nivel": "micro", "padre": "puerto"},
+        {"id": "muelle", "nivel": "micro", "padre": "puerto"},
+        {"id": "lonja", "nivel": "micro", "padre": "puerto"},
+        {"id": "faro_isla", "nivel": "micro", "padre": "islas"},
+        {"id": "cala_escondida", "nivel": "micro", "padre": "islas"}
+      ],
+      "ruta": [
+        {"id": "muelle", "dias_viaje": 0},
+        {"id": "mar_abierto", "dias_viaje": 1},
+        {"id": "faro_isla", "dias_viaje": 1},
+        {"id": "cala_escondida", "dias_viaje": 2}
+      ],
+      "reglas": [],
+      "peligros": ["temporal", "niebla", "corrientes"]
+    },
+    "lenguaje": {
+      "idioma": "es-ES",
+      "narrador": "tercera_limitada",
+      "tiempo": "preterito",
+      "registro": "estandar",
+      "voz": "serena_y_evocadora",
+      "dialogo": {"proporcion": 30, "convencion": "raya"},
+      "lexico": ["náutica", "pesca de bajura"],
+      "prohibidas": []
+    },
+    "tema": {
+      "central": "lo que se hereda de quien se va",
+      "pregunta_dramatica": "¿Llegará Maribel al lugar que marcó su padre antes de que subasten el Estrella del Alba?",
+      "mensaje": "nunca es tarde para zarpar"
+    },
+    "control": {
+      "validaciones": ["cierre_subtramas", "chejov", "coherencia_temporal", "longitud", "cobertura_hechos"],
+      "lineas_rojas": ["sin_contenido_explicito", "vetos_del_comprador"]
+    }
+  }
+}

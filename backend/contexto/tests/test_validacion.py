@@ -367,6 +367,27 @@ def test_toda_regla_tiene_su_caso_invalido() -> None:
     assert sin_caso == set()
 
 
+INVALIDOS: list[tuple[str, Mutacion]] = [(n, m) for n, m, _ in TIPOS + COHERENCIA]
+
+
+@pytest.mark.parametrize(("nombre", "mutar"), INVALIDOS, ids=[i[0] for i in INVALIDOS])
+def test_todo_hallazgo_del_validador_es_bloqueante(nombre: str, mutar: Mutacion) -> None:
+    # RF-22: sostiene que `puede_salir_de_contexto` sea solo `informe.valido`. Un hallazgo
+    # no bloqueante haría que la guarda tuviera que volver a mirar la severidad.
+    datos = referencia()
+    mutar(datos)
+    informe = _validar(datos)
+    assert informe.hallazgos
+    assert all(h.severidad is Severidad.BLOQUEANTE for h in informe.hallazgos)
+
+
+@pytest.mark.parametrize("raiz", [None, [], "novela", 3], ids=["None", "lista", "texto", "número"])
+def test_una_raiz_que_no_es_objeto_da_un_hallazgo_bloqueante(raiz: object) -> None:
+    informe = _validar(raiz)
+    assert [h.severidad for h in informe.hallazgos] == [Severidad.BLOQUEANTE]
+    assert not puede_salir_de_contexto(informe)
+
+
 def test_el_informe_recoge_todos_los_fallos_no_solo_el_primero() -> None:
     datos = referencia()
     _melancolico_infantil(datos)

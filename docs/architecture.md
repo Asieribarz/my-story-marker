@@ -533,7 +533,7 @@ Lo decidido hasta ahora es solo esto:
 
 | Componente | Decisión |
 |---|---|
-| Backend | Python + FastAPI |
+| Backend | Python + FastAPI, servido con **`uvicorn`**. `fastapi[standard]` no se usa: arrastraría dependencias sin nombrarlas y V-10 no las vería |
 | Frontend | React con Vite |
 | Orquestación de agentes | Claude Code ejecuta: la sesión pide al backend la siguiente orden y lanza el subagente que indica. El backend decide |
 | Base de datos | SQLite local, un fichero por proyecto, en modo WAL: relacional, vectorial y caché en la misma base |
@@ -546,7 +546,7 @@ Lo decidido hasta ahora es solo esto:
 | Model checking del grafo de estados | **TLA+** puro, verificado con **TLC** (`tla2tools.jar`, requiere Java). Se ejecuta en desarrollo, no en cada generación |
 | Validación de la ontología | **Pydantic v2** como fuente única; el JSON Schema se genera desde los modelos |
 | Entorno y dependencias | **`uv`** con `pyproject.toml` y `uv.lock`, **Python 3.12** |
-| Pruebas y análisis estático | **`pytest`** con **`Hypothesis`** para las propiedades, **`mypy --strict`**, **`ruff`**, y **`cosmic-ray`** solo sobre el validador de ontología y los verificadores. Se descartó `mutmut` 3 porque no funciona en Windows sin WSL |
+| Pruebas y análisis estático | **`pytest`** con **`Hypothesis`** para las propiedades, **`httpx`** —solo en desarrollo— para el `TestClient` de FastAPI, **`mypy --strict`**, **`ruff`**. Sin pruebas de mutación: `cosmic-ray` se retiró el 2026-09-23 por tiempo, y V-15 se sostiene con cobertura por regla |
 | Legibilidad en español | Índice de **Szigriszt-Pazos** con la escala **INFLESZ**, en código propio |
 | Inspección visual de la lectura web | **Playwright MCP**, declarado en `.mcp.json`. Lo usa la sesión de desarrollo, no ningún agente de la novela |
 

@@ -1,0 +1,138 @@
+{
+  "cabecera": {
+    "brief": "E3",
+    "nombre": "incoherencia-temporal",
+    "ficticio": true,
+    "aviso": "Brief de evaluación con datos ficticios: ninguna persona, fecha, lugar ni anécdota corresponde a alguien real. No se sustituye por datos reales.",
+    "version_ontologia": "1.0.0",
+    "fecha_referencia": "2026-09-23",
+    "contexto_referencia": "evals/contextos/e3-incoherencia-temporal.json",
+    "uso": "Solo `entrada` va al backend, con `.claude/harness/msm.py brief`: `respuestas` va por `--respuestas` (solo ese objeto, nunca este fichero entero) y el fichero de `texto_libre_fichero`, si lo hay, por `--texto-libre`. Juntos forman el cuerpo de POST /proyectos/{id}/brief (modelo `Brief` de backend/intake/router.py). `evaluacion` es el oráculo: no se entrega a ningún agente."
+  },
+  "entrada": {
+    "respuestas": {
+      "personalizacion": {
+        "destinatario": {
+          "nombre": "Maribel",
+          "fecha_nacimiento": "1961-10-30",
+          "edad": 65,
+          "rasgos": ["tozuda", "madrugadora", "lee_el_tiempo_en_las_nubes"],
+          "papel": "protagonista"
+        },
+        "segundo_destinatario": null,
+        "ocasion": "jubilacion",
+        "relacion": "padre_madre",
+        "edad_lector": 65,
+        "hechos": [
+          {
+            "id": "h1",
+            "tipo": "ser_querido",
+            "texto": "Su padre, Julián, patrón del pesquero Estrella del Alba, que le enseñó todo lo que sabe del mar",
+            "prioridad": "obligatorio",
+            "origen": "entrevista"
+          },
+          {
+            "id": "h2",
+            "tipo": "evento",
+            "texto": "Julián le dejó llevar el timón del Estrella del Alba por primera vez, a la salida del puerto",
+            "momento": "1972-07",
+            "lugar": "el muelle del puerto",
+            "prioridad": "obligatorio",
+            "origen": "entrevista"
+          },
+          {
+            "id": "h3",
+            "tipo": "evento",
+            "texto": "Julián murió en su casa del puerto; desde entonces el Estrella del Alba sigue amarrado",
+            "momento": "2020-02-11",
+            "lugar": "la casa del puerto",
+            "excluye": {"fuente": "h1", "tipo": "muerte"},
+            "prioridad": "obligatorio",
+            "origen": "entrevista"
+          },
+          {
+            "id": "h4",
+            "tipo": "objeto",
+            "texto": "El sextante de su padre, que ella guarda en la vitrina del salón",
+            "prioridad": "obligatorio",
+            "origen": "entrevista"
+          },
+          {
+            "id": "h5",
+            "tipo": "frase",
+            "texto": "El mar no se pelea, se lee",
+            "prioridad": "obligatorio",
+            "origen": "entrevista"
+          },
+          {
+            "id": "h6",
+            "tipo": "lugar",
+            "texto": "El puerto pesquero donde creció",
+            "prioridad": "deseable",
+            "origen": "entrevista"
+          }
+        ],
+        "vetos": {"palabras": [], "temas": []},
+        "dedicatoria": "Para mamá, que por fin tiene tiempo para volver al mar."
+      },
+      "preferencias": {
+        "tono": "melancolico",
+        "subgenero": {"primario": "nautica", "secundarios": ["tesoro"]},
+        "cronologia": "analepsis"
+      }
+    },
+    "texto_libre_fichero": null
+  },
+  "evaluacion": {
+    "prueba": "Dos capas contra la misma incoherencia: un ser querido con una muerte fechada en un recuerdo (h3, que declara a quién excluye, B-18) y una historia que tiende a meterlo en la aventura. La primera capa es la comprobación previa a la escritura (B-9 tras R-2), sobre las fichas. La segunda es Lean (architecture §4.2, invariante 2), sobre lo que el Escritor escribió de verdad. Tras R-2 ningún determinista mira la prosa, así que lo que pase de la ficha al texto solo lo ve Lean (V-27).",
+    "protocolo": "E-7: novela completa de 10 capítulos.",
+    "como_se_provoca": "El comprador da por separado al padre (h1, `ser_querido`, sin mencionar su muerte) y su muerte (h3, `evento` con fecha completa), los dos obligatorios. Añade un recuerdo anterior en el que el padre está vivo (h2), su frase (h5) y su sextante (h4), y pide `cronologia: analepsis`. Un planificador que lea h1 por su cuenta tenderá a hacer de Julián un mentor presente en la aventura; la cobertura obliga a contar h3, y la analepsis tiende a dejarlo para el final. Nada en el brief pide que Julián aparezca en el presente: la tendencia sale de la historia.",
+    "validador_contexto": {"hallazgos_esperados": []},
+    "debe_saltar": [
+      {
+        "verificador": "Continuidad previa a la escritura · B-9 (presentes excluidos a fecha N−1)",
+        "cuando": "Si una ficha de capítulo pone a Julián en `presentes`, es decir, actuando en el tiempo de la historia.",
+        "donde": "escaleta · registro de las fichas, antes de escribir nada",
+        "requisito": "B-9, R-2, B-18",
+        "senal": "El evento de h3 viene del contexto (`capitulo` NULL) y cuenta como capítulo 0, así que Julián ya está excluido a fecha N−1 en cualquier capítulo. La ficha se rechaza con el hallazgo y no se gasta ningún intento del Escritor."
+      },
+      {
+        "verificador": "Cronología formal · Lean 4 · invariante 2 (nadie aparece después de un evento que lo excluye)",
+        "cuando": "Si las fichas lo dejan en `mencionados` pero el Escritor lo hace actuar en el presente de todos modos, y el Bibliotecario lo registra en un evento de `dia-N`.",
+        "donde": "verificacion_manuscrito · gate",
+        "requisito": "RF-111, RF-112, V-27",
+        "senal": "`#eval violaciones` nombra el evento de h3 (2020-02-11, excluye a Julián por muerte) y cada evento de `dia-N` en que Julián está presente. El gate falla y el Revisor recibe el informe con esos eventos y sus capítulos (RF-115). Es la vía en la que Lean atrapa algo que no ve ningún determinista."
+      }
+    ],
+    "puede_saltar": [
+      {
+        "verificador": "Juez de capítulo · coherencia",
+        "por_que": "Con B-18 la muerte está en la biblia desde el capítulo 0, así que el juez la tiene como evidencia en todos los capítulos. Si detecta a Julián actuando en el presente, el Escritor reintenta antes de que llegue a Lean. Se anota qué capa lo paró: con el juez, V-27 no se cumple por esta vía."
+      }
+    ],
+    "no_debe_saltar": [
+      {
+        "verificador": "B-9 con Julián en `mencionados`",
+        "por_que": "Quien solo sale en un recuerdo o en una analepsis va en `mencionados`, no en `presentes`, y no se bloquea (R-2). Es el uso correcto de h1, h2 y h3."
+      },
+      {
+        "verificador": "Lean sobre h2",
+        "por_que": "El recuerdo de 1972 con Julián vivo es anterior a su muerte. Es el caso de control y no debe salir entre las violaciones."
+      }
+    ],
+    "precondiciones": [
+      "B-18: h3 declara `excluye {fuente: h1, tipo: muerte}`, y al salir de `contexto` la materialización lo lleva a `evento.excluye` y `tipo_exclusion`. Hasta que llegue el bloque 2 del backend (que añade el campo a `contexto/modelos.py`), el modelo `Personalizacion` y `validar()` rechazan `excluye` como campo desconocido, y `evals/comprobar.py` marca E3 por eso.",
+      "El Bibliotecario registra a Julián como presente (`evento_personaje`) en los eventos de la historia en que aparece."
+    ],
+    "resultado_esperado": [
+      "Contexto válido, con cero hallazgos.",
+      "Salida 1 · la ficha lo pone en `presentes`: B-9 la para al registrar la escaleta y el Escaletista la rehace con Julián en `mencionados`. No se escribe nada con la incoherencia.",
+      "Salida 2 · la ficha lo deja en `mencionados`, pero el Escritor lo hace actuar en el presente: el Bibliotecario lo registra en un evento de `dia-N`, Lean falla por la invariante 2 y el Revisor corrige (Julián pasa a recuerdo, carta o sueño declarado como tal). El gate pasa en un ciclo posterior, o el proyecto acaba en `detenida` al agotar los ciclos de revisión. Es la salida que demuestra V-27.",
+      "Salida 3 · no pasa ninguna de las dos: Lean pasa, y V-27 queda por la vía de la justificación, escribiendo por qué no ocurrió (plan-entrega H4). El caso se registra igual.",
+      "En las tres se anota qué capa actuó (B-9, juez de capítulo o Lean) y en qué capítulo: esa fila va a la tabla de evals."
+    ],
+    "limites": [
+      "Una aparición como fantasma, o un sueño contado en presente, también es presencia si el Bibliotecario la registra así. Que eso cuente como incoherencia lo decide el Bibliotecario al registrar, no Lean."
+    ]
+  }
+}

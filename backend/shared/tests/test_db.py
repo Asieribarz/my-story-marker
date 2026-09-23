@@ -116,6 +116,26 @@ def test_la_transaccion_deshace_si_falla(base: sqlite3.Connection) -> None:
     assert base.execute("SELECT count(*) FROM glosario").fetchone()[0] == 1
 
 
+def test_la_transaccion_anidada_se_compone_con_la_exterior(base: sqlite3.Connection) -> None:
+    sql = "INSERT INTO glosario (termino, categoria) VALUES (?, 'nombre')"
+    with transaccion(base):
+        base.execute(sql, ("Nala",))
+        with pytest.raises(RuntimeError), transaccion(base):
+            base.execute(sql, ("Aitana",))
+            raise RuntimeError("falla la interior")
+        with transaccion(base):
+            base.execute(sql, ("Brújula",))
+        assert base.in_transaction
+    terminos = {f["termino"] for f in base.execute("SELECT termino FROM glosario")}
+    assert terminos == {"Nala", "Brújula"}
+
+    with pytest.raises(RuntimeError), transaccion(base):
+        with transaccion(base):
+            base.execute(sql, ("Faro",))
+        raise RuntimeError("falla la exterior después de confirmar la interior")
+    assert base.execute("SELECT count(*) FROM glosario").fetchone()[0] == 2
+
+
 def test_no_se_crea_dos_veces_la_misma_base(tmp_path: Path) -> None:
     ruta = tmp_path / "proyecto.sqlite"
     crear_base(ruta).close()

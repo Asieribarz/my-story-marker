@@ -1,0 +1,177 @@
+{
+  "novela": {
+    "personalizacion": {
+      "destinatario": {
+        "nombre": "Lucía",
+        "fecha_nacimiento": "2003-12-03",
+        "edad": 23,
+        "rasgos": ["despistada", "generosa", "fotografa_aficionada"],
+        "papel": "protagonista"
+      },
+      "segundo_destinatario": null,
+      "ocasion": "graduacion",
+      "relacion": "amigo",
+      "edad_lector": 23,
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "ser_querido",
+          "texto": "Irene, su compañera de piso durante toda la carrera, que la acompaña a todas las salidas de campo",
+          "prioridad": "obligatorio",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h2",
+          "tipo": "evento",
+          "texto": "Defendió su trabajo de fin de grado sobre praderas marinas con el portátil a punto de apagarse",
+          "momento": "2026-06",
+          "lugar": "facultad",
+          "prioridad": "obligatorio",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h3",
+          "tipo": "lugar",
+          "texto": "El faro abandonado al que iban a estudiar los domingos",
+          "prioridad": "obligatorio",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h4",
+          "tipo": "objeto",
+          "texto": "Una cámara de fotos analógica que compró en un rastro y con la que lo fotografía todo",
+          "prioridad": "obligatorio",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h5",
+          "tipo": "frase",
+          "texto": "Lo arreglamos sobre la marcha",
+          "prioridad": "deseable",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h6",
+          "tipo": "evento",
+          "texto": "Se cayó al agua en la cala de las Gaviotas por intentar fotografiar un pulpo, y salió empapada pero con la foto",
+          "momento": "2024-10",
+          "lugar": "cala_gaviotas",
+          "prioridad": "deseable",
+          "origen": "texto_libre"
+        },
+        {
+          "id": "h7",
+          "tipo": "rasgo",
+          "texto": "Se sabe de memoria el nombre científico de todos los peces del acuario de la facultad",
+          "prioridad": "deseable",
+          "origen": "texto_libre"
+        }
+      ],
+      "texto_libre": {"ref": "brief/texto_libre.txt", "confiable": false},
+      "vetos": {"palabras": [], "temas": []},
+      "dedicatoria": "Para Lucía, bióloga por fin. De parte de toda la clase."
+    },
+    "publico": "adulto",
+    "tono": "ligero",
+    "tipo_aventura": {
+      "subgenero": {"primario": "tesoro", "secundarios": ["urbana"]},
+      "mision": "descubrimiento",
+      "macguffin": {
+        "nombre": "El carrete sin revelar",
+        "descripcion": "Un carrete que venía dentro de la cámara del rastro, con fotos de un escondite en la ciudad",
+        "por_que_importa": "Cada foto revelada lleva a la siguiente pista"
+      },
+      "conflicto": {
+        "externo": ["persona_vs_persona"],
+        "interno": "quiere arreglarlo todo sola y sobre la marcha"
+      },
+      "contenido": {"violencia": 1, "romance": 1, "lenguaje": 1, "sensibles": 0}
+    },
+    "formato": {
+      "palabras_objetivo": 12000,
+      "capitulos": 10,
+      "longitud_capitulo": {"min": 1000, "max": 1500},
+      "cierre_capitulo": "cliffhanger",
+      "titulacion": "numerado_y_titulado",
+      "cronologia": "lineal",
+      "curva_tension": [2, 4, 5, 6, 5, 7, 6, 8, 9, 4]
+    },
+    "estructura": {
+      "modelo": "episodico",
+      "planteamiento": {
+        "capitulos": [1, 2],
+        "porcentaje": 22,
+        "detonante": "Lucía revela la primera foto del carrete y reconoce el faro donde estudiaban"
+      },
+      "nudo": {"capitulos": [3, 8], "porcentaje": 55, "punto_medio": 5, "crisis": 7},
+      "desenlace": {"capitulos": [9, 10], "porcentaje": 23, "climax": 9, "final": "abierto"}
+    },
+    "personajes": [
+      {
+        "id": "prot",
+        "origen": {"tipo": "real", "fuente": "destinatario"},
+        "rol": ["protagonista"],
+        "deseo": "encontrar el escondite de las fotos antes que nadie",
+        "necesidad": "aceptar ayuda en vez de arreglarlo todo sola",
+        "defecto": "despiste",
+        "arco": "positivo",
+        "voz": {"registro": "coloquial", "tratamiento": "tu"}
+      },
+      {
+        "id": "irene",
+        "origen": {"tipo": "real", "fuente": "h1"},
+        "rol": ["aliado"],
+        "arco": "plano"
+      },
+      {
+        "id": "coleccionista",
+        "origen": {"tipo": "ficticio"},
+        "rol": ["antagonista"],
+        "deseo": "quedarse con el carrete y con lo que esconde",
+        "arco": "redencion"
+      }
+    ],
+    "mundo": {
+      "tipo": "contemporaneo",
+      "epoca": {"fecha_inicio": 2026, "duracion_historia": "un fin de semana"},
+      "localizaciones": [
+        {"id": "ciudad_costera", "nivel": "macro", "padre": null},
+        {"id": "campus", "nivel": "meso", "padre": "ciudad_costera"},
+        {"id": "costa", "nivel": "meso", "padre": "ciudad_costera"},
+        {"id": "casco_antiguo", "nivel": "meso", "padre": "ciudad_costera"},
+        {"id": "facultad", "nivel": "micro", "padre": "campus"},
+        {"id": "acuario", "nivel": "micro", "padre": "campus"},
+        {"id": "faro_abandonado", "nivel": "micro", "padre": "costa"},
+        {"id": "cala_gaviotas", "nivel": "micro", "padre": "costa"},
+        {"id": "rastro", "nivel": "micro", "padre": "casco_antiguo"},
+        {"id": "piso_compartido", "nivel": "micro", "padre": "casco_antiguo"}
+      ],
+      "ruta": [
+        {"id": "piso_compartido", "dias_viaje": 0},
+        {"id": "rastro", "dias_viaje": 0},
+        {"id": "acuario", "dias_viaje": 1},
+        {"id": "faro_abandonado", "dias_viaje": 0},
+        {"id": "cala_gaviotas", "dias_viaje": 1}
+      ],
+      "reglas": []
+    },
+    "lenguaje": {
+      "idioma": "es-ES",
+      "narrador": "primera",
+      "tiempo": "preterito",
+      "registro": "coloquial",
+      "voz": "desenfadada_y_calida",
+      "dialogo": {"proporcion": 45, "convencion": "raya"},
+      "lexico": ["biología marina", "fotografía analógica"],
+      "prohibidas": ["de repente"]
+    },
+    "tema": {
+      "central": "lo que se aprende juntos no se olvida",
+      "pregunta_dramatica": "¿Revelará Lucía la última foto antes de que el coleccionista llegue al escondite?"
+    },
+    "control": {
+      "validaciones": ["cierre_subtramas", "chejov", "coherencia_temporal", "longitud", "cobertura_hechos"],
+      "lineas_rojas": ["sin_contenido_explicito", "vetos_del_comprador"]
+    }
+  }
+}

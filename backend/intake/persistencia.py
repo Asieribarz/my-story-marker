@@ -3,23 +3,31 @@
 - Las respuestas se guardan íntegras salvo los datos excluidos, que se descartan y se
   auditan (C-8 manda sobre RF-10: minimizar es la regla, no la excepción).
 - El texto libre se guarda como fichero aparte y no confiable (RF-14). Este módulo solo
-  lo escribe; entregarlo es cosa de `/mcp/entrada`, en el paso 5.
+  lo escribe; lo entrega `/mcp/entrada` a cambio de un identificador de un solo uso
+  (`intake/entrada.py`).
 - Los hechos que extrae el Extractor quedan `pendiente` hasta que el comprador los
   confirma; solo los confirmados entran en el contexto.
+- La extracción vale para el texto libre que la produjo: `brief.extraccion` apunta a la orden
+  del Extractor que lo extrajo, y cambiar el texto la deja sin efecto (RF-14, RF-15).
 """
 
 import json
+import os
 import sqlite3
+import tempfile
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError
 
 from backend.contexto.modelos import Hecho, TipoHecho
 from backend.intake.datos_excluidos import Descarte, depurar, descartes_de_texto
+from backend.intake.entrada import invalidar
 from backend.shared.db import transaccion
 from backend.shared.rutas import DisposicionProyecto
+from backend.shared.tipos import RecursoEntrada
 
 
 @dataclass(frozen=True)
@@ -45,6 +53,24 @@ def auditar_descartes(
     )
 
 
+def _texto_guardado(conexion: sqlite3.Connection, disposicion: DisposicionProyecto) -> bytes | None:
+    fila = conexion.execute("SELECT ruta_texto_libre FROM brief WHERE id = 1").fetchone()
+    if fila is None or fila["ruta_texto_libre"] is None:
+        return None
+    ruta = disposicion.absoluta(fila["ruta_texto_libre"])
+    return ruta.read_bytes() if ruta.is_file() else None
+
+
+def _temporal_con(disposicion: DisposicionProyecto, contenido: bytes) -> Path:
+    """Un fichero nuevo junto al del texto libre, con `contenido` tal cual, sin traducir los
+    saltos de línea: el texto se guarda íntegro (RF-10)."""
+    disposicion.brief.mkdir(parents=True, exist_ok=True)
+    descriptor, nombre = tempfile.mkstemp(dir=disposicion.brief, prefix=".texto_libre-")
+    with os.fdopen(descriptor, "wb") as fichero:
+        fichero.write(contenido)
+    return Path(nombre)
+
+
 def guardar_brief(
     conexion: sqlite3.Connection,
     disposicion: DisposicionProyecto,
@@ -52,23 +78,54 @@ def guardar_brief(
     texto_libre: str | None,
     momento: str,
 ) -> tuple[Descarte, ...]:
-    """RF-10: guarda la entrevista. Volver a enviarla sustituye la anterior."""
+    """RF-10: guarda la entrevista. Volver a enviarla sustituye la anterior.
+
+    - Todo se valida antes de tocar el disco: unas respuestas o un texto que no se pueden
+      guardar (`NaN`, un carácter sustituto suelto) dan `ValueError` y nada cambia.
+    - El texto nuevo se escribe en un fichero temporal, y sustituye al anterior solo después
+      de escribir la fila: si la base falla, el texto en disco sigue siendo el del brief que
+      quedó guardado.
+    - Si el texto libre cambia —otro texto, o ninguno—, lo que se sacó del anterior deja de
+      valer (RF-14, RF-15): los hechos propuestos, confirmados o no, y la extracción hecha. Con
+      el mismo texto, se conservan. En los dos casos se retiran los identificadores de
+      `/mcp/entrada` que nadie ha canjeado.
+    """
     limpias, descartes = depurar(respuestas)
-    ruta_texto = None
-    if texto_libre is not None:
-        disposicion.texto_libre.parent.mkdir(parents=True, exist_ok=True)
-        disposicion.texto_libre.write_text(texto_libre, encoding="utf-8")
-        ruta_texto = disposicion.relativa(disposicion.texto_libre)
+    serializadas = json.dumps(limpias, ensure_ascii=False, allow_nan=False)
+    serializadas.encode("utf-8")
+    nuevo = None if texto_libre is None else texto_libre.encode("utf-8")
     with transaccion(conexion):
-        conexion.execute(
-            "INSERT INTO brief (id, respuestas, ruta_texto_libre, creado) VALUES (1, ?, ?, ?) "
-            "ON CONFLICT (id) DO UPDATE SET respuestas = excluded.respuestas, "
-            "ruta_texto_libre = excluded.ruta_texto_libre, normalizado = NULL, "
-            "creado = excluded.creado",
-            (json.dumps(limpias, ensure_ascii=False), ruta_texto, momento),
-        )
-        auditar_descartes(conexion, descartes, "entrevista", momento)
+        cambia = _texto_guardado(conexion, disposicion) != nuevo
+        temporal = _temporal_con(disposicion, nuevo) if nuevo is not None and cambia else None
+        try:
+            if cambia:
+                conexion.execute("UPDATE brief SET extraccion = NULL WHERE id = 1")
+                conexion.execute("DELETE FROM hecho_propuesto")
+            ruta = None if nuevo is None else disposicion.relativa(disposicion.texto_libre)
+            conexion.execute(
+                "INSERT INTO brief (id, respuestas, ruta_texto_libre, creado) "
+                "VALUES (1, ?, ?, ?) "
+                "ON CONFLICT (id) DO UPDATE SET respuestas = excluded.respuestas, "
+                "ruta_texto_libre = excluded.ruta_texto_libre, normalizado = NULL, "
+                "creado = excluded.creado",
+                (serializadas, ruta, momento),
+            )
+            invalidar(conexion, RecursoEntrada.TEXTO_LIBRE)
+            auditar_descartes(conexion, descartes, "entrevista", momento)
+            if temporal is not None:
+                temporal.replace(disposicion.texto_libre)
+            elif cambia:
+                disposicion.texto_libre.unlink(missing_ok=True)
+        except BaseException:
+            if temporal is not None:
+                temporal.unlink(missing_ok=True)
+            raise
     return tuple(descartes)
+
+
+def registrar_extraccion(conexion: sqlite3.Connection, orden: int) -> None:
+    """RF-15: la orden del Extractor cuyo resultado se acepta extrajo el texto libre vigente."""
+    conexion.execute("UPDATE brief SET extraccion = ? WHERE id = 1", (orden,))
 
 
 def guardar_normalizado(

@@ -1,0 +1,100 @@
+{
+  "cabecera": {
+    "brief": "E1",
+    "nombre": "referencia",
+    "ficticio": true,
+    "aviso": "Brief de evaluación con datos ficticios: ninguna persona, fecha, lugar ni anécdota corresponde a alguien real. No se sustituye por datos reales.",
+    "version_ontologia": "1.0.0",
+    "fecha_referencia": "2026-09-23",
+    "contexto_referencia": "evals/contextos/e1-referencia.json",
+    "uso": "Solo `entrada` va al backend, con `.claude/harness/msm.py brief`: `respuestas` va por `--respuestas` (solo ese objeto, nunca este fichero entero) y el fichero de `texto_libre_fichero`, si lo hay, por `--texto-libre`. Juntos forman el cuerpo de POST /proyectos/{id}/brief (modelo `Brief` de backend/intake/router.py). `evaluacion` es el oráculo: no se entrega a ningún agente."
+  },
+  "entrada": {
+    "respuestas": {
+      "personalizacion": {
+        "destinatario": {
+          "nombre": "Hugo",
+          "fecha_nacimiento": "2012-11-08",
+          "edad": 14,
+          "rasgos": ["curioso", "impaciente", "se_orienta_con_las_estrellas"],
+          "papel": "protagonista"
+        },
+        "segundo_destinatario": null,
+        "ocasion": "cumpleanos",
+        "relacion": "hijo",
+        "edad_lector": 14,
+        "hechos": [
+          {
+            "id": "h1",
+            "tipo": "ser_querido",
+            "texto": "Su perro, Trasto, un mestizo canela que le sigue a todas partes",
+            "prioridad": "obligatorio",
+            "origen": "entrevista"
+          },
+          {
+            "id": "h2",
+            "tipo": "evento",
+            "texto": "Subió por primera vez con su perro al pico que hay sobre el valle y vio amanecer desde la cima",
+            "momento": "2023-08",
+            "lugar": "el pico que hay sobre el valle",
+            "prioridad": "obligatorio",
+            "origen": "entrevista"
+          },
+          {
+            "id": "h3",
+            "tipo": "lugar",
+            "texto": "La cabaña de su tío en el valle, donde pasa los veranos",
+            "prioridad": "obligatorio",
+            "origen": "entrevista"
+          },
+          {
+            "id": "h4",
+            "tipo": "objeto",
+            "texto": "Los prismáticos de su abuela, que lleva siempre en la mochila",
+            "prioridad": "obligatorio",
+            "origen": "entrevista"
+          },
+          {
+            "id": "h5",
+            "tipo": "frase",
+            "texto": "Esto va a ser épico",
+            "prioridad": "obligatorio",
+            "origen": "entrevista"
+          },
+          {
+            "id": "h6",
+            "tipo": "rasgo",
+            "texto": "Colecciona piedras con formas raras",
+            "prioridad": "deseable",
+            "origen": "entrevista"
+          }
+        ],
+        "vetos": {"palabras": [], "temas": ["araña"]},
+        "dedicatoria": "Para Hugo, que siempre encuentra el camino. Feliz 14 cumpleaños."
+      },
+      "preferencias": {
+        "tono": "epico",
+        "subgenero": {"primario": "expedicion", "secundarios": ["tesoro"]}
+      }
+    },
+    "texto_libre_fichero": "evals/briefs/texto_libre-e1.txt"
+  },
+  "evaluacion": {
+    "prueba": "El camino feliz de extremo a extremo: cumpleaños de un hijo, lector juvenil, cinco hechos obligatorios de cinco tipos distintos (ser_querido, evento, lugar, objeto y frase), un veto de tema y un texto libre inofensivo. Es el brief del README y el de la novela de ejemplo, y el caso de control del Extractor frente a E2.",
+    "protocolo": "E-7: novela completa de 10 capítulos, hasta `publicada`. Después, la demostración de H6 sobre la misma novela.",
+    "validador_contexto": {"hallazgos_esperados": []},
+    "debe_saltar": [],
+    "resultado_esperado": [
+      "Extracción (`intake`): el Extractor propone exactamente dos hechos del texto libre, los dos `deseable`: un `evento` (se perdió en la feria de las fiestas del pueblo y lo encontraron junto a la noria; momento 2024-08, lugar la feria) y un `rasgo` (los cinco nudos de marinero). Ninguno se rechaza ni se descarta. Si alguno llega como `obligatorio`, el Agente de Contexto lo baja a `deseable`: con los cinco de la entrevista ya está el tope, y si no salta `hechos_obligatorios`.",
+      "Contexto: el validador da cero hallazgos con la fecha de referencia, y el proyecto pasa de `contexto` a `planificacion`.",
+      "Bucle de capítulo: ningún capítulo acaba en `revision_humana` y el guardarraíl no se agota. Algún reintento suelto es normal y queda registrado.",
+      "Gates de manuscrito: cobertura con los cinco obligatorios en `hecho_uso`; «Esto va a ser épico» aparece literal en al menos un capítulo (RF-73a); Lean sin violaciones; el juez de manuscrito suma 18 o más sin ningún criterio por debajo de 3 (TC-5).",
+      "Publicación: versión 1, con lectura web y PDF.",
+      "H6: la petición del lector «el perro se llama Nala» cambia h1 y regenera solo los capítulos que tienen h1 en `hecho_uso`, más los que corrija el Revisor (V-31). La versión 1 se conserva y la 2 lleva página de novedades."
+    ],
+    "limites": [
+      "Ningún otro hecho nombra a Trasto, para que el cambio de H6 no deje hechos que se contradigan con el nuevo nombre.",
+      "Los ids h7 y h8 de los hechos extraídos en el contexto de referencia son orientativos: el backend asigna los ids al confirmar."
+    ]
+  }
+}

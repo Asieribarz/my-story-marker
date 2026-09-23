@@ -111,6 +111,12 @@ class DisposicionProyecto:
             raise ValueError(f"la ruta {relativa!r} sale del directorio del proyecto")
         return ruta
 
+    def apartada(self) -> "DisposicionProyecto":
+        """El mismo proyecto apartado para borrarlo (RF-09a): un directorio hermano cuyo nombre
+        no es un identificador, así que nada lo abre por su id. Único en cada llamada."""
+        nombre = f".borrando-{self.identificador}-{uuid.uuid4().hex}"
+        return DisposicionProyecto(self.identificador, self.raiz.with_name(nombre))
+
     def crear_directorios(self) -> None:
         for carpeta in (self.capitulos, self.prompts, self.export, self.brief, self.cambios):
             carpeta.mkdir(parents=True, exist_ok=True)
