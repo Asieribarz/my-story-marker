@@ -5,9 +5,10 @@ __pycache__/
 .ruff_cache/
 .pytest_cache/
 .hypothesis/
-# Bases de proyecto y proyectos generados: datos, no código.
+# Bases sueltas: datos, no código. Los proyectos generados sí entran, con su base
+# (sus datos de persona son ficticios, AGENTS.md).
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
-proyectos/
+!proyectos/*/*/*.sqlite
 .env

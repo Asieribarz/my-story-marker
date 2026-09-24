@@ -41,7 +41,7 @@ Plugins de Claude Code usados en desarrollo: `mattpocock-skills` (skill `grillin
 
 ### `.env.example`
 
-Cópialo a `.env` (que git ignora) y ajústalo si hace falta. Hoy solo trae `MSM_PROYECTOS`, la raíz de los proyectos generados (por defecto `proyectos/`, también ignorada). El repositorio no contiene ninguna clave ni la necesita: el modelo sale de la suscripción de Claude Code.
+Cópialo a `.env` (que git ignora) y ajústalo si hace falta. Hoy solo trae `MSM_PROYECTOS`, la raíz de los proyectos generados (por defecto `proyectos/`, que sí se commitea: sus datos de persona son ficticios). El repositorio no contiene ninguna clave ni la necesita: el modelo sale de la suscripción de Claude Code.
 
 Otras variables que leen el harness y el backend, todas opcionales: `MSM_BACKEND` (URL del backend, por defecto `http://127.0.0.1:8000`; también la usa el proxy de Vite) y `MSM_WORKER` (`0` desactiva el worker de regeneración).
 

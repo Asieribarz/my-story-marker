@@ -1,0 +1,96 @@
+{
+  "bloques": [
+    {
+      "esperado": 2000,
+      "fuera": 0,
+      "id": "ficha",
+      "prioridad": 1,
+      "recortado": false,
+      "titulo": "Ficha del capítulo",
+      "tokens": 654
+    },
+    {
+      "esperado": 1000,
+      "fuera": 0,
+      "id": "informe_anterior",
+      "prioridad": 2,
+      "recortado": false,
+      "titulo": "Informe del intento anterior",
+      "tokens": 14
+    },
+    {
+      "esperado": 5000,
+      "fuera": 0,
+      "id": "guia",
+      "prioridad": 2,
+      "recortado": false,
+      "titulo": "Guía de estilo",
+      "tokens": 512
+    },
+    {
+      "esperado": 2000,
+      "fuera": 0,
+      "id": "presagios_inventario",
+      "prioridad": 3,
+      "recortado": false,
+      "titulo": "Presagios pendientes e inventario vivo",
+      "tokens": 1653
+    },
+    {
+      "esperado": 8000,
+      "fuera": 0,
+      "id": "presentes",
+      "prioridad": 4,
+      "recortado": false,
+      "titulo": "Fichas de los personajes presentes",
+      "tokens": 788
+    },
+    {
+      "esperado": 5000,
+      "fuera": 0,
+      "id": "localizacion",
+      "prioridad": 5,
+      "recortado": false,
+      "titulo": "Localización y reglas del mundo aplicables",
+      "tokens": 497
+    },
+    {
+      "esperado": 3000,
+      "fuera": 0,
+      "id": "resumen",
+      "prioridad": 6,
+      "recortado": false,
+      "titulo": "Resumen acumulado",
+      "tokens": 2845
+    },
+    {
+      "esperado": 3000,
+      "fuera": 0,
+      "id": "capitulo_anterior",
+      "prioridad": 7,
+      "recortado": false,
+      "titulo": "Capítulo anterior íntegro",
+      "tokens": 2715
+    }
+  ],
+  "capitulo": 8,
+  "estimador": {
+    "factor": 1.35,
+    "motor": "tiktoken"
+  },
+  "intento": 1,
+  "momento": "2026-09-24T16:03:34Z",
+  "partes": [
+    {
+      "ruta": "prompts/cap-08/v1-intento1.prompt.parte-1.md",
+      "tokens": 9715
+    }
+  ],
+  "prompt": "prompts/cap-08/v1-intento1.prompt.md",
+  "recortes": [],
+  "sha256": "21ae32d81ff8b23047c3eb8cb7e6c93869ff41c1cb37929e04dc6d2b4880d64b",
+  "similitud": [],
+  "tope": 100000,
+  "total": 9715,
+  "version": 1
+}
