@@ -48,16 +48,17 @@ El backend v1 cubre **todo lo que no consume modelo** ([docs/architecture.md](..
 | Multiusuario, autenticación, autorización | 3 | Un fichero SQLite por proyecto, un solo comprador |
 | Control de coste por token | — | El gasto es de suscripción, no de API medida ([docs/architecture.md](../docs/architecture.md) §10) |
 | Cifrado en reposo y retención configurable | 3 | Ver más abajo |
+| Prólogo, epílogo, partes e interludios | — | En la v1 la macroestructura es solo la titulación, con valores cerrados (`numerado`, `titulado`, `numerado_y_titulado`) |
 
 Las rebanadas fuera de alcance **no se crean vacías**: la carpeta aparece cuando hay código que poner dentro.
 
 **La v1 es la Fase 1 · Entrega** de [docs/architecture.md](../docs/architecture.md) §11, que desde la reorientación del producto incluye todo lo obligatorio en la entrega: gates de manuscrito, guardarraíl, versiones y regeneración por el lector.
 
-**Sobre el verificador de contenido y líneas rojas.** [docs/architecture.md](../docs/architecture.md) §4 lo lista como **bloqueante**, con acción de regeneración obligatoria, y aun así la v1 no lo incluye. Queda escrito porque es el único verificador de esa tabla que se quedaba fuera sin decirlo. Sus dos mitades caen por motivos distintos: la de juicio es LLM-juez y ya está excluida por la fila anterior, y la de clasificación exigiría una dependencia que no está en la tabla de §7 de la arquitectura, así que introducirla sería una decisión nueva y C-7 lo prohíbe. Conviene no confundirlo con RF-25, que sí está dentro: RF-25 comprueba el **nivel de contenido declarado en el objeto de contexto**, no el texto del capítulo. En la v1, por tanto, nada mira el contenido del capítulo contra el público objetivo.
+**Sobre el verificador de contenido y líneas rojas.** [docs/architecture.md](../docs/architecture.md) §4 lo lista como **bloqueante**, con acción de regeneración obligatoria, y aun así la v1 no lo incluye. Queda escrito porque es el único verificador de esa tabla que se quedaba fuera sin decirlo. Sus dos mitades caen por motivos distintos: la de juicio es LLM-juez y ya está excluida por la fila anterior, y la de clasificación exigiría una dependencia que no está en la tabla de §7 de la arquitectura, así que introducirla sería una decisión nueva y C-7 lo prohíbe. Conviene no confundirlo con RF-25, que sí está dentro: RF-25 comprueba el **nivel de contenido declarado en el objeto de contexto**, no el texto del capítulo. Lo que sí mira el texto contra el público en la v1 es el criterio **`contenido`** del juez de capítulo, de severidad alta (B-15): el clasificador sigue fuera, pero la afirmación de que nada lo mira ya no vale.
 
 **Sobre el cifrado en reposo.** [docs/architecture.md](../docs/architecture.md) §10 pide prompts y salidas cifrados en reposo y retención configurable. La v1 **no lo hace**, y conviene que quede escrito en vez de quedar como un olvido: escribe capítulos, prompts y exportaciones como ficheros planos dentro del directorio del proyecto, precisamente porque C-4 los quiere legibles con `grep` y comparables con `diff`. La exclusión se sostiene mientras la ejecución sea local y de un solo comprador; el día que se aborde el multiusuario de la Fase 3, esta fila y C-4 se revisan juntas, porque la tensión entre ambas es real.
 
-**Sobre la rebanada `planificacion`.** Está entera dentro del alcance, y sus cuatro agentes —Arquitecto, Personajes, Mundo y Estilo— son de la Fase 1, porque el grafo de [docs/architecture.md](../docs/architecture.md) §3.1 los recorre en orden. El Recuperador necesita su salida desde el primer capítulo: fichas de personajes presentes y guía de estilo son dos bloques de la tabla de §6.3, ~8k y ~5k.
+**Sobre la rebanada `planificacion`.** Está entera dentro del alcance. Tras R-1 la planificación la hace un solo agente, el `planificador`, que en una salida produce plan, personajes, mundo y guía de estilo; con el `escaletista` y los demás, la novela usa 12 agentes, y en `planificacion` hay una sola orden. El Recuperador necesita su salida desde el primer capítulo: fichas de personajes presentes y guía de estilo son dos bloques de la tabla de §6.3, ~8k y ~5k.
 
 ### 1.3 Definiciones
 
@@ -183,11 +184,11 @@ Cada requisito tiene identificador estable, enunciado, y la sección de `docs/` 
 | RF-03 | La posición en el grafo se persiste **antes** de que se lance el siguiente paso: la orden queda registrada como vigente antes de devolverse a la sesión. La transición la escribe el backend al registrar el resultado de esa orden; la sesión no escribe transiciones. | M | §3.2 |
 | RF-04 | Las transiciones permitidas son exactamente las de la tabla de §3.1; una transición no contemplada se rechaza con error y no modifica la fila. | M | §3.1 |
 | RF-05 | Las paradas `aprobacion_plan` y `aprobacion_final` se activan por proyecto y están **inactivas por defecto**. Cuando están activas no tienen transición automática de salida: solo salen por una acción humana explícita en la API. | M | §3.3 |
-| RF-05a | `publicada`, `cambio_solicitado` y `detenida` solo salen por acción humana. | M | §3.1, §3.3 |
+| RF-05a | `publicada`, `cambio_solicitado` y `detenida` solo salen por acción humana, **salvo** dos aristas escritas: el Intérprete que agota su tope y el worker que falla devuelven `cambio_solicitado` a `publicada` con el cambio fallido (Q6, R-4). | M | §3.1, §3.3 |
 | RF-06 | Toda escritura de resultado de paso está claveada por `(capítulo, versión, intento)` o por la orden que la produjo; registrar de nuevo el mismo resultado para la misma orden devuelve la fila existente, no una duplicada. | M | §3.2 |
 | RF-07 | El contador de intentos vive en la fila del capítulo, no en la sesión, y sobrevive al reinicio. | M | §3.2 |
 | RF-07a | Toda orden lleva su número de intento, con tope 3 para cualquier agente. Agotado en una orden que no es de capítulo: `detenida` en la generación inicial; `publicada` con el cambio fallido en una regeneración. | M | §3.1, §3.2 |
-| RF-08 | El backend calcula la **siguiente orden** de un proyecto: qué subagente lanzar, con qué entrada —prompt ensamblado o identificadores— y dónde registrar el resultado; o `esperar_humano`, `publicada`, `detenida` o `error_ensamblado` —con el desglose del Recuperador, mientras D-9 siga abierta—. Reintentos, topes, paradas y `detenida` se deciden aquí con los contadores persistidos, no en la sesión. | M | §3.1 |
+| RF-08 | El backend calcula la **siguiente orden** de un proyecto: qué subagente lanzar, con qué entrada —prompt ensamblado o identificadores— y dónde registrar el resultado; o `esperar_humano`, `publicada`, `detenida` o `error` con una causa —`no_cabe` (D-9, con el desglose del Recuperador), `inconsistencia`, `lean_no_disponible`, `pdf_no_disponible`, `cronologia_invalida`, `contexto_incoherente`, `revision_sin_capitulos`—, que no cambia el estado ni gasta intento (AJ-5). Reintentos, topes, paradas y `detenida` se deciden aquí con los contadores persistidos, no en la sesión. | M | §3.1 |
 | RF-08a | La elección de la orden es una función determinista del estado persistido. La orden **se persiste al emitirse**, con los identificadores de un solo uso y el fichero de prompt que necesite; pedir la siguiente orden mientras hay una vigente devuelve esa misma orden. Nunca indica una transición que la tabla de RF-04 no permita ni un intento por encima de los topes. Al registrar: un resultado para la orden vigente se valida y avanza el grafo; el mismo resultado otra vez es idempotente (RF-06); un resultado para otra orden se rechaza. | M | §3.1, §3.4 |
 | RF-09 | Se registra un historial append-only de transiciones con marca de tiempo, estado origen, estado destino y quién la provocó. | S | §3.1, §10 |
 | RF-09a | Borrar un proyecto elimina su fichero SQLite y su directorio en disco enteros. No hay retención automática. | M | §10 |
@@ -201,7 +202,7 @@ Cada requisito tiene identificador estable, enunciado, y la sección de `docs/` 
 | RF-11 | Almacenar el brief normalizado que produce el Agente de Contexto, junto al brief original, sin sustituirlo. | M | §2 |
 | RF-12 | Exponer las preguntas pendientes que el agente haya dejado abiertas y permitir que el comprador las responda. | S | §3 |
 | RF-13 | Descartar, sin rechazar el brief, los datos excluidos por C-8 que aparezcan en las respuestas o en los hechos extraídos, y registrar cada descarte en el audit log con el tipo de dato y **sin el valor**. | M | §10 |
-| RF-14 | El texto libre se guarda como fichero aparte, marcado como no confiable. Solo se entrega por la superficie `/mcp/entrada`, declarada únicamente en las definiciones del Extractor y del Intérprete, a cambio de un identificador opaco de un solo uso que el backend emite al iniciar la extracción. El identificador no se deriva del proyecto, se consume al canjearlo y caduca; un identificador desconocido, usado o caducado devuelve error. El orquestador no recibe nunca el texto. | M | §1, §3, §8 |
+| RF-14 | El texto libre se guarda como fichero aparte, marcado como no confiable. Solo se entrega por la superficie `/mcp/entrada`, declarada únicamente en las definiciones del Extractor y del Intérprete, a cambio de un identificador opaco de un solo uso que el backend emite al iniciar la extracción. El identificador es `<proyecto>.<secreto>`: lo que no se deriva del proyecto es el secreto, y el prefijo solo sirve para que la petición identifique su proyecto sin recorrer los demás (V-24). Se consume al canjearlo, caduca y se renueva al volver a sellar la orden (AJ-4); un identificador desconocido, usado o caducado devuelve error. El orquestador no recibe nunca el texto. | M | §1, §3, §8 |
 | RF-15 | Los hechos extraídos del texto libre quedan en estado `pendiente` hasta que el comprador los confirma; solo los confirmados entran en el contexto. Validar contra el esquema de la §9 todo hecho propuesto, y rechazar el que no encaje. | M | §3, definitions §9 |
 
 ### 4.3 Rebanada `contexto`
@@ -219,6 +220,8 @@ Cada requisito tiene identificador estable, enunciado, y la sección de `docs/` 
 | RF-28 | Persistir el contexto validado con la versión de ontología con la que se validó. | M | §10 |
 
 ### 4.4 Rebanada `planificacion`
+
+La salida la produce un solo agente, el `planificador`, en una orden (R-1); sus partes se validan contra los modelos del contexto extendidos (B-4).
 
 | ID | Requisito | Prio | Origen |
 |---|---|---|---|
@@ -248,10 +251,10 @@ Cada requisito tiene identificador estable, enunciado, y la sección de `docs/` 
 | RF-50 | El Recuperador no llama a ningún modelo. Ensambla con **dos mecanismos de contrato distinto**: recuperación estructurada y recuperación por similitud. El criterio que los separa es el determinismo, no la técnica. | M | §5, §6.3 |
 | RF-50a | **Recuperación estructurada:** misma entrada → mismo resultado, byte a byte. Sirve todos los bloques menos el de pasajes recuperados. | M | §6.3 |
 | RF-50b | **Recuperación por similitud:** misma entrada **y mismo estado del índice** → mismo resultado. El desempate entre fragmentos de igual puntuación es explícito y estable: puntuación, luego número de capítulo, luego posición del fragmento. | M | §6.3 |
-| RF-50c | El resultado vacío es asimétrico: en similitud es una respuesta válida —no se emite su encabezado y **no se registra como recorte**—; en estructurada es un error que aborta el ensamblado con mensaje accionable. | M | §6.3 |
+| RF-50c | El resultado vacío es asimétrico: en similitud es una respuesta válida —no se emite su encabezado y **no se registra como recorte**—; en estructurada, un bloque obligatorio vacío (ficha, guía, fichas de presentes, localización) es un error que aborta el ensamblado con mensaje accionable, y uno opcional vacío (presagios e inventario, resumen, capítulo anterior, reglas) se emite con la línea fija «Ninguno.», que no es recorte (B-8). El bloque «Informe del intento anterior» (prioridad 2, ~1k) se recorta entero. | M | §6.3 |
 | RF-51 | Ensambla el prompt por bloques, con los tamaños esperados y el orden de prioridad de la tabla de §6.3. El recorte se dispara contra el tope de 100.000, no contra la suma de la tabla. | M | §6.3 |
 | RF-52 | Cuenta los tokens **antes** de enviar, no después. | M | §6.3 |
-| RF-52a | La cuenta la da un **estimador conservador**, no un contador exacto: `tiktoken` con `o200k_base` multiplicado por un factor de inflación de 1,35. `tiktoken` es el tokenizador de OpenAI e infracuenta a Claude; el factor existe para que el error sea siempre por exceso. | M | §6.3, §7 |
+| RF-52a | La cuenta la da un **estimador conservador**, no un contador exacto: `tiktoken` con `o200k_base` multiplicado por un factor de inflación de 1,35. `tiktoken` es el tokenizador de OpenAI e infracuenta a Claude; el factor existe para que el error sea siempre por exceso. Si su extensión nativa no carga, un BPE en Python puro sobre el mismo fichero, con el mismo factor (M-10). | M | §6.3, §7 |
 | RF-52b | El estimador vive detrás de una interfaz estrecha —texto entra, entero sale— y el factor de inflación es una constante de ese módulo, en un sitio único. El tope de 100.000 **no se baja** para dejar margen: el margen está dentro del estimador. | M | §6.3 |
 | RF-52c | El fichero BPE de `o200k_base` se versiona en el repositorio y `TIKTOKEN_CACHE_DIR` apunta a él. El estimador no descarga nada de la red en tiempo de ejecución. | M | §6.3, §7 |
 | RF-53 | Si no cabe, recorta por orden de prioridad inverso (pasajes recuperados primero, ficha nunca) y **deja escrito en el informe** qué recortó y cuánto. | M | §6.3 |
@@ -275,7 +278,7 @@ Cada requisito tiene identificador estable, enunciado, y la sección de `docs/` 
 | RF-63 | Tope de 3 intentos por capítulo. Agotados, el capítulo pasa a `revision_humana` con los informes adjuntos. | M | §4, §3.2 |
 | RF-64 | Un capítulo en `revision_humana` no bloquea el bucle: la siguiente orden pasa al capítulo siguiente. Pero la versión no se publica: al acabar el bucle, el proyecto pasa a `detenida` —o, en una regeneración, vuelve a `publicada` con el cambio fallido—. | M | §3.2 |
 | RF-64a | Tope de 3 ciclos entre `verificacion_manuscrito` y `revision`. Agotado: `detenida` en la generación inicial; `publicada` con la versión anterior vigente y el cambio fallido en una regeneración. El contador vive en la fila del proyecto. | M | §3.2 |
-| RF-64b | Desde `detenida`, la acción humana «reintentar» reabre los capítulos en `revision_humana` con su contador a cero, pone a cero el contador de ciclos de revisión del proyecto y vuelve a `capitulos`; queda registrada en el historial. | M | §3.1 |
+| RF-64b | Desde `detenida`, la acción humana «reintentar» reabre los capítulos en `revision_humana` con su contador a cero, pone a cero el contador de ciclos de revisión del proyecto y vuelve a la fase de la que vino (`detenida_desde`); desde `verificacion_manuscrito`, a `capitulos` (Q6). Queda registrada en el historial. | M | §3.1 |
 | RF-65 | El backend rechaza cualquier escritura en la biblia que no venga de la herramienta del Bibliotecario, y cualquiera que se intente antes de que el capítulo esté verificado. | M | §1, §3.3 |
 
 #### 4.6.3 Verificadores deterministas
@@ -290,8 +293,8 @@ Todos devuelven informe con severidad y localización. **Ninguno corrige** ([doc
 | RF-72a | Palabras prohibidas | Ninguna palabra de las tres listas de SQLite —global, por público, por novela— aparece en el texto, tras normalizar mayúsculas, acentos, plurales simples y variantes sencillas. Consume el contador de intentos de RF-63; si se agota, **la generación se detiene y se informa**, por excepción a RF-64: en la generación inicial el proyecto pasa a `detenida`; en una regeneración vuelve a `publicada` con la versión anterior vigente y el cambio fallido. Cada coincidencia se registra en `auditoria`. | Bloqueante |
 | RF-73 | Nombres y grafías | Todo nombre propio del capítulo existe en el glosario con esa grafía exacta. | Media |
 | RF-73a | Frases literales | Todo hecho `frase` que la ficha asigna al capítulo aparece en él literalmente. | Alta |
-| RF-74 | Continuidad dura · presencia | Ningún personaje actúa en un capítulo del que la biblia lo da por ausente, muerto o en otra localización. | Alta |
-| RF-75 | Continuidad dura · inventario | Ningún objeto cambia de poseedor sin que exista el traspaso; ningún objeto aparece en dos manos a la vez. | Alta |
+| RF-74 | Continuidad dura · presencia | **Solo antes de escribir** (R-2): ningún personaje de `presentes` de la ficha está excluido a fecha N−1 en la biblia (los eventos del contexto cuentan como capítulo 0). Quien sale solo en un recuerdo va en `mencionados` y no se bloquea. Sobre la prosa no hay regla: la cubren el juez de capítulo y Lean. | Alta |
+| RF-75 | Continuidad dura · inventario | **Solo antes de escribir** (R-2): los traspasos de la ficha parten del poseedor que da la biblia a fecha N−1. La regla sobre el texto no se construye. | Alta |
 | RF-76 | Continuidad dura · tiempo | El salto temporal entre capítulos es compatible con los `dias_viaje` de la ruta; no hay tiempos de viaje imposibles. | Alta |
 
 **El verificador de Longitud tiene dos clientes, no uno** ([docs/architecture.md](../docs/architecture.md) §6.3). El primero es el comprador, que quiere capítulos parejos. El segundo es el Recuperador: los tamaños esperados de la tabla de §6.3 suponen capítulos en su longitud objetivo, y un capítulo al doble entra inflado como «capítulo anterior íntegro» en el prompt del capítulo siguiente, y como entrada del Editor, del Bibliotecario y del Revisor. La salida de hoy es la entrada de mañana, así que RF-70 es lo que mantiene cierto el supuesto de RF-51. Su severidad sigue siendo media —no corta el ciclo— pero un hallazgo suyo desatendido se paga en el capítulo siguiente, no en este.
@@ -326,7 +329,7 @@ Y dos requisitos sobre cómo se ejecutan:
 
 | ID | Requisito | Prio | Origen |
 |---|---|---|---|
-| RF-90 | Exportar el manuscrito aprobado a Markdown, respetando titulación y macroestructura del contexto (prólogo, partes, epílogo, interludios). | M | §11, definitions §3 |
+| RF-90 | Exportar el manuscrito aprobado a Markdown, respetando la titulación del contexto (`numerado`, `titulado`, `numerado_y_titulado`; un valor desconocido se trata como el último). Prólogo, partes, epílogo e interludios, fuera de la v1. | M | §11, definitions §3 |
 | RF-91 | Persistir los metadatos editoriales que produzca el Exportador: título, sinopsis, palabras clave, serie y volumen. | M | definitions §8 |
 | RF-92 | Los archivos exportados van a disco dentro del directorio del proyecto. | M | §6 |
 | RF-93 | La publicación solo es posible desde `publicacion`: con los tres gates en verde y, si la parada está activa, tras `aprobacion_final`. | M | §3.1 |
@@ -356,8 +359,8 @@ Se ejecutan sobre la novela completa en `verificacion_manuscrito`. Ninguna versi
 |---|---|---|---|
 | RF-110 | **Cobertura:** todo hecho `obligatorio` aparece en al menos un capítulo aprobado, comprobado contra `hecho_uso`. Un hecho sin uso es hallazgo bloqueante con el id del hecho. | M | §4, definitions §9 |
 | RF-111 | Generar desde la biblia un fichero Lean por novela con los eventos (momento, lugar, personajes presentes, exclusión por muerte o partida) y las fechas de nacimiento, en el directorio del proyecto. Misma biblia → mismo fichero, byte a byte. | M | §4.2 |
-| RF-112 | Comprobar sobre ese fichero, con el proyecto Lake de `formal/`, tres invariantes: lugar único por personaje y momento, nadie aparece tras un evento que lo excluye, edad coherente con la fecha de nacimiento en cada evento fechado. La ejecución es automática; un fallo es bloqueante y el informe nombra los eventos implicados. | M | §4.2 |
-| RF-113 | Persistir el informe del juez de manuscrito: puntuación de 1 a 5 y justificación por cada uno de los cinco criterios de la rúbrica. El backend aplica el umbral —≥3 en todos y media ≥3,5—; el juez puntúa, no decide. | M | §4.1 |
+| RF-112 | Comprobar sobre ese fichero, con el proyecto Lake de `formal/`, tres invariantes: lugar único por personaje y momento, nadie aparece tras un evento que lo excluye, nadie aparece en un evento fechado antes de nacer (TC-2; la v1 no compara edades explícitas). La ejecución es automática; un fallo es bloqueante y el informe nombra los eventos implicados. | M | §4.2 |
+| RF-113 | Persistir el informe del juez de manuscrito: puntuación de 1 a 5 y justificación por cada uno de los cinco criterios de la rúbrica. El backend aplica el umbral —≥3 en todos y **suma ≥ 18** (TC-5)—; el juez puntúa, no decide. Los criterios son un enum cerrado: `continuidad`, `personajes`, `arco_ritmo`, `tono`, `personalizacion`. | M | §4.1 |
 | RF-114 | Persistir revisiones humanas con la misma rúbrica y el mismo formato que el juez, asociadas a la misma versión de la novela, para compararlas. | M | §4.1 |
 | RF-115 | Todo fallo de un gate va al Revisor dirigido con el informe; tras la revisión, la novela vuelve siempre a `verificacion_manuscrito`. | M | §3.1, §4 |
 
@@ -384,38 +387,40 @@ Cada rebanada aporta su router. Rutas indicativas, agrupadas por rebanada; la fo
 |---|---|---|
 | `POST /proyectos` | transversal | Crear proyecto (RF-01) |
 | `GET /proyectos/{id}/estado` | transversal | Estado actual y reanudación (RF-02) |
-| `POST /proyectos/{id}/siguiente` | transversal | Siguiente orden; idempotente mientras la orden siga vigente (RF-08, RF-08a) |
+| `POST /proyectos/{id}/siguiente` | transversal | Siguiente orden, con su `sello` `<proyecto>:<orden>:<generación>` (AJ-4); idempotente mientras la orden siga vigente (RF-08, RF-08a) |
 | `POST /proyectos/{id}/bloqueo` · `DELETE …/bloqueo` | transversal | Tomar, renovar y soltar el bloqueo (RF-09b) |
-| `POST /proyectos/{id}/resultado` | transversal | Registrar el resultado de la orden vigente: el backend valida el esquema, persiste y escribe la transición (RF-03, RF-08a, RF-77a) |
+| `POST /proyectos/{id}/resultado` | transversal | Cuerpo `{orden: sello, salida_cruda, metadatos?}`. El backend extrae el Markdown o el bloque JSON, valida el esquema, persiste y escribe la transición (RF-03, RF-08a, RF-77a). Una salida fuera de esquema responde 200 y cuenta como intento; un sello viejo es `sello_invalido` |
+| `POST /proyectos/{id}/auditoria` | transversal | Decisión del hook de policy `{decision, herramienta, agente, motivo}`, sin texto libre |
 | `POST /proyectos/{id}/brief` | `intake` | Enviar brief (RF-10) |
-| `PUT /proyectos/{id}/contexto` | `contexto` | Guardar contexto; dispara validación (RF-21) |
-| `POST /proyectos/{id}/contexto/validar` | `contexto` | Validar sin guardar |
+| `GET /proyectos/{id}/hechos` · `POST …/hechos/confirmacion` | `intake` | Hechos extraídos y su confirmación (RF-15) |
+| `POST /proyectos/{id}/contexto/validar` | `contexto` | Validar sin guardar; el contexto se guarda como resultado del Agente de Contexto |
 | `GET /proyectos/{id}/plan` | `planificacion` | Plan completo para la aprobación (RF-35) |
-| `POST /proyectos/{id}/plan/aprobacion` | `planificacion` | Decisión humana (RF-36) |
-| `GET/PUT /proyectos/{id}/escaleta` | `escaleta` | Fichas de capítulo (RF-40) |
-| `GET /proyectos/{id}/capitulos/{n}/prompt` | `capitulo` | Prompt ensamblado por el Recuperador (RF-51) |
-| `POST /proyectos/{id}/capitulos/{n}/versiones` | `capitulo` | Registrar una versión (RF-60) |
-| `POST /proyectos/{id}/capitulos/{n}/verificar` | `capitulo` | Ejecutar deterministas, devolver informe (RF-77) |
-| `GET /proyectos/{id}/capitulos/{n}/informes` | `capitulo` | Informes de un capítulo |
-| `POST /proyectos/{id}/aprobacion-final` | transversal | Decisión humana (RF-05) |
-| `POST /proyectos/{id}/hechos/confirmacion` | `intake` | Confirmar los hechos extraídos (RF-15) |
-| `POST /proyectos/{id}/manuscrito/verificar` | `verificacion` | Ejecutar los gates de manuscrito (RF-110 a RF-112) |
-| `POST /proyectos/{id}/manuscrito/juez` | `verificacion` | Registrar el informe del juez o una revisión humana (RF-113, RF-114) |
-| `POST /proyectos/{id}/publicar` | `exportacion` | Publicar la versión desde `publicacion` (RF-93, RF-94) |
+| `POST /proyectos/{id}/plan/aprobacion` | transversal | Decisión humana `{decision, notas?}` (RF-36) |
+| `GET /proyectos/{id}/escaleta` | `escaleta` | Fichas de capítulo (RF-40) |
+| `POST /proyectos/{id}/aprobacion-final` | transversal | Decisión humana `{decision, notas?, capitulos?}` (RF-05). Con «cambios», `capitulos` (1..10) dice qué capítulos pasan por Revisor → deterministas → Bibliotecario, y sin él pasan todos; las notas llegan al Revisor en `entrada.notas` (M-25). En una regeneración encola otro trabajo |
+| `POST · GET /proyectos/{id}/manuscrito/juez` | `revision` | Registrar y leer la revisión humana con la rúbrica del juez (RF-114); no cambia estado ni gates. El informe del juez llega por `/resultado` |
 | `POST /proyectos/{id}/reintentar` | transversal | Reintentar desde `detenida` (RF-64b) |
-| `POST /proyectos/{id}/exportar` | `exportacion` | Manuscrito en Markdown de una versión (RF-90) |
-| `GET /proyectos/{id}/versiones` | `exportacion` | Versiones publicadas y capítulos cambiados en cada una (RF-96) |
-| `GET /proyectos/{id}/versiones/{v}/lectura` | `exportacion` | Portada, índice, ficha de personajes y lugares (RF-97) |
+| `GET /proyectos/{id}/versiones` | `exportacion` | `{versiones: [{version, publicada, cambiados[]}]}` (RF-96) |
+| `GET /proyectos/{id}/versiones/{v}/lectura` | `exportacion` | `lectura.json` de la versión (RF-97) |
 | `GET /proyectos/{id}/versiones/{v}/capitulos/{n}` | `exportacion` | Capítulo de una versión |
+| `GET /proyectos/{id}/versiones/{v}/manuscrito` | `exportacion` | Manuscrito Markdown de la versión (RF-90) |
 | `GET /proyectos/{id}/versiones/{v}/pdf` | `exportacion` | PDF de una versión (RF-98) |
 | `POST /proyectos/{id}/cambios` | `cambio` | Petición del lector (RF-120) |
+| `GET /proyectos/{id}/cambios/{c}` | `cambio` | Estado del cambio: `interpretando`, `propuesto`, `obsoleto`, `rechazado`, `regenerando`, `fallido`, `publicado` |
 | `POST /proyectos/{id}/cambios/{c}/confirmacion` | `cambio` | Confirmar o rechazar el cambio propuesto (RF-122) |
 
-**Errores:** respuesta con código, requisito infringido cuando aplique, y detalle accionable. Una transición inválida (RF-04) y una escritura no autorizada en biblia (RF-65) se distinguen de un error de validación de entrada.
+Retiradas (decisiones-backend §3, puntos 5 y 6): `POST /capitulos/{n}/versiones` —toda salida entra por `/resultado`—, `POST /publicar` —se publica al registrar el resultado del Exportador— y `POST /exportar` —el Markdown se escribe al publicar—. Las rutas de capítulo para el Recuperador y los deterministas (`/capitulos/{n}/prompt`, `/verificar`, `/informes`) y `POST /manuscrito/verificar` no existen: el ensamblado y los gates los ejecuta el backend al calcular la siguiente orden, y el prompt y los informes se leen por `/mcp/lectura`.
+
+**Errores:** respuesta con código, requisito infringido cuando aplique, y detalle accionable. Una transición inválida (RF-04) y una escritura no autorizada en biblia (RF-65) se distinguen de un error de validación de entrada. El catálogo de códigos es un `StrEnum` único (TC-11); entre ellos, `herramienta_no_disponible` (503: falta Lean o Chromium dentro de un manejador; no registra ni gasta intento) y `cambio_inexistente` (404).
 
 ### 5.2 Interfaz MCP
 
 Herramientas tipadas según RF-100 a RF-106 y RF-14, servidas con FastMCP **dentro del mismo proceso de FastAPI**, en **tres superficies** ([docs/architecture.md](../docs/architecture.md) §7, §8): `/mcp/lectura`, declarada en `.mcp.json`; `/mcp/escritura`, declarada solo en la definición del Bibliotecario, para que la sesión principal no la cargue; y `/mcp/entrada`, declarada solo en las del Extractor y el Intérprete, que canjea un identificador de un solo uso por el texto no confiable. Todas usan la misma conexión y los mismos pragmas que la API. RF-106 sigue viviendo en el backend pase lo que pase con el reparto: que el capítulo esté verificado es una comprobación de estado y no depende de quién llame.
+
+Las URLs llevan barra final (`http://127.0.0.1:8000/mcp/lectura/`, `…/mcp/escritura/`, `…/mcp/entrada/`). Cada llamada queda en `llamada_mcp` como `<superficie>.<herramienta>`, sin el sello y, de los campos de texto, solo el tamaño.
+
+- **`/mcp/lectura`** recibe `proyecto` como argumento (vale también el sello entero): `leer_contexto` (sin el texto libre), `leer_plan`, `leer_guia_estilo`, `leer_ficha`, `leer_personajes`, `leer_localizacion`, `leer_dia`, `leer_inventario`, `leer_presagios_pendientes`, `leer_glosario`, `leer_resumen_acumulado`, `leer_reglas_mundo`, `leer_capitulo` (por número, versión, intento y etapa) y `leer_informe`. Las que dependen del tiempo leen «a fecha de» un capítulo (`antes_de`, de 1 a 11; 11 es la novela entera).
+- **`/mcp/escritura`** recibe el `sello` de la orden vigente, que tiene que ser del Bibliotecario, y de él saca el proyecto y el capítulo; no hay argumento `capitulo` (B-16, M-12): `actualizar_estado_personaje`, `registrar_saber`, `actualizar_estado_localizacion`, `registrar_traspaso`, `registrar_evento`, `plantar_presagio`, `cobrar_presagio`, `abrir_presagio`, `registrar_termino`, `registrar_uso_de_hecho`, `escribir_resumen_capitulo` (resumen, `dia_fin` y `localizacion_fin` a la vez) y `escribir_resumen_acto`.
 
 ### 5.3 Ficheros en disco
 
@@ -423,8 +428,9 @@ Herramientas tipadas según RF-100 a RF-106 y RF-14, servidas con FastMCP **dent
 <directorio-del-proyecto>/
   proyecto.sqlite
   capitulos/   cap-03/v2-intento1.md
-  prompts/     cap-03/v2-intento1.prompt.md
-  export/      v1/ …
+  prompts/     cap-03/v2-intento1.prompt.md · .prompt.parte-N.md · .desglose.json
+  verificacion/ pasada-2/cronologia.lean
+  export/      v1/ manuscrito.md · metadatos.json · lectura.html · lectura.json · novela.pdf · cronologia.lean
   brief/       texto_libre.txt
   cambios/     peticion-7.txt
 ```
@@ -444,8 +450,11 @@ Un fichero SQLite por proyecto, en WAL. Entidades derivadas de [docs/architectur
 | `proyecto` | Identidad, versión de ontología, estado actual, paradas activas, ciclos de revisión, bloqueo con su titular y caducidad | RF-01, RF-02, RF-05, RF-09b, RF-64a |
 | `version_novela` | Número, cambio que la originó, fecha | RF-94 |
 | `version_novela_capitulo` | Versión de novela → versión de capítulo | RF-94, RF-96 |
-| `cambio_lector` | Petición, cambio propuesto, valor anterior, estado | RF-120 a RF-123 |
-| `trabajo` | Cola de regeneraciones con su estado | RF-124 |
+| `cambio_lector` | Versión, capítulo y párrafos del fragmento, ruta de la petición (el texto no va a la base), hecho, valores anterior y nuevo o hecho nuevo, estado y motivo | RF-120 a RF-123 |
+| `cambio_capitulo` | Capítulos que reabre un cambio, con su versión nueva | RF-122, V-31 |
+| `trabajo` | Cola de regeneraciones con su estado y `detalle` (causa del fallo, sin la salida del proceso) | RF-124 |
+| `gate_resultado` | Un resultado por gate y pasada de verificación, con su detalle (`capitulos` siempre) | RF-110 a RF-113, AJ-3 |
+| `lista_guardarrail` | Hash de cada lista del guardarraíl copiada a la base | RF-72a |
 | `transicion` | Historial append-only de cambios de estado | RF-09 |
 | `brief` | Respuestas de la entrevista, ruta del texto libre y brief normalizado | RF-10, RF-11, RF-14 |
 | `hecho_propuesto` | Hechos extraídos del texto libre y su estado de confirmación | RF-15 |
@@ -456,25 +465,28 @@ Un fichero SQLite por proyecto, en WAL. Entidades derivadas de [docs/architectur
 | `informe_juez` | Puntuación y justificación por criterio, del juez y de las revisiones humanas | RF-113, RF-114 |
 | `contexto` | Objeto de contexto validado + versión de ontología | RF-28 |
 | `plan` | Plan estructural | RF-30 |
-| `personaje` | Ficha, arco, evolución, estado actual, qué sabe, fecha de nacimiento si se conoce | RF-31, RF-80, RF-111 |
+| `personaje` | Ficha, arco, evolución, fecha de nacimiento si se conoce | RF-31, RF-80, RF-111 |
+| `personaje_estado` · `personaje_sabe` | Estado y conocimiento por capítulo desde el que valen (capítulo 0 = planificación, B-2) | RF-80 |
+| `localizacion_estado` | Estado de cada localización por capítulo | RF-81 |
+| `objeto` | Objetos con su poseedor inicial | RF-83 |
 | `relacion` | Grafo dirigido origen → destino, tipo, estado inicial y final | RF-31 |
 | `localizacion` | Árbol con `padre`, nivel, estado | RF-32, RF-81 |
 | `ruta` | Secuencia ordenada de localizaciones con `dias_viaje` | RF-32, RF-76 |
 | `regla_mundo` | Reglas con límites, costes y excepciones | RF-32 |
 | `guia_estilo` | Narrador, registro, métricas, léxico, lista negra, onomástica | RF-33 |
-| `ficha_capitulo` | La escaleta: una fila por capítulo | RF-40 |
+| `ficha_capitulo` · `ficha_capitulo_hito` | La escaleta: una fila por capítulo, y sus hitos (puede haber varios, B-3) | RF-40, RF-42 |
 | `capitulo` | Una fila por capítulo: estado actual —`pendiente` hasta el primer borrador— y contador de intentos | RF-07, RF-60, RF-63 |
 | `capitulo_version` | Versión, intento, estado, ruta del fichero, semilla, versión de prompt y de modelo | RF-60, RF-62 |
-| `informe` | Verificador, severidad, localización, evidencia, regla | RF-78 |
-| `evento` | Momento, lugar y capítulo de cada evento de la cronología, y a quién excluye (muerte o partida) | RF-82, RF-111 |
+| `informe` | Uno por versión de capítulo y verificador: severidad mayor, hallazgos y métricas | RF-78 |
+| `evento` | Recuerdo (`momento`) o día de la historia (`dia`, `franja` opcional), exactamente uno; lugar, capítulo (NULL = contexto, capítulo 0) y a quién excluye (muerte o partida) | RF-82, RF-111 |
 | `evento_personaje` | Personajes presentes en cada evento | RF-82 |
 | `personalizacion` | Destinatario, ocasión, relación, vetos, dedicatoria | RF-89 |
 | `hecho` | Hechos aportados con tipo y prioridad | RF-89 |
 | `hecho_uso` | Hecho → capítulo → versión | RF-89 |
 | `inventario` | Objeto → poseedor → capítulo | RF-83 |
-| `presagio` | Plantado en → cobrado en | RF-84 |
+| `presagio` · `presagio_estado` | Presagios de la escaleta y su estado por capítulo (`previsto`, `plantado`, `cobrado`) | RF-84 |
 | `glosario` | Nombres y grafías canónicas | RF-85 |
-| `resumen` | Por capítulo y por acto | RF-86, RF-87 |
+| `resumen` | Por capítulo y por acto, con la versión que lo escribió | RF-86, RF-87 |
 | `cache` | Prompts repetidos | §6 |
 | `llamada_mcp` | Auditoría de herramientas | RF-105 |
 
@@ -541,12 +553,12 @@ Los identificadores van en orden de incorporación y no de importancia: los dos 
 | V-9 | Ausencia de cliente LLM (RNF-10) | Análisis estático: búsqueda de importaciones de proveedores en `backend/` | A |
 | V-10 | Dependencias acordadas (RNF-11) | Comprobación en CI del fichero de dependencias contra la tabla de §7 | A |
 | V-11 | Validación de ontología (RF-20 a RF-27) | Batería de instancias válidas e inválidas derivadas del ejemplo YAML de definitions §12, una por regla | T |
-| V-12 | Verificadores de continuidad dura (RF-74 a RF-76) | Pruebas con biblia y capítulo construidos para infringir cada regla, y casos de control que no deben disparar | T |
+| V-12 | Verificadores de continuidad dura (RF-74 a RF-76) | Pruebas con ficha y biblia construidas para infringir cada comprobación previa a la escritura (R-2), y casos de control que no deben disparar | T |
 | V-13 | Permisos MCP (RF-14, RF-101, RF-102, RN-1) | Dos partes: análisis estático de las definiciones de agente —solo `bibliotecario.md` declara `/mcp/escritura`, solo el Extractor y el Intérprete declaran `/mcp/entrada` y ninguna otra, el Escritor no declara MCP— y prueba del hook de policy: una llamada de escritura con un `agent_type` distinto de `bibliotecario`, o sin él, se deniega y queda en `auditoria` | A + T |
 | V-14 | Paradas humanas (RN-3) | Prueba de integración: con la parada activa, y en `publicada`, `cambio_solicitado` y `detenida`, no existe secuencia de llamadas que salga del estado sin la acción humana | T |
-| V-15 | Cobertura real de la batería | Pruebas de mutación sobre verificadores y validador de ontología | T |
+| V-15 | Cobertura real de la batería | Cobertura por regla (R-5): cada regla del validador de ontología y de cada verificador tiene al menos una prueba que la dispara y otra de control que no | T |
 | V-16 | Que el manuscrito sea bueno | Juez de manuscrito con la rúbrica de cinco criterios, calibrado con la revisión humana de al menos una novela con la misma rúbrica (RF-113, RF-114) | I |
-| V-17 | **Que los verificadores deterministas detecten toda incoherencia real** | Detectan las reglas escritas, no la incoherencia en general. Los falsos negativos se aceptan y los acotan los jueces y la cronología formal de Lean | **U** |
+| V-17 | **Que los verificadores deterministas detecten toda incoherencia real** | Detectan las reglas escritas, no la incoherencia en general. Los falsos negativos se aceptan y los acotan los jueces y la cronología formal de Lean. Tras R-2 ninguna regla determinista mira la continuidad de la prosa; los pronombres y la presencia en el texto quedan para el juez de capítulo y Lean | **U** |
 | V-18 | **La sesión ejecuta la orden que recibe** | El backend decide el siguiente paso (RF-08) y esa decisión se verifica con V-25 y V-33. Lo que queda sin verificar es solo que la sesión ejecute la orden tal como llega, incluida la regla de que **una invocación es un intento** ([docs/architecture.md](../docs/architecture.md) §3.2): el backend no puede distinguir dos intentos hechos en dos invocaciones de dos hechos dentro de la misma | **U** |
 | V-19 | Nada entra en la biblia antes de verificar (RN-2, RF-106) | Prueba de integración: una escritura sobre un capítulo que no está en `verificado` o posterior se rechaza, y la misma escritura se acepta cuando sí lo está. **No la cubre V-13**: aquella comprueba *quién* llama, esta *cuándo* se puede llamar, y [docs/architecture.md](../docs/architecture.md) §7 deja dicho que la segunda vive en el backend con independencia del reparto de superficies | T |
 | V-20 | Bloqueo por esquema inválido (RF-22) | Prueba de integración sobre el grafo: con un contexto que infringe una regla del esquema, ninguna secuencia de llamadas mueve el proyecto fuera del estado `contexto`. **No la cubre V-11**: aquella comprueba que el validador *detecta* la infracción, esta que el hallazgo *bloquea* la transición | T |
@@ -558,7 +570,7 @@ Los identificadores van en orden de incorporación y no de importancia: los dos 
 | V-27 | Cronología formal (RF-111, RF-112) | Cronologías construidas para infringir cada invariante, y casos de control; y al menos un caso real en que Lean detecta una incoherencia que los demás verificadores no detectaron, o la justificación de por qué no se encontró | T |
 | V-28 | Cobertura y frases literales (RF-110, RF-73a) | Pruebas con hechos obligatorios sin uso y frases ausentes, y casos de control | T |
 | V-29 | Resistencia a inyección del Extractor y del Intérprete (RF-14, RF-15, RF-120, RF-121) | Red teaming: briefs y peticiones adversariales con resultado esperado, registrados en un red-team log. Incluye como caso obligatorio la exfiltración: una instrucción inyectada que intenta obtener el texto o los datos de otro proyecto, y la prueba de que un identificador ajeno, usado o caducado devuelve error | T |
-| V-32 | Umbral del juez de manuscrito (RF-113) | Pruebas con informes de juez construidos en los bordes del umbral —un criterio a 2, media a 3,4 y a 3,5— y casos de control | T |
+| V-32 | Umbral del juez de manuscrito (RF-113) | Pruebas con informes de juez construidos en los bordes del umbral —un criterio a 2, suma 17 y suma 18— y casos de control | T |
 | V-33 | Siguiente orden (RF-03, RF-07a, RF-08, RF-08a) | Prueba basada en propiedades: para cualquier estado generado, la orden respeta la tabla de transiciones y nunca supera los topes; pedirla dos veces devuelve la misma orden persistida; registrar el mismo resultado dos veces es idempotente y un resultado para otra orden se rechaza | T |
 | V-34 | Bloqueo por proyecto (RF-09b) | Prueba de integración: con el bloqueo tomado, un segundo ejecutor no recibe orden; al caducar, puede tomarlo | T |
 | V-35 | Esquema de salida por agente (RF-77a) | Por agente, salidas válidas y salidas mal formadas; ninguna mal formada se persiste y cada una cuenta como intento | T |
@@ -580,13 +592,13 @@ Ninguna de estas se resuelve en este documento. Están enumeradas porque hay req
 | D-4 | ~~Validación de la ontología~~ — **resuelta**: Pydantic v2 como fuente única; el JSON Schema se genera desde los modelos, no se mantiene a mano | RF-20 | — |
 | D-5 | ~~Contador de tokens del Recuperador~~ — **resuelta**: estimador conservador `tiktoken` `o200k_base` × 1,35, en la tabla de §7 de la arquitectura | RF-52, RF-52a a RF-52c | — |
 | D-6 | ~~Legibilidad en español~~ — **resuelta**: índice de perspicuidad de Szigriszt-Pazos con la escala INFLESZ, en código propio. Umbral mínimo por público: infantil 65, juvenil 55, adulto 40 | RF-71 | — |
-| D-7 | ~~Pruebas y tipos~~ — **resuelta**: `pytest` + `Hypothesis`, `mypy --strict`, `ruff`, y `cosmic-ray` solo sobre el validador de ontología y los verificadores; entorno con `uv` y Python 3.12 | V-6, V-15 y todos los criterios `T` | — |
-| D-8 | Mecanismo de exportación a PDF | RF-98 | Sí, para ese requisito |
+| D-7 | ~~Pruebas y tipos~~ — **resuelta**: `pytest` + `Hypothesis`, `mypy --strict`, `ruff`; entorno con `uv` y Python 3.12. Sin pruebas de mutación: V-15 es cobertura por regla (R-5) | V-6, V-15 y todos los criterios `T` | — |
+| D-8 | ~~Mecanismo de exportación a PDF~~ — **resuelta**: `playwright` para Python imprime la misma `lectura.html` con su Chromium, plan B `channel="msedge"`; `pypdf` en desarrollo (TC-6, [docs/architecture.md](../docs/architecture.md) §7) | RF-98 | — |
 | D-10 | Despliegue | Fuera de alcance: la ejecución es local | No |
 | D-11 | ~~Cómo llega el texto no confiable al Extractor y al Intérprete~~ — **resuelta**: superficie `/mcp/entrada` declarada solo en esos dos agentes, con una herramienta de solo lectura que canjea un identificador opaco de un solo uso (RF-14, RF-120) | RF-14, RF-120 | — |
 | D-9 | Qué hace el Recuperador cuando, recortadas ya todas las unidades recortables, el ensamblado sigue sin caber: solo queda la ficha del capítulo y aun así rebasa el tope | RF-53, RF-53a | No — es un caso patológico, no el camino normal |
 
-Ninguna decisión abierta bloquea ya la primera línea: **D-2, D-4, D-5, D-6, D-7 y D-11 están cerradas**. **D-8** bloquea solo el PDF y **D-3** (observabilidad) solo la integración de trazas; las dos admiten empezar sin ellas.
+Ninguna decisión abierta bloquea ya la primera línea: **D-2, D-4, D-5, D-6, D-7, D-8 y D-11 están cerradas**. **D-3** (observabilidad) bloquea solo la integración de trazas.
 
 **D-9** merece una nota, porque es un hueco abierto a propósito y no un olvido. El recorte por unidades completas (RF-53a) es finito: acaba, en el peor caso, con la ficha sola. Llegar ahí no significa que el capítulo sea denso, significa que hay un dato mal formado —una guía de estilo de 60k, una ficha con veinte personajes en escena, un resumen de acto que nunca se destiló—. Hasta que la decisión se tome, el código **no puede inventarse una salida**: ni truncar, ni subir el tope, ni enviar el prompt igualmente. Que falle de forma ruidosa es el comportamiento correcto mientras tanto.
 

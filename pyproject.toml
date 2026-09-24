@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.141.1",
     "fastmcp>=4.0.5",
+    "playwright>=1.63.0",
     "pydantic>=2.13.5",
     "tiktoken>=0.14.0",
     "uvicorn>=0.53.0",
@@ -16,6 +17,7 @@ dev = [
     "httpx>=0.28.1",
     "hypothesis>=6.168.1",
     "mypy>=2.3.1",
+    "pypdf>=6.19.0",
     "pytest>=9.1.1",
     "ruff>=0.16.8",
 ]

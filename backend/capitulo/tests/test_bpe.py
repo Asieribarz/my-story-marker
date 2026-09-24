@@ -1,12 +1,15 @@
-"""RF-52c: el BPE de o200k_base está versionado y el estimador carga sin red."""
+"""RF-52c: el BPE de o200k_base está versionado y el estimador carga sin red.
+
+Las dos primeras pruebas no necesitan tiktoken. La tercera sí, y se salta donde su DLL no
+carga (en la máquina de desarrollo la bloquea una directiva de Control de aplicaciones de
+Windows; ahí cuenta el respaldo de `estimador.py`, probado en `test_estimador.py`).
+"""
 
 import hashlib
+import importlib
 from pathlib import Path
 
 import pytest
-import tiktoken
-import tiktoken.load
-from tiktoken_ext import openai_public  # type: ignore[import-untyped]
 
 DIRECTORIO_BPE = Path(__file__).resolve().parents[1] / "bpe"
 URL_O200K = "https://openaipublic.blob.core.windows.net/encodings/o200k_base.tiktoken"
@@ -25,11 +28,18 @@ def test_el_fichero_versionado_conserva_su_sha256() -> None:
 
 
 def test_la_codificacion_carga_sin_red(monkeypatch: pytest.MonkeyPatch) -> None:
+    try:
+        tiktoken = importlib.import_module("tiktoken")
+        carga = importlib.import_module("tiktoken.load")
+        openai_public = importlib.import_module("tiktoken_ext.openai_public")
+    except ImportError as error:
+        pytest.skip(f"tiktoken no carga en esta máquina: {error}")
+
     def sin_red(ruta: str) -> bytes:
         raise AssertionError(f"tiktoken ha intentado descargar {ruta}")
 
     monkeypatch.setenv("TIKTOKEN_CACHE_DIR", str(DIRECTORIO_BPE))
-    monkeypatch.setattr(tiktoken.load, "read_file", sin_red)
+    monkeypatch.setattr(carga, "read_file", sin_red)
 
     codificacion = tiktoken.Encoding(**openai_public.o200k_base())
 

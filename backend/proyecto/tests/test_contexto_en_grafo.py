@@ -23,10 +23,9 @@ from backend.proyecto.persistencia import (
     crear_proyecto,
     emitir_siguiente_orden,
     leer_estado,
-    registrar_resultado,
     reintentar,
 )
-from backend.proyecto.tests.apoyo import AHORA, estado, forzar, transiciones
+from backend.proyecto.tests.apoyo import AHORA, estado, forzar, registrar, transiciones
 from backend.shared.tipos import Agente, TipoEjecutor
 from backend.shared.tipos import EstadoProyecto as E
 
@@ -66,7 +65,7 @@ def test_un_contexto_invalido_vuelve_al_agente_con_el_informe(
     forzar(proyecto, E.CONTEXTO)
     primera = emitir_siguiente_orden(proyecto, token, AHORA)
     assert isinstance(primera, OrdenEmitida)
-    registro = registrar_resultado(proyecto, primera.id, INVALIDOS[0], token, AHORA)
+    registro = registrar(proyecto, primera.id, INVALIDOS[0], token, AHORA)
     assert (registro.tipo, registro.estado) == (TipoDesenlace.FALLO_CONTENIDO, E.CONTEXTO)
     assert registro.detalle["hallazgos"][0]["regla"] == "RF-24 · publico_por_edad"
 
@@ -98,7 +97,7 @@ def test_ninguna_secuencia_de_contextos_invalidos_sale_de_contexto(
                 emision = emitir_siguiente_orden(proyecto, token, AHORA)
             assert isinstance(emision, OrdenEmitida)
             assert emision.intento == seguidos + 1
-            registrar_resultado(proyecto, emision.id, resultado, token, AHORA)
+            registrar(proyecto, emision.id, resultado, token, AHORA)
             seguidos += 1
 
             leido = leer_estado(proyecto, AHORA)
@@ -116,6 +115,6 @@ def test_ninguna_secuencia_de_contextos_invalidos_sale_de_contexto(
             reintentar(proyecto, AHORA)
             emision = emitir_siguiente_orden(proyecto, token, AHORA)
         assert isinstance(emision, OrdenEmitida)
-        registrar_resultado(proyecto, emision.id, referencia(), token, AHORA)
+        registrar(proyecto, emision.id, referencia(), token, AHORA)
         assert estado(proyecto.conexion) is E.PLANIFICACION
         assert _contextos_guardados(proyecto) == 1

@@ -60,7 +60,11 @@ _LLAMADAS = (
     "confirmar_hechos",
     "validar_contexto",
     "reintentar",
+    "otra_parada",
 )
+
+# RF-05, RF-36: la ruta de la decisión de cada parada humana con decisión propia.
+_RUTA_DE_PARADA = {E.APROBACION_PLAN: "plan/aprobacion", E.APROBACION_FINAL: "aprobacion-final"}
 
 
 def _llamar(api: ClienteApi, proyecto: str, token: str, llamada: str, n: int, parada: E) -> None:
@@ -70,7 +74,7 @@ def _llamar(api: ClienteApi, proyecto: str, token: str, llamada: str, n: int, pa
             assert api.siguiente(proyecto, token) == _ESPERA[parada]
         case "resultado":
             respuesta = api.registrar(proyecto, token, n, {"hechos": []})
-            assert error(respuesta) == (409, "orden_ajena", "RF-08a")
+            assert error(respuesta) == (409, "sello_invalido", "RF-08a")
         case "renovar":
             respuesta = api.http.post(f"{ruta}/bloqueo", headers=con_token(token))
             assert respuesta.status_code == 200
@@ -95,6 +99,13 @@ def _llamar(api: ClienteApi, proyecto: str, token: str, llamada: str, n: int, pa
             # Es la acción humana de `detenida`; en las demás paradas no tiene arista.
             respuesta = api.http.post(f"{ruta}/reintentar")
             assert error(respuesta) == (409, "transicion_invalida", "RF-04")
+        case "otra_parada":
+            # La decisión de una parada que no es esta no tiene arista (RF-04).
+            for otra, sufijo in _RUTA_DE_PARADA.items():
+                if otra is not parada:
+                    decision = {"decision": "aprobado"}
+                    respuesta = api.http.post(f"{ruta}/{sufijo}", json=decision)
+                    assert error(respuesta) == (409, "transicion_invalida", "RF-04")
         case _:
             raise AssertionError(llamada)
 
@@ -123,6 +134,36 @@ def test_ninguna_secuencia_de_llamadas_sale_de_una_parada(
 
     with api.abrir(proyecto) as abierto:
         assert volcado(abierto.conexion) == antes
+
+
+@pytest.mark.parametrize(
+    ("parada", "decision", "destino"),
+    [
+        (E.APROBACION_PLAN, "aprobado", "escaleta"),
+        (E.APROBACION_PLAN, "cambios", "planificacion"),
+        (E.APROBACION_FINAL, "aprobado", "publicacion"),
+        (E.APROBACION_FINAL, "cambios", "revision"),
+    ],
+)
+def test_la_decision_del_comprador_es_la_salida_de_su_parada(
+    api: ClienteApi, parada: E, decision: str, destino: str
+) -> None:
+    """V-14, RF-05, RF-36: la acción humana por la API saca de la parada, sin bloqueo, y queda
+    en `decision_humana`. «cambios» sin notas es un error de entrada y no mueve nada."""
+    proyecto = api.crear(parada_plan=True, parada_final=True)
+    with api.abrir(proyecto) as abierto:
+        forzar(abierto, parada, parada_plan=True, parada_final=True)
+    ruta = f"/proyectos/{proyecto}/{_RUTA_DE_PARADA[parada]}"
+    if decision == "cambios":
+        sin_notas = api.http.post(ruta, json={"decision": "cambios"})
+        assert error(sin_notas) == (422, "validacion", None)
+        assert api.estado(proyecto)["estado"] == parada.value
+    respuesta = api.http.post(ruta, json={"decision": decision, "notas": "Más mapas."})
+    assert respuesta.status_code == 200, respuesta.text
+    assert respuesta.json()["estado"] == destino
+    with api.abrir(proyecto) as abierto:
+        fila = abierto.conexion.execute("SELECT tipo, decision FROM decision_humana").fetchone()
+    assert (fila["tipo"], fila["decision"]) == (parada.value, decision)
 
 
 def test_reintentar_es_la_salida_humana_de_detenida(api: ClienteApi) -> None:

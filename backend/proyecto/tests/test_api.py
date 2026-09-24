@@ -1,10 +1,12 @@
-"""Paso 3 · la API transversal con `TestClient`: el flujo de intake a planificación, la
-siguiente orden y el registro (RF-03, RF-06, RF-08a, RF-77a), el bloqueo (V-34, RF-09b),
-el borrado (RF-09a) y el modelo de error de spec1.md §5.1.
+"""Paso 3 y bloque 2 · la API transversal con `TestClient`: el flujo de intake a
+planificación, la siguiente orden con su sello y el registro de la salida cruda (RF-03,
+RF-06, RF-08a, RF-77a, §4.1), el bloqueo (V-34, RF-09b), la auditoría de la policy
+(§4.1.9), el borrado (RF-09a) y el modelo de error de spec1.md §5.1.
 
 Todos los datos de persona son ficticios.
 """
 
+import json
 import sys
 from collections.abc import Iterator
 from pathlib import Path
@@ -17,7 +19,6 @@ from backend.contexto.tests.referencia import referencia
 from backend.proyecto.dependencias import CABECERA_BLOQUEO, RutaJsonEstricto
 from backend.proyecto.errores import CodigoError
 from backend.proyecto.errores_http import ESTADO_HTTP
-from backend.proyecto.modelos import ENTERO_MAXIMO
 from backend.proyecto.tests.apoyo import BRIEF, HECHO, NORMALIZADO, TEXTO_LIBRE, transiciones
 from backend.proyecto.tests.cliente_api import (
     ClienteApi,
@@ -95,14 +96,17 @@ def test_de_intake_a_planificacion_con_texto_libre_y_hechos(api: ClienteApi) -> 
         ]
         assert abierto.conexion.execute("SELECT count(*) FROM contexto").fetchone()[0] == 1
 
-    # Q8: el planificador aún no tiene esquema; su orden sigue vigente y no gasta intento.
+        # B-1: al salir de `contexto`, lo que fija el contexto ya está en la biblia.
+        assert abierto.conexion.execute("SELECT count(*) FROM personaje").fetchone()[0] > 0
+
+    # El planificador ya tiene esquema: una salida que no encaja es un intento fallido.
     planificador = api.orden(proyecto, token)
     assert planificador["agente"] == "planificador"
-    sin_esquema = api.registrar(proyecto, token, planificador["id"], {"plan": {}})
-    assert error(sin_esquema) == (501, "agente_sin_esquema", "RF-77a")
-    assert "paso 4" in sin_esquema.json()["detalle"]
-    leido = api.estado(proyecto)
-    assert (leido["orden_vigente"]["id"], leido["intentos_paso"]) == (planificador["id"], 0)
+    assert planificador["sello"] == f"{proyecto}:{planificador['id']}:1"
+    fallido = api.registrar(proyecto, token, planificador["id"], {"plan": {}})
+    assert fallido.status_code == 200, fallido.text
+    assert (fallido.json()["desenlace"], fallido.json()["tipo"]) == ("rechazada", "fallo_forma")
+    assert api.estado(proyecto)["intentos_paso"] == 1
 
 
 def test_sin_texto_libre_no_hay_extraccion(api: ClienteApi) -> None:
@@ -129,6 +133,13 @@ def test_crear_con_las_paradas_activas(api: ClienteApi) -> None:
 # ─── Siguiente orden y registro (RF-06, RF-08a, TC-11) ───────────────────────
 
 
+def _sello(api: ClienteApi, proyecto: str, orden: int) -> str:
+    with api.abrir(proyecto) as abierto:
+        fila = abierto.conexion.execute("SELECT sello FROM orden WHERE id = ?", (orden,))
+        sello: str = fila.fetchone()[0]
+    return sello
+
+
 def _extraccion(api: ClienteApi) -> tuple[str, str, int]:
     proyecto = api.crear()
     token = api.tomar(proyecto)
@@ -141,10 +152,12 @@ def test_pedir_la_orden_dos_veces_devuelve_la_misma(api: ClienteApi) -> None:
     otra = api.siguiente(proyecto, token)["orden"]
     assert otra["id"] == orden
     # El estado enseña la misma orden, sin el identificador de un solo uso (RF-14).
+    # Tampoco el sello: con él se escribe en la biblia por `/mcp/escritura` (AJ-4).
     vista = api.estado(proyecto)["orden_vigente"]
     entrada = otra["entrada"]
     sin_identificador = {**entrada, "texto_libre": {"caduca": entrada["texto_libre"]["caduca"]}}
-    assert vista == {**otra, "entrada": sin_identificador}
+    assert otra["sello"]
+    assert vista == {**otra, "entrada": sin_identificador, "sello": None}
 
 
 def test_el_mismo_resultado_es_idempotente_y_otro_se_rechaza(api: ClienteApi) -> None:
@@ -156,7 +169,7 @@ def test_el_mismo_resultado_es_idempotente_y_otro_se_rechaza(api: ClienteApi) ->
     distinto = api.registrar(proyecto, token, orden, {"hechos": []})
     assert error(distinto) == (409, "orden_ajena", "RF-08a")
     inexistente = api.registrar(proyecto, token, orden + 7, {"hechos": []})
-    assert error(inexistente) == (409, "orden_ajena", "RF-08a")
+    assert error(inexistente) == (409, "sello_invalido", "RF-08a")
     assert len(api.http.get(f"/proyectos/{proyecto}/hechos").json()["hechos"]) == 1
 
 
@@ -278,11 +291,26 @@ def test_la_aplicacion_publica_las_rutas_de_cada_rebanada(api: ClienteApi) -> No
         ("POST", f"{p}/bloqueo"),
         ("DELETE", f"{p}/bloqueo"),
         ("POST", f"{p}/reintentar"),
+        ("POST", f"{p}/plan/aprobacion"),
+        ("POST", f"{p}/aprobacion-final"),
+        ("POST", f"{p}/auditoria"),
         ("DELETE", p),
         ("POST", f"{p}/brief"),
         ("GET", f"{p}/hechos"),
         ("POST", f"{p}/hechos/confirmacion"),
         ("POST", f"{p}/contexto/validar"),
+        ("GET", f"{p}/plan"),
+        ("GET", f"{p}/escaleta"),
+        ("GET", f"{p}/versiones"),
+        ("GET", f"{p}/versiones/{{version}}/lectura"),
+        ("GET", f"{p}/versiones/{{version}}/capitulos/{{numero}}"),
+        ("GET", f"{p}/versiones/{{version}}/manuscrito"),
+        ("GET", f"{p}/versiones/{{version}}/pdf"),
+        ("POST", f"{p}/manuscrito/juez"),
+        ("GET", f"{p}/manuscrito/juez"),
+        ("POST", f"{p}/cambios"),
+        ("GET", f"{p}/cambios/{{cambio}}"),
+        ("POST", f"{p}/cambios/{{cambio}}/confirmacion"),
     }
 
 
@@ -319,11 +347,11 @@ def test_el_error_de_validacion_no_repite_el_valor_recibido(api: ClienteApi) -> 
     token = api.tomar(proyecto)
     valor = "nadie@ejemplo.invalid"
     respuesta = api.http.post(
-        f"/proyectos/{proyecto}/resultado", json={"orden": valor}, headers=con_token(token)
+        f"/proyectos/{proyecto}/resultado", json={"orden": [valor]}, headers=con_token(token)
     )
     assert error(respuesta) == (422, "validacion", None)
     detalle = respuesta.json()["detalle"]
-    assert "body.orden" in detalle and "body.resultado" in detalle
+    assert "body.orden" in detalle and "body.salida_cruda" in detalle
     assert valor not in detalle
 
 
@@ -354,6 +382,7 @@ def _crudo(api: ClienteApi, ruta: str, cuerpo: str, token: str | None = None) ->
 
 
 def test_toda_ruta_lee_json_estricto_salvo_la_del_resultado() -> None:
+    """La salida cruda puede traer un sustituto suelto: es un intento fallido, no un 422."""
     rutas = [r for router in ROUTERS for r in router.routes if isinstance(r, APIRoute)]
     laxas = {
         (r.path, *sorted(r.methods or ())) for r in rutas if not isinstance(r, RutaJsonEstricto)
@@ -373,10 +402,11 @@ def test_toda_ruta_lee_json_estricto_salvo_la_del_resultado() -> None:
 def test_un_resultado_fuera_de_json_estricto_es_un_intento_fallido(
     api: ClienteApi, valor: str, motivo: str
 ) -> None:
-    """RF-77a, TC-11: 200 con el desenlace `rechazada`, no un 500 ni un 422 que la sesión
-    repetiría sin fin; el mismo cuerpo otra vez es idempotente."""
+    """RF-77a, TC-11: un bloque que no es JSON estricto es un fallo de forma con 200, no un
+    500 ni un 422 que la sesión repetiría sin fin; el mismo cuerpo otra vez es idempotente."""
     proyecto, token, orden = _extraccion(api)
-    cuerpo = f'{{"orden": {orden}, "resultado": {{"hechos": [{{"texto": {valor}}}]}}}}'
+    salida = '```json\n{"hechos": [{"texto": ' + valor + "}]}\n```"
+    cuerpo = json.dumps({"orden": _sello(api, proyecto, orden), "salida_cruda": salida})
     fallido = _crudo(api, f"/proyectos/{proyecto}/resultado", cuerpo, token)
     assert fallido.status_code == 200, fallido.text
     registro = fallido.json()
@@ -386,6 +416,18 @@ def test_un_resultado_fuera_de_json_estricto_es_un_intento_fallido(
     assert repetido.json() == {**registro, "repetido": True}
     assert api.estado(proyecto)["intentos_paso"] == 1
     assert api.orden(proyecto, token)["intento"] == 2
+
+
+def test_una_salida_cruda_con_un_sustituto_suelto_es_un_intento_fallido(
+    api: ClienteApi,
+) -> None:
+    """La ruta del resultado lee su cuerpo sin JSON estricto: el texto del modelo no es UTF-8,
+    y eso es un fallo de forma, no un 422 ni un 500 al guardarlo."""
+    proyecto, token, orden = _extraccion(api)
+    cuerpo = f'{{"orden": "{_sello(api, proyecto, orden)}", "salida_cruda": "a \\ud800 b"}}'
+    fallido = _crudo(api, f"/proyectos/{proyecto}/resultado", cuerpo, token)
+    assert fallido.status_code == 200, fallido.text
+    assert "sustituto suelto" in fallido.json()["detalle"]["errores"][0]
 
 
 @pytest.mark.parametrize(
@@ -427,16 +469,50 @@ def test_un_token_con_caracteres_no_ascii_es_un_bloqueo_ajeno(
         assert error(respuesta) == (423, "bloqueo_ajeno", "RF-09b"), (metodo, ruta)
 
 
-def test_un_id_de_orden_mayor_que_un_entero_de_sqlite_es_un_error_de_validacion(
-    api: ClienteApi,
-) -> None:
+def test_un_sello_de_otro_proyecto_o_mal_formado_no_registra(api: ClienteApi) -> None:
+    """AJ-4: el sello identifica la orden; uno que no es de ninguna orden del proyecto da
+    `sello_invalido` y no toca nada. Control: el suyo registra."""
     proyecto, token, orden = _extraccion(api)
-    for fuera in (ENTERO_MAXIMO + 1, 2**70):
-        respuesta = api.registrar(proyecto, token, fuera, {})
-        assert error(respuesta) == (422, "validacion", None)
-    assert error(api.registrar(proyecto, token, ENTERO_MAXIMO, {})) == (
-        409,
-        "orden_ajena",
-        "RF-08a",
-    )
+    for sello in (f"{SIN_PROYECTO}:{orden}:1", "sin-forma", f"{proyecto}:{orden}:0"):
+        respuesta = api.registrar_crudo(
+            proyecto, token, {"orden": sello, "salida_cruda": '{"hechos": []}'}
+        )
+        assert error(respuesta) == (409, "sello_invalido", "RF-08a")
     assert api.estado(proyecto)["orden_vigente"]["id"] == orden
+    assert api.aceptado(proyecto, token, orden, {"hechos": []})["orden"] == orden
+
+
+def test_los_metadatos_se_guardan_con_la_orden(api: ClienteApi) -> None:
+    """§4.1.8: todos opcionales; los que llegan quedan en la orden al cerrarla."""
+    proyecto, token, orden = _extraccion(api)
+    metadatos = {"modelo": "sonnet", "tokens_entrada": 1200, "duracion_ms": 900, "otro": 1}
+    respuesta = api.registrar(proyecto, token, orden, {"hechos": []}, metadatos=metadatos)
+    assert respuesta.status_code == 200, respuesta.text
+    with api.abrir(proyecto) as abierto:
+        guardado = abierto.conexion.execute("SELECT metadatos FROM orden").fetchone()[0]
+    assert json.loads(guardado) == {"modelo": "sonnet", "tokens_entrada": 1200, "duracion_ms": 900}
+    negativo = api.registrar(proyecto, token, orden, {"hechos": []}, {"tokens_salida": -1})
+    assert error(negativo) == (422, "validacion", None)
+
+
+# ─── Auditoría de la policy (§4.1.9) ─────────────────────────────────────────
+
+
+def test_la_auditoria_de_la_policy_queda_en_el_proyecto(api: ClienteApi) -> None:
+    proyecto = api.crear()
+    decision = {
+        "decision": "denegada",
+        "herramienta": "Read",
+        "agente": "escritor",
+        "motivo": "brief/ no se lee con herramientas de fichero",
+    }
+    assert api.http.post(f"/proyectos/{proyecto}/auditoria", json=decision).status_code == 204
+    otra = {**decision, "decision": "quizas"}
+    assert error(api.http.post(f"/proyectos/{proyecto}/auditoria", json=otra)) == (
+        422,
+        "validacion",
+        None,
+    )
+    with api.abrir(proyecto) as abierto:
+        filas = abierto.conexion.execute("SELECT tipo, detalle FROM auditoria").fetchall()
+    assert [(f["tipo"], json.loads(f["detalle"])) for f in filas] == [("policy", decision)]

@@ -23,6 +23,20 @@
 - [ ] **baja** · `.claude/tests/test_definiciones.py:13` — Todo el análisis estático V-13·A depende de PyYAML, que es una dependencia transitiva no declarada, y se salta en silencio si desaparece
   - Arreglo: Leer el frontmatter con biblioteca estándar (son claves simples y una lista mcpServers), o sustituir importorskip por un import que falle.
 
+Avisos del backend al cerrar los bloques 2 y 3 (2026-09-24, decisiones-backend §4.5):
+
+- [ ] **aviso** · `/resultado` ya acepta `{orden: sello, salida_cruda, metadatos?}`: activar `MSM_CONTRATO_RESULTADO=salida_cruda`. Existe `POST /proyectos/{id}/auditoria` para la policy.
+- [ ] **aviso** · URLs MCP con barra final: `http://127.0.0.1:8000/mcp/lectura/` y `…/mcp/escritura/`. `.mcp.json` no declara el servidor `lectura`: añadir `{"type":"http","url":"http://127.0.0.1:8000/mcp/lectura/"}`. La lectura recibe `proyecto`; la escritura, `sello` y ningún `capitulo`.
+- [ ] **aviso** · `escritor.md` usa `entrada.ruta_prompt`: ahora es `rutas_prompt`, una lista de rutas absolutas de partes de 20.000 tokens como mucho.
+- [ ] **aviso** · `agente-contexto.md` describe la cabecera antigua del sello: es `<proyecto>:<orden>:<generación>`, opaca salvo el primer segmento.
+- [ ] **aviso** · La policy debe denegar `mcp__escritura__*` a todo `agent_type` que no sea `bibliotecario`.
+- [ ] **aviso** · `bibliotecario.md` pide registrar relaciones y no existe esa escritura: quitarlo del prompt (herramientas en spec1 §5.2).
+- [ ] **aviso** · `editor-estilo`, `juez-capitulo`, `bibliotecario` y `revisor` deben leer `version`, `intento_texto` y `etapa` de la entrada para `leer_capitulo`. El planificador recibe las notas en `entrada.notas_plan`. Juez de manuscrito, revisor y exportador reciben `manuscrito` (punteros vigentes), y el revisor además `informe_gates` y las notas.
+- [ ] **aviso** · Las skills `orquestar-novela` y `generar` nombran `error_ensamblado`: ahora es `error` con causa (`no_cabe`, `inconsistencia`, `lean_no_disponible`, `pdf_no_disponible`, `cronologia_invalida`, `contexto_incoherente`).
+- [ ] **aviso** · `juez-manuscrito.md`: si suspende, `capitulos` tiene que traer al menos un capítulo, o la salida es un fallo de forma (M-25). `revisor.md` y `exportador.md`: leer el manuscrito de `entrada.manuscrito` y, el Revisor, `entrada.informe_gates` y `entrada.notas`, sin herramienta MCP nueva.
+- [ ] **aviso** · Las causas de `error` incluyen también `revision_sin_capitulos`.
+- [ ] **aviso** · El worker lanza `claude -p "/regenerar <proyecto> <trabajo>" --permission-prompts none --output-format json` (requiere Claude Code ≥ 2.1.259).
+
 ## Sesión de briefs (evals/)
 
 - [ ] **media** · `evals/briefs/e2-inyeccion.json:96` — La señal del hook de policy en E2 espera que se deniegue leer proyecto.sqlite, pero ni la policy ni su especificación lo deniegan con Read o Grep, y la decisión no llega a la tabla auditoria.
@@ -34,6 +48,8 @@
 - [ ] **baja** · `evals/briefs/e3-incoherencia-temporal.json:119` — El caso de control «Lean sobre h2» no controla nada, porque nadie registra al ser querido de h1 como presente en el evento h2.
   - Arreglo: Declararlo en limites (el control es vacuo mientras los eventos del contexto no lleven presentes) o cambiarlo por un control real. Que la materialización registre presentes en los eventos del contexto, por ejemplo la fuente del hecho, sería una decisión de backend que hay que llevar a la persona.
 
+- [ ] **aviso** · (2026-09-24) Ya existe `excluye {fuente, tipo: muerte|partida}` en los hechos `evento` (B-18): repasar E3 con `evals.comprobar`.
+
 ## Sesión de frontend (frontend/)
 
 - [ ] **baja** · `frontend/src/lectura/modelo.js:15` — Con {versiones: []}, versionVigente lanza un TypeError en el render y deja la página en blanco
@@ -42,6 +58,9 @@
   - Arreglo: Hacer la inspección de portada, capítulo (también a 375 px) y fichas con Playwright MCP, en claro y oscuro, y actualizar §8 y §10 con el resultado y con que .mcp.json ya está.
 - [ ] **baja** · `frontend/src/lectura/useCarga.js:1` — Tres módulos sin JSX no llevan // @ts-check, en contra de F-2
   - Arreglo: Añadir // @ts-check como primera línea de los tres ficheros y corregir lo que el editor marque, o dejar escrita en F-2 la excepción.
+
+- [ ] **aviso** · (2026-09-24) La ruta de lectura ya se sirve (`GET /versiones/{v}/lectura` y `/capitulos/{n}`): pasar `lectura/` a `FUENTE = 'api'`. Existen `POST /cambios`, `GET /cambios/{c}` y `POST /cambios/{c}/confirmacion` para construir `cambio/`.
+- [ ] **aviso** · Falta pasar `npm run validar-lectura` sobre un `lectura.json` real generado por el backend: esta máquina no tiene `node`.
 
 ## Sesión formal (formal/)
 
@@ -55,6 +74,11 @@
   - Arreglo: Marcar la fila de Pedir como «igual salvo la caducidad de la entrada (RF-14), fuera del modelo», o modelar una acción CaducarEntrada acotada que cierre la orden sin gastar intento.
 - [ ] **baja** · `formal/tla/GrafoNovela.cfg:3` — La cabecera del cfg dice que el código implementa AJ-3 y AJ-4, y no es así. El cfg «Anterior» y plan-formal remiten a contraejemplos de plan-formal §5 (I-formal-1) que no están escritos.
   - Arreglo: Cambiar la cabecera a «con AJ-3 y AJ-4, que el código aplica en el bloque 2», y escribir en plan-formal §5 los contraejemplos o hallazgos de diseño que justifican AJ-2 a AJ-6 (I-formal-1 incluido), para que iteraciones.md pueda recogerlos.
+
+- [ ] **aviso** · (2026-09-24) Ya están en `backend/proyecto/` AJ-1 a AJ-5, los estados del capítulo de architecture §3.2 (Editor en verde → `editado`, juez → `verificado`, Bibliotecario → `aprobado`), el Bibliotecario en `revision` y las aristas `worker_fallido` desde los cinco estados de una regeneración: alinear TLA+ rama a rama.
+- [ ] **aviso** · `EnRevision` ya no lanza un Revisor sin capítulo (M-25): una revisión sin capítulos es `error` con causa `revision_sin_capitulos`, y «cambios» en `aprobacion_final` señala capítulos (todos por defecto). Los gates de Lean corren en una fase previa fuera de la transacción de escritura (M-27). Revisar `plan-formal.md:100`.
+- [ ] **aviso** · `Momento.historia` debe admitir la franja opcional: hoy el backend emite `manana` por defecto (M-14).
+- [ ] **aviso** · plan-formal §3.3 cita `verificacion\ciclo-k`: es `verificacion/pasada-k/cronologia.lean` (AJ-3).
 
 ## La persona
 

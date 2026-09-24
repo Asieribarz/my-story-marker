@@ -50,7 +50,11 @@ def _fichas_y_actos(n: Novela, s: SalidaEscaletista) -> Iterator[Hallazgo]:
             "RF-41 · numero_de_fichas", "fichas", numeros, f"una ficha por capítulo, 1 a {total}"
         )
     e = n.estructura
-    for nombre, acto in (("planteamiento", e.planteamiento), ("nudo", e.nudo), ("desenlace", e.desenlace)):
+    for nombre, acto in (
+        ("planteamiento", e.planteamiento),
+        ("nudo", e.nudo),
+        ("desenlace", e.desenlace),
+    ):
         inicio, fin = acto.capitulos
         cuantos = sum(1 for f in s.fichas if inicio <= f.numero <= fin)
         previsto = total * acto.porcentaje / 100
@@ -119,7 +123,9 @@ def _segun_contexto(n: Novela, p: SalidaPlanificador, s: SalidaEscaletista) -> I
         tension = curva[f.numero - 1]
         cierre = cierres if isinstance(cierres, Cierre) else cierres[f.numero - 1]
         if f.tension != tension:
-            yield hallazgo("B-5 · tension_del_contexto", f"ficha {f.numero}", f.tension, f"{tension}")
+            yield hallazgo(
+                "B-5 · tension_del_contexto", f"ficha {f.numero}", f.tension, f"{tension}"
+            )
         if f.cierre is not cierre:
             yield hallazgo("B-5 · cierre_del_contexto", f"ficha {f.numero}", f.cierre, cierre.value)
         for t in f.traspasos:

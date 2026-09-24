@@ -30,9 +30,15 @@ from backend.proyecto.persistencia import (
     decidir,
     emitir_siguiente_orden,
     leer_estado,
-    registrar_resultado,
 )
-from backend.proyecto.tests.apoyo import HECHO, NORMALIZADO, TEXTO_LIBRE, despues, transiciones
+from backend.proyecto.tests.apoyo import (
+    HECHO,
+    NORMALIZADO,
+    TEXTO_LIBRE,
+    despues,
+    registrar,
+    transiciones,
+)
 from backend.shared.tipos import Agente, DesenlaceOrden, EstadoCapitulo, TipoEjecutor
 from backend.shared.tipos import EstadoProyecto as E
 
@@ -50,11 +56,16 @@ from backend.proyecto.maquina import Desenlace
 from backend.proyecto import persistencia
 from backend.proyecto.maquina import AccionHumana
 from backend.proyecto.persistencia import (
-    crear_proyecto, decidir, emitir_siguiente_orden, registrar_resultado)
+    crear_proyecto, decidir, emitir_siguiente_orden)
+from backend.proyecto.tests.apoyo import registrar
 from backend.proyecto.tests.apoyo import AHORA, BRIEF, HECHO, MOMENTO, TEXTO_LIBRE, forzar
 from backend.shared.tipos import Agente, EstadoProyecto, TipoEjecutor
 
 raiz, modo = Path(sys.argv[1]), sys.argv[2]
+for sin_herramienta in (Agente.ESCRITOR, Agente.JUEZ_MANUSCRITO, Agente.EXPORTADOR,
+                        Agente.INTERPRETE_CAMBIOS):
+    manejadores.CONSTRUCTORES_DE_ENTRADA[sin_herramienta] = lambda solicitud, base: base
+manejadores.FASES_PREVIAS.clear()
 proyecto = crear_proyecto(AHORA, raiz_proyectos=raiz)
 token = tomar_bloqueo(proyecto, TipoEjecutor.SESION, AHORA).token
 
@@ -77,6 +88,12 @@ if modo == "en_estado":
         guardar_brief(proyecto.conexion, proyecto.disposicion, BRIEF, TEXTO_LIBRE, MOMENTO)
     else:
         forzar(proyecto, estado, detenida_desde=desde, parada_plan=True, parada_final=True)
+    if estado is EstadoProyecto.REVISION:
+        # M-6: una revisión siempre tiene capítulos; aquí, el 3 que señala la cobertura.
+        proyecto.conexion.execute("UPDATE proyecto SET pasadas = 1")
+        proyecto.conexion.execute(
+            "INSERT INTO gate_resultado VALUES (1, 'cobertura', 0, ?)",
+            (json.dumps({"capitulos": [3]}),))
     if accion == "registrar":
         orden = emitir_siguiente_orden(proyecto, token, AHORA)
         def escribe(contexto, resultado):
@@ -86,7 +103,7 @@ if modo == "en_estado":
             return manejadores.Salida(Desenlace.aceptado())
         manejadores.MANEJADORES[orden.agente] = morir_tras(escribe)
         avisar(orden)
-        registrar_resultado(proyecto, orden.id, {"ensayo": True}, token, AHORA)
+        registrar(proyecto, orden.id, {"ensayo": True}, token, AHORA)
     else:
         persistencia._persistir = morir_tras(persistencia._persistir)
         avisar(None)
@@ -99,7 +116,7 @@ if modo == "capitulo_tras_un_fallo":
         return manejadores.Salida(Desenlace.contenido(), {"motivo": "sin titulo"})
     manejadores.MANEJADORES[Agente.ESCRITOR] = rechaza
     escritor = emitir_siguiente_orden(proyecto, token, AHORA)
-    registrar_resultado(proyecto, escritor.id, {"texto": ""}, token, AHORA)
+    registrar(proyecto, escritor.id, {"texto": ""}, token, AHORA)
     avisar(escritor)
     os._exit(17)
 
@@ -107,7 +124,7 @@ guardar_brief(proyecto.conexion, proyecto.disposicion, BRIEF, TEXTO_LIBRE, MOMEN
 orden = emitir_siguiente_orden(proyecto, token, AHORA)
 
 if modo == "tras_un_fallo":
-    registrar_resultado(proyecto, orden.id, "no es un sobre", token, AHORA)
+    registrar(proyecto, orden.id, "no es un sobre", token, AHORA)
     avisar(orden)
     os._exit(17)
 if modo == "tras_emitir":
@@ -120,13 +137,13 @@ if modo == "durante_el_registro":
         os._exit(17)
     manejadores.MANEJADORES[Agente.EXTRACTOR_HECHOS] = a_medias
     avisar(orden)
-    registrar_resultado(proyecto, orden.id, {"hechos": [HECHO]}, token, AHORA)
+    registrar(proyecto, orden.id, {"hechos": [HECHO]}, token, AHORA)
 if modo == "tras_registrar":
-    registrar_resultado(proyecto, orden.id, {"hechos": [HECHO]}, token, AHORA)
+    registrar(proyecto, orden.id, {"hechos": [HECHO]}, token, AHORA)
     avisar(orden)
     os._exit(17)
 if modo == "antes_de_registrar":
-    registrar_resultado(proyecto, orden.id, {"hechos": [HECHO]}, token, AHORA)
+    registrar(proyecto, orden.id, {"hechos": [HECHO]}, token, AHORA)
     pendientes = hechos_pendientes(proyecto.conexion)
     confirmar_hechos(proyecto.conexion, {f["id"]: True for f in pendientes}, MOMENTO)
     normalizar = emitir_siguiente_orden(proyecto, token, AHORA)
@@ -183,9 +200,7 @@ def test_la_orden_persistida_sobrevive_y_el_registro_a_medias_no(tmp_path: Path,
         )
         identificador = reanudada.entrada["texto_libre"]["identificador"]
         assert canjear(identificador, despues(31), tmp_path) == TEXTO_LIBRE
-        registro = registrar_resultado(
-            proyecto, reanudada.id, {"hechos": [HECHO]}, token, despues(32)
-        )
+        registro = registrar(proyecto, reanudada.id, {"hechos": [HECHO]}, token, despues(32))
         assert registro.desenlace is DesenlaceOrden.ACEPTADA
         assert _hechos(proyecto.conexion) == 1
         siguiente = emitir_siguiente_orden(proyecto, token, despues(32))
@@ -198,9 +213,7 @@ def test_el_resultado_registrado_sobrevive_y_repetirlo_no_duplica(tmp_path: Path
         token = muerto["token"]
         leido = leer_estado(proyecto, despues(1))
         assert (leido.estado, leido.orden_vigente) == (E.INTAKE, None)
-        repetido = registrar_resultado(
-            proyecto, muerto["orden"], {"hechos": [HECHO]}, token, despues(1)
-        )
+        repetido = registrar(proyecto, muerto["orden"], {"hechos": [HECHO]}, token, despues(1))
         assert repetido.repetido
         assert _hechos(proyecto.conexion) == 1
 
@@ -244,7 +257,7 @@ def test_morir_antes_de_registrar_pierde_solo_el_trabajo_del_subagente(tmp_path:
             Agente.AGENTE_CONTEXTO,
             E.INTAKE,
         )
-        registro = registrar_resultado(proyecto, vigente.id, NORMALIZADO, token, despues(2))
+        registro = registrar(proyecto, vigente.id, NORMALIZADO, token, despues(2))
         assert registro.estado is E.CONTEXTO
 
 

@@ -5,13 +5,16 @@ Todos los datos de persona son ficticios, como en `backend/contexto/tests/refere
 en una fase sin recorrer las anteriores, nunca para probar una transición.
 """
 
+import json
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from backend.proyecto.abierto import Proyecto
+from backend.proyecto.extraccion import AGENTES_MARKDOWN
+from backend.proyecto.persistencia import Registro, registrar_resultado
 from backend.shared.db import transaccion
-from backend.shared.tipos import EstadoCapitulo, EstadoProyecto
+from backend.shared.tipos import Agente, EstadoCapitulo, EstadoProyecto
 
 AHORA = datetime(2026, 9, 23, 10, 0, tzinfo=UTC)
 MOMENTO = "2026-09-23T10:00:00Z"
@@ -63,9 +66,8 @@ def proponer_cambio(proyecto: Proyecto) -> None:
     """Deja un cambio del lector ya propuesto por el Intérprete (lo hará el paso 9a)."""
     with transaccion(proyecto.conexion) as conexion:
         conexion.execute(
-            "INSERT INTO cambio_lector (version_novela, capitulo, fragmento, ruta_peticion, "
-            "estado, creado) VALUES (1, 3, 'la perra blanca', 'cambios/peticion-1.txt', "
-            "'propuesto', ?)",
+            "INSERT INTO cambio_lector (version_novela, capitulo, ruta_peticion, estado, "
+            "creado) VALUES (1, 3, 'cambios/peticion-1.txt', 'propuesto', ?)",
             (MOMENTO,),
         )
 
@@ -94,3 +96,41 @@ def transiciones(conexion: sqlite3.Connection) -> list[tuple[str, str, str]]:
 
 def estado(conexion: sqlite3.Connection) -> EstadoProyecto:
     return EstadoProyecto(conexion.execute("SELECT estado FROM proyecto").fetchone()[0])
+
+
+# ─── Registrar como lo hace el hook (§4.1.7) ─────────────────────────────────
+
+TITULO_DE_ENSAYO = "# Ensayo"
+
+
+def sello_de(conexion: sqlite3.Connection, identificador: str, orden: int) -> str:
+    """El sello de la orden `orden`; el de una orden que no existe, inventado con su forma."""
+    fila = conexion.execute("SELECT sello FROM orden WHERE id = ?", (orden,)).fetchone()
+    return fila["sello"] if fila is not None and fila["sello"] else f"{identificador}:{orden}:0"
+
+
+def salida_cruda(agente: Agente | None, resultado: object) -> str:
+    """Lo que devolvería el subagente con `resultado`: un texto va tal cual; un valor, en su
+    bloque JSON, o como Markdown con título si el agente devuelve Markdown."""
+    if isinstance(resultado, str):
+        return resultado
+    if agente in AGENTES_MARKDOWN:
+        return f"{TITULO_DE_ENSAYO}\n\n{json.dumps(resultado, ensure_ascii=False)}"
+    return f"```json\n{json.dumps(resultado, ensure_ascii=False)}\n```"
+
+
+def valor_de_ensayo(resultado: object) -> Any:
+    """El inverso de `salida_cruda` para los manejadores de ensayo de las pruebas."""
+    if isinstance(resultado, str) and resultado.startswith(TITULO_DE_ENSAYO):
+        return json.loads(resultado.removeprefix(TITULO_DE_ENSAYO))
+    return resultado
+
+
+def registrar(
+    proyecto: Proyecto, orden: int, resultado: object, token: str, ahora: datetime
+) -> Registro:
+    """`registrar_resultado` con el sello de la orden y la salida cruda de `resultado`."""
+    fila = proyecto.conexion.execute("SELECT agente FROM orden WHERE id = ?", (orden,)).fetchone()
+    agente = Agente(fila["agente"]) if fila is not None else None
+    sello = sello_de(proyecto.conexion, proyecto.identificador, orden)
+    return registrar_resultado(proyecto, sello, salida_cruda(agente, resultado), token, ahora)

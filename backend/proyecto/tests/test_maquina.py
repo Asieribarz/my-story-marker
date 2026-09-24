@@ -18,10 +18,12 @@ from backend.proyecto.maquina import (
     AccionHumana,
     Avance,
     CapituloInstantanea,
+    CapituloRevision,
     Desenlace,
     Detenida,
     Efecto,
     Entrada,
+    ErrorConCausa,
     EsperarHumano,
     Instantanea,
     Lanzar,
@@ -100,7 +102,11 @@ def test_la_decision_respeta_la_tabla_y_los_topes(inst: Instantanea) -> None:
     if isinstance(decision, Lanzar):
         assert 1 <= decision.intento <= TOPE
         assert decision.agente in AGENTES_DEL_ESTADO[resolucion.instantanea.estado]
-        assert (decision.capitulo is not None) == (decision.agente in AGENTES_DE_CAPITULO)
+        if resolucion.instantanea.estado is E.REVISION:
+            # AJ-2, M-6: en revisión, siempre por capítulo.
+            assert decision.capitulo is not None
+        else:
+            assert (decision.capitulo is not None) == (decision.agente in AGENTES_DE_CAPITULO)
         assert (Entrada.INFORME_ANTERIOR in decision.entrada) == (decision.intento > 1)
     if inst.orden_vigente is not None:
         assert resolucion.pasos == ()
@@ -214,8 +220,6 @@ def _camino_feliz(inst: Instantanea) -> tuple[list[A], Instantanea]:
                         brief_normalizado=a.brief_normalizado or inst.estado is E.INTAKE,
                         contexto_validado=a.contexto_validado or inst.estado is E.CONTEXTO,
                         plan=a.plan or decision.agente is A.PLANIFICADOR,
-                        personajes=a.personajes or decision.agente is A.PLANIFICADOR,
-                        mundo=a.mundo or decision.agente is A.PLANIFICADOR,
                         guia_estilo=a.guia_estilo or decision.agente is A.PLANIFICADOR,
                         fichas=10 if decision.agente is A.ESCALETISTA else a.fichas,
                         gates=ResultadoGates.VERDES,
@@ -352,7 +356,7 @@ def test_el_capitulo_termina_con_el_bibliotecario_y_el_siguiente_empieza() -> No
 
 
 def test_el_juez_que_rechaza_devuelve_el_capitulo_al_escritor_con_el_informe() -> None:
-    inst = _en_capitulos(c5=(C.VERIFICADO, 0, False))
+    inst = _en_capitulos(c5=(C.EDITADO, 0, False))
     inst = _aplicar(inst, Desenlace.contenido())
     assert inst.capitulo(5) == CapituloInstantanea(5, C.PENDIENTE, 1)
     _, lanzar = _lanzar(inst)
@@ -377,7 +381,7 @@ def test_el_veto_agotado_detiene_sin_esperar_al_final_del_bucle() -> None:
 
 
 def test_al_acabar_el_bucle_con_un_capitulo_en_revision_humana() -> None:
-    inst = _en_capitulos(c4=(C.REVISION_HUMANA, 3, False), c10=(C.APROBADO, 0, False))
+    inst = _en_capitulos(c4=(C.REVISION_HUMANA, 3, False), c10=(C.VERIFICADO, 0, False))
     detenida = _aplicar(inst, Desenlace.aceptado())
     assert (detenida.estado, detenida.detenida_desde) == (E.DETENIDA, E.CAPITULOS)
     publicada = _aplicar(replace(inst, estado=E.REGENERACION), Desenlace.aceptado())
@@ -390,8 +394,13 @@ def test_tres_ciclos_de_revision_y_despues_se_detiene_o_vuelve_a_publicada() -> 
     for ciclo in (1, 2, 3):
         inst = _aplicar(inst, Desenlace.aceptado())
         assert (inst.estado, inst.ciclos_revision) == (E.REVISION, ciclo)
-        inst = _aplicar(inst, Desenlace.aceptado())
-        assert inst.estado is E.VERIFICACION_MANUSCRITO
+        # Los gates señalan el capítulo 4 (lo escribe la persistencia, M-6).
+        inst = replace(inst, revision=(CapituloRevision(4),))
+        inst = _aplicar(_aplicar(inst, Desenlace.aceptado()), Desenlace.aceptado())
+        assert (inst.estado, inst.pasadas) == (E.VERIFICACION_MANUSCRITO, ciclo)
+        # AJ-3: cada pasada empieza con sus gates sin evaluar; el paso 8a los evalúa.
+        assert inst.avance.gates is ResultadoGates.SIN_EVALUAR
+        inst = replace(inst, avance=fallos)
     assert _aplicar(inst, Desenlace.aceptado()).estado is E.DETENIDA
     regenerando = replace(inst, avance=replace(fallos, es_regeneracion=True))
     assert _aplicar(regenerando, Desenlace.aceptado()).estado is E.PUBLICADA
@@ -413,6 +422,8 @@ def test_el_tope_de_una_orden_que_no_es_de_capitulo(
 ) -> None:
     avance = Avance(brief=True, es_regeneracion=regeneracion)
     inst = replace(_en_capitulos(), estado=estado, avance=avance)
+    if estado is E.REVISION:
+        inst = replace(inst, revision=(CapituloRevision(2),))
     for intento in (1, 2):
         _, lanzar = _lanzar(inst)
         assert lanzar.intento == intento
@@ -436,7 +447,7 @@ def test_cada_avance_pone_a_cero_el_contador_de_paso() -> None:
 
 
 def test_los_cambios_del_plan_vuelven_al_planificador_con_las_notas() -> None:
-    completo = Avance(plan=True, personajes=True, mundo=True, guia_estilo=True)
+    completo = Avance(plan=True, guia_estilo=True)
     inst = Instantanea(estado=E.APROBACION_PLAN, avance=completo, parada_plan=True)
     efecto = aplicar_accion_humana(inst, AccionHumana.CAMBIOS_PLAN)
     assert efecto.instantanea.estado is E.PLANIFICACION
@@ -496,3 +507,45 @@ def test_la_confirmacion_de_un_cambio_regenera_solo_los_capitulos_reabiertos() -
     assert efecto.instantanea.ciclos_revision == 0
     _, lanzar = _lanzar(efecto.instantanea)
     assert (lanzar.agente, lanzar.capitulo) == (A.ESCRITOR, 6)
+
+
+# ─── AJ-2 y AJ-3: la revisión por capítulo y las pasadas ──────────────────────
+
+
+def test_la_revision_corrige_capitulo_a_capitulo_con_el_bibliotecario() -> None:
+    """AJ-2: por cada capítulo señalado, Revisor → Bibliotecario; al acabar, otra pasada."""
+    fallos = replace(Avance(), gates=ResultadoGates.FALLOS)
+    marcados = (CapituloRevision(3), CapituloRevision(7))
+    inst = replace(
+        _en_capitulos(), estado=E.VERIFICACION_MANUSCRITO, avance=fallos, revision=marcados
+    )
+    inst = _aplicar(inst, Desenlace.aceptado())
+    assert inst.estado is E.REVISION
+    pasos = []
+    while inst.estado is E.REVISION:
+        _, lanzar = _lanzar(inst)
+        pasos.append((lanzar.agente, lanzar.capitulo))
+        inst = _aplicar(inst, Desenlace.aceptado())
+    assert pasos == [(A.REVISOR, 3), (A.BIBLIOTECARIO, 3), (A.REVISOR, 7), (A.BIBLIOTECARIO, 7)]
+    assert (inst.estado, inst.pasadas) == (E.VERIFICACION_MANUSCRITO, 1)
+
+
+def test_el_bibliotecario_de_revision_falla_por_su_tope_de_paso() -> None:
+    """AJ-2: su desenlace no es el del bucle: sin intentos de capítulo ni revision_humana."""
+    marcados = (CapituloRevision(2, revisado=True),)
+    inst = replace(_en_capitulos(), estado=E.REVISION, revision=marcados)
+    for intento in (1, 2):
+        _, lanzar = _lanzar(inst)
+        assert (lanzar.agente, lanzar.capitulo, lanzar.intento) == (A.BIBLIOTECARIO, 2, intento)
+        inst = _aplicar(inst, Desenlace.contenido())
+    assert inst.capitulo(2).intentos == 0
+    assert _aplicar(inst, Desenlace.forma()).estado is E.DETENIDA
+
+
+def test_nunca_hay_revisor_sin_capitulo() -> None:
+    """M-6: sin capítulos señalados, la decisión es `error` y no un Revisor sin capítulo
+    (que su manejador rechazaría siempre). Control: con uno señalado, el Revisor de ese."""
+    inst = replace(_en_capitulos(), estado=E.REVISION)
+    assert resolver(inst).decision == ErrorConCausa("revision_sin_capitulos")
+    _, lanzar = _lanzar(replace(inst, revision=(CapituloRevision(6),)))
+    assert (lanzar.agente, lanzar.capitulo) == (A.REVISOR, 6)

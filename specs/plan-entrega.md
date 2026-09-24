@@ -30,7 +30,7 @@ Cada una bloquea el hito indicado, no antes. La recomendación es eso: una recom
 | **E-2** | **PDF** (es D-8) | Playwright para Python imprimiendo **la misma lectura HTML** que sirve la web | Un solo origen para web y PDF, y Chromium conserva los enlaces internos que piden el índice y la página de novedades. WeasyPrint necesita GTK en Windows; ReportLab obliga a maquetar aparte | H5 |
 | **E-3** | **Dónde se hace la entrevista** | En Claude Code: una skill `/entrevista` en la sesión principal más el Agente de Contexto. La web queda solo para la lectura y los cambios | La entrevista es una conversación, y un subagente corre hasta terminar sin conversar con el comprador. El enunciado no pide entrevista web, así que se ahorra una funcionalidad de frontend entera. **Datos que faltan**: el informe del validador ya da cada clave obligatoria ausente con su ruta, y la skill pregunta por ellas, lo que cubre el requisito sin la persistencia de RF-12 (prioridad S). Cambia el «Panel» de [architecture.md](../docs/architecture.md) §2 y §8 | H1 |
 | **E-4** | **Validación visual con el browser MCP** | Skill de desarrollo `/inspeccionar-lectura` con Playwright MCP, usada y documentada en H5. Un gate dentro del harness, solo si sobra tiempo | Lo obligatorio es tener el browser MCP configurado y documentar su uso real. Un validador visual dentro del harness es uno de los ejemplos opcionales | H5 |
-| **E-5** | **Prosa repetitiva y finales abruptos** | Un verificador determinista **Repeticiones** en el paso 7 (palabras repetidas en un párrafo, arranques de frase repetidos) y hacer explícito el cierre de la pregunta dramática dentro del criterio «arco y ritmo» del juez | Son dos de los fallos que el cliente no acepta y hoy nadie los mira. Es código propio, sin dependencias | H3 |
+| **E-5** | **Prosa repetitiva y finales abruptos** · **rechazada** (R-3): no hay verificador de Repeticiones; las repeticiones las vigila el Editor de estilo | ~~Un verificador determinista **Repeticiones** en el paso 7 (palabras repetidas en un párrafo, arranques de frase repetidos) y hacer explícito el cierre de la pregunta dramática dentro del criterio «arco y ritmo» del juez~~ | Son dos de los fallos que el cliente no acepta y hoy nadie los mira. Es código propio, sin dependencias | H3 |
 | **E-6** | **Adelantar `/mcp/entrada` al paso 3** | Sí: solo esa superficie, no `/mcp/lectura` | Sin ella, el Extractor no puede funcionar hasta el paso 5 y H1 no se cierra antes que la planificación. Cambia el orden de [plan-backend-v1.md](plan-backend-v1.md) | H1 |
 | **E-7** | **Protocolo de evals** | Novela completa de 10 capítulos para E1, E3 y E4. E2 y E5, hasta el validador que debe pararlos (y más allá si hay cupo) | Una novela son unas 50 invocaciones de subagente; siete novelas se acercan a los límites de la suscripción. E5 lo para la entrevista y E2 la extracción, así que su fila de la tabla se rellena sin novela entera | H0 (briefs), H7 (ejecución) |
 
@@ -80,7 +80,7 @@ La columna *Quién* nombra la sesión dueña de cada carpeta: una por carpeta, p
 | Decisiones | E-1 a E-7, con `grilling` | Tú + sesión de planificación |
 | Instalaciones | `elan` (Lean 4); Java 11 o superior y `tla2tools.jar`; cuenta de Langfuse con sus claves en `.env`, nunca en el repo | Tú |
 | Specs | `plan-agentes.md` (base), `plan-observabilidad.md` y `plan-evals.md` (§6) | Sesión de planificación |
-| Briefs | Los cinco de §2, en YAML. Desde H1 sirven también de datos de prueba | Sesión de planificación |
+| Briefs | Los cinco de §2, en JSON (B-19). Desde H1 sirven también de datos de prueba | Sesión de planificación |
 | Registros | `docs/iteraciones.md` y `docs/red-team.md`, vacíos pero con su formato | Sesión de planificación |
 | `.mcp.json` | Playwright MCP. `/mcp/lectura` se añade en H2 | Sesión de agentes |
 | `.env.example` | Añadir los nombres de las variables de Langfuse, con valores de ejemplo | Sesión de backend |
@@ -108,7 +108,7 @@ La columna *Quién* nombra la sesión dueña de cada carpeta: una por carpeta, p
 | Pieza | Qué | Quién |
 |---|---|---|
 | Backend | Paso 4 (plan, escaleta y biblia persistidos) y paso 5 (`/mcp/lectura`) | Backend |
-| Agentes | `arquitecto`, `personajes`, `mundo`, `estilo` y `escaletista` (sonnet, `/mcp/lectura`) | Agentes |
+| Agentes | `planificador` y `escaletista` (sonnet, `/mcp/lectura`; R-1) | Agentes |
 | MCP | `/mcp/lectura` en `.mcp.json` | Agentes |
 | Langfuse | Un span `planner` por agente | Backend |
 | Pruebas | V-21, V-22 y el contrato de cada herramienta MCP | Backend |
@@ -122,7 +122,7 @@ H2 y H3 se pueden solapar: el paso S puede usar un plan escrito a mano mientras 
 
 | Pieza | Qué | Quién |
 |---|---|---|
-| Backend | Paso 6 (Recuperador), paso 7 (verificadores, guardarraíl y, si se acepta E-5, Repeticiones) y paso 8 (`/mcp/escritura`) | Backend |
+| Backend | Paso 6 (Recuperador), paso 7 (verificadores y guardarraíl; sin Repeticiones, R-3) y paso 8 (`/mcp/escritura`) | Backend |
 | Agentes | `escritor` (opus, sin MCP), `editor-estilo` (sonnet), `juez-capitulo` (sonnet) y `bibliotecario` (sonnet, con `/mcp/escritura` en su `mcpServers`) | Agentes |
 | Hooks | **Validación de capítulo** (`SubagentStop` del Escritor, el Editor y el Revisor). La policy se amplía: deniega la escritura en la biblia a todo `agent_type` que no sea `bibliotecario` | Agentes |
 | Skills | `orquestar-novela` completa para el bucle | Agentes |
@@ -207,7 +207,7 @@ H2 y H3 se pueden solapar: el paso S puede usar un plan escrito a mano mientras 
 1. **Servidor MCP de consulta** (`list_novels`, `get_chapter`, `list_versions`, `query_story_bible`, `download_novel`): reutiliza FastMCP, que ya estará montado. Solo lectura y con llamadas a Langfuse.
 2. **Skill de seguridad** (inyección, exfiltración, `pip audit` / `npm audit`, secretos en el historial) con `docs/security-report.md`.
 3. **TLA+ de concurrencia**: el modelo ya incluye dos ejecutores compitiendo por el bloqueo; basta con presentarlo.
-4. **Linters de prosa**: la legibilidad INFLESZ y Repeticiones (E-5) ya cubren parte.
+4. **Linters de prosa**: la legibilidad INFLESZ ya cubre parte; Repeticiones (E-5) se rechazó (R-3).
 
 ---
 
@@ -221,7 +221,7 @@ Los nombres de fichero son orientativos. El modelo y el acceso a MCP son los de 
 |---|---|---|---|
 | `agente-contexto.md` | sonnet | `/mcp/lectura` | H1 |
 | `extractor-hechos.md` | haiku | solo `/mcp/entrada` | H1 |
-| `arquitecto.md`, `personajes.md`, `mundo.md`, `estilo.md`, `escaletista.md` | sonnet | `/mcp/lectura` | H2 |
+| `planificador.md`, `escaletista.md` (R-1: 12 agentes) | sonnet | `/mcp/lectura` | H2 |
 | `escritor.md` | opus | ninguno | H3 |
 | `editor-estilo.md`, `juez-capitulo.md` | sonnet | `/mcp/lectura` | H3 |
 | `bibliotecario.md` | sonnet | `/mcp/lectura` + `/mcp/escritura` | H3 |

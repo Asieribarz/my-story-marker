@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from backend.proyecto.maquina import (
     Detenida,
-    ErrorEnsamblado,
+    ErrorConCausa,
     EsperarHumano,
     MotivoEspera,
     Publicada,
@@ -53,15 +53,58 @@ class PeticionBloqueo(_Entrada):
     tipo: TipoEjecutor
 
 
-class ResultadoOrden(_Entrada):
-    """RF-03, RF-08a: el resultado de la orden `orden`, tal como lo devolvió el agente.
+class Metadatos(BaseModel):
+    """§4.1.8: lo que el hook sabe de la ejecución del subagente. Todo es opcional y se
+    guarda con la orden; un campo que no se conoce se ignora, para que un hook más nuevo no
+    deje una salida sin registrar."""
 
-    La API no mira `resultado`: lo valida el manejador de su agente (RF-77a), y uno fuera
-    de esquema es un intento fallido, no un error de la petición.
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
+    modelo: str | None = Field(default=None, max_length=200)
+    tokens_entrada: int | None = Field(default=None, ge=0, le=ENTERO_MAXIMO)
+    tokens_salida: int | None = Field(default=None, ge=0, le=ENTERO_MAXIMO)
+    tokens_cache_creacion: int | None = Field(default=None, ge=0, le=ENTERO_MAXIMO)
+    tokens_cache_lectura: int | None = Field(default=None, ge=0, le=ENTERO_MAXIMO)
+    duracion_ms: int | None = Field(default=None, ge=0, le=ENTERO_MAXIMO)
+    version_prompt: str | None = Field(default=None, max_length=200)
+
+
+class ResultadoOrden(_Entrada):
+    """RF-03, RF-08a, §4.1.7: la salida de la orden con sello `orden`, sin tocar.
+
+    La API no mira `salida_cruda`: la extrae `extraccion.py` y la valida el manejador de su
+    agente (RF-77a); una mal formada es un intento fallido, no un error de la petición.
     """
 
-    orden: int = Field(ge=1, le=ENTERO_MAXIMO)
-    resultado: Any
+    orden: str = Field(min_length=1, max_length=200)
+    salida_cruda: str
+    metadatos: Metadatos | None = None
+
+
+class Auditoria(_Entrada):
+    """§4.1.9: una decisión de la policy del harness sobre una herramienta. Sin argumentos ni
+    texto de la llamada: solo qué se decidió, sobre qué herramienta, qué agente y por qué."""
+
+    decision: Literal["permitida", "denegada"]
+    herramienta: str | None = Field(default=None, max_length=200)
+    agente: str | None = Field(default=None, max_length=200)
+    motivo: str | None = Field(default=None, max_length=500)
+
+
+class DecisionParada(_Entrada):
+    """RF-05, RF-36: la decisión del comprador en una parada. `cambios` lleva notas."""
+
+    decision: Literal["aprobado", "cambios"]
+    notas: str | None = Field(default=None, max_length=10_000)
+
+
+class DecisionFinal(DecisionParada):
+    """RF-05, M-6: en `aprobacion_final`, «cambios» puede decir qué capítulos revisar; sin
+    `capitulos`, se revisan todos."""
+
+    capitulos: list[Annotated[int, Field(ge=1, le=10)]] | None = Field(
+        default=None, min_length=1, max_length=10
+    )
 
 
 class Notas(_Entrada):
@@ -94,6 +137,8 @@ class OrdenRespuesta(_Salida):
     entrada: dict[str, Any]
     registro: ViaRegistro
     emitida: str
+    # AJ-4, §4.1.2: la primera línea del prompt. `None` en el estado (RF-02), que no lo enseña.
+    sello: str | None
 
 
 class BloqueoVisibleRespuesta(_Salida):
@@ -162,18 +207,17 @@ class DecisionDetenida(_Salida):
     desde: EstadoProyecto
 
 
-class DecisionErrorEnsamblado(_Salida):
-    decision: Literal["error_ensamblado"] = "error_ensamblado"
-    capitulo: int
-    desglose: list[tuple[str, int]]
+class DecisionError(_Salida):
+    """AJ-5, TC-3: la orden que toca no se puede emitir; `causa` dice por qué (D-9 es una)."""
+
+    decision: Literal["error"] = "error"
+    causa: str
+    capitulo: int | None
+    detalle: dict[str, Any]
 
 
 Siguiente = Annotated[
-    DecisionOrden
-    | DecisionEsperarHumano
-    | DecisionPublicada
-    | DecisionDetenida
-    | DecisionErrorEnsamblado,
+    DecisionOrden | DecisionEsperarHumano | DecisionPublicada | DecisionDetenida | DecisionError,
     Field(discriminator="decision"),
 ]
 
@@ -189,6 +233,6 @@ def siguiente_de(emision: Emision) -> Siguiente:
             return DecisionPublicada()
         case Detenida(desde=desde):
             return DecisionDetenida(desde=desde)
-        case ErrorEnsamblado(capitulo=capitulo, desglose=desglose):
-            return DecisionErrorEnsamblado(capitulo=capitulo, desglose=list(desglose))
+        case ErrorConCausa(causa=causa, capitulo=capitulo, detalle=detalle):
+            return DecisionError(causa=causa, capitulo=capitulo, detalle=detalle)
     assert_never(emision)

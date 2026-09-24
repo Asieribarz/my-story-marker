@@ -1,5 +1,6 @@
 """Rutas transversales del proyecto (spec1.md §5.1): crearlo, su estado, la siguiente orden,
-el registro de resultados, el bloqueo, reintentar y borrarlo.
+el registro de resultados, el bloqueo, las paradas (RF-05, RF-36), reintentar, la auditoría
+de la policy (§4.1.9) y borrarlo.
 
 Son la superficie de `persistencia.py` y `bloqueo.py`, sin lógica propia: cada ruta abre el
 proyecto de la petición, llama al núcleo con el `ahora` del reloj y traduce lo que devuelve.
@@ -7,7 +8,7 @@ Las excepciones del núcleo las convierte en `{codigo, requisito, detalle}` el m
 error de `errores_http.py`.
 
 `siguiente` y `resultado` exigen el token del bloqueo en la cabecera `X-Bloqueo`; las
-acciones humanas (`reintentar`) no lo exigen (Q7).
+acciones humanas (paradas y `reintentar`) y la auditoría del hook no lo exigen (Q7).
 
 Todas leen el cuerpo en JSON estricto (`RutaJsonEstricto`) salvo `resultado`: lo que devolvió
 el agente fuera de JSON estricto es un intento fallido de forma, y lo decide el núcleo.
@@ -16,6 +17,7 @@ el agente fuera de JSON estricto es un intento fallido de forma, y lo decide el 
 from fastapi import APIRouter
 from fastapi.routing import APIRoute
 
+from backend.proyecto.abierto import instante
 from backend.proyecto.bloqueo import renovar_bloqueo, soltar_bloqueo, tomar_bloqueo
 from backend.proyecto.dependencias import (
     Ahora,
@@ -28,7 +30,10 @@ from backend.proyecto.dependencias import (
 from backend.proyecto.errores import CodigoError, EntradaInvalida
 from backend.proyecto.errores_http import documentar
 from backend.proyecto.modelos import (
+    Auditoria,
     BloqueoRespuesta,
+    DecisionFinal,
+    DecisionParada,
     EstadoRespuesta,
     Notas,
     NuevoProyecto,
@@ -39,13 +44,16 @@ from backend.proyecto.modelos import (
     siguiente_de,
 )
 from backend.proyecto.persistencia import (
+    auditar_policy,
     borrar_proyecto,
     crear_proyecto,
+    decidir_parada,
     emitir_siguiente_orden,
     leer_estado,
     registrar_resultado,
     reintentar,
 )
+from backend.shared.db import transaccion
 
 C = CodigoError
 
@@ -84,8 +92,8 @@ def estado(proyecto: ProyectoAbierto, ahora: Ahora) -> EstadoRespuesta:
 def siguiente(proyecto: ProyectoAbierto, token: Token, ahora: Ahora) -> Siguiente:
     """RF-03, RF-08, RF-08a: la siguiente orden, persistida antes de devolverla.
 
-    Con una orden vigente devuelve esa misma. Si no hay agente que lanzar, la decisión es
-    `esperar_humano`, `publicada`, `detenida` o `error_ensamblado`.
+    Con una orden vigente devuelve esa misma, con su sello (AJ-4). Si no hay agente que
+    lanzar, la decisión es `esperar_humano`, `publicada`, `detenida` o `error` con su causa.
     """
     return siguiente_de(emitir_siguiente_orden(proyecto, token, ahora))
 
@@ -93,13 +101,17 @@ def siguiente(proyecto: ProyectoAbierto, token: Token, ahora: Ahora) -> Siguient
 def resultado(
     proyecto: ProyectoAbierto, token: Token, ahora: Ahora, cuerpo: ResultadoOrden
 ) -> RegistroRespuesta:
-    """RF-03, RF-06, RF-08a, RF-77a: registra el resultado de la orden vigente.
+    """RF-03, RF-06, RF-08a, RF-77a, §4.1.7: registra la salida cruda de la orden del sello.
 
-    Un resultado fuera del esquema del agente es un intento fallido, no un error: responde
-    200 con el desenlace `rechazada` y el informe que irá al intento siguiente (TC-11). El
-    mismo resultado otra vez devuelve lo registrado con `repetido`.
+    Una salida mal formada o fuera del esquema del agente es un intento fallido, no un
+    error: responde 200 con el desenlace `rechazada` y el informe que irá al intento
+    siguiente (TC-11). La misma salida otra vez devuelve lo registrado con `repetido`. Un
+    sello viejo da `sello_invalido` (AJ-4).
     """
-    registro = registrar_resultado(proyecto, cuerpo.orden, cuerpo.resultado, token, ahora)
+    metadatos = None if cuerpo.metadatos is None else cuerpo.metadatos.model_dump(exclude_none=True)
+    registro = registrar_resultado(
+        proyecto, cuerpo.orden, cuerpo.salida_cruda, token, ahora, metadatos
+    )
     return RegistroRespuesta.model_validate(registro)
 
 
@@ -110,7 +122,15 @@ router.add_api_route(
     "/{id}/resultado",
     resultado,
     methods=["POST"],
-    responses=documentar(C.BLOQUEO_AJENO, C.BLOQUEO_REQUERIDO, C.ORDEN_AJENA, C.AGENTE_SIN_ESQUEMA),
+    responses=documentar(
+        C.BLOQUEO_AJENO,
+        C.BLOQUEO_REQUERIDO,
+        C.ORDEN_AJENA,
+        C.SELLO_INVALIDO,
+        C.AGENTE_SIN_ESQUEMA,
+        C.TRANSICION_INVALIDA,
+        C.HERRAMIENTA_NO_DISPONIBLE,
+    ),
     route_class_override=APIRoute,
 )
 
@@ -145,6 +165,40 @@ def tomar_o_renovar_bloqueo(
 def soltar(proyecto: ProyectoAbierto, token: Token, ahora: Ahora) -> None:
     """RF-09b: suelta el bloqueo propio. Sin bloqueo, no hace nada."""
     soltar_bloqueo(proyecto, token, ahora)
+
+
+@router.post("/{id}/plan/aprobacion", responses=documentar(C.TRANSICION_INVALIDA))
+def aprobar_plan(
+    proyecto: ProyectoAbierto, ahora: Ahora, cuerpo: DecisionParada
+) -> EstadoRespuesta:
+    """RF-36: la decisión del comprador en `aprobacion_plan`, única salida de la parada.
+    `aprobado` pasa a la escaleta; `cambios`, con notas, vuelve al planificador."""
+    estado = decidir_parada(proyecto, "aprobacion_plan", cuerpo.decision, ahora, cuerpo.notas)
+    return EstadoRespuesta.model_validate(estado)
+
+
+@router.post("/{id}/aprobacion-final", responses=documentar(C.TRANSICION_INVALIDA))
+def aprobar_final(
+    proyecto: ProyectoAbierto, ahora: Ahora, cuerpo: DecisionFinal
+) -> EstadoRespuesta:
+    """RF-05: la decisión del comprador en `aprobacion_final`. `aprobado` publica; `cambios`,
+    con notas, va a `revision` con los `capitulos` que diga, o con todos (M-6)."""
+    # TC-8: en una regeneración, la decisión deja trabajo que nadie lanzaría —el Exportador
+    # o la revisión—: se encola otro para el worker, en la misma transacción.
+    from backend.cambio.consultas import encolar_si_regenera
+
+    with transaccion(proyecto.conexion) as conexion:
+        estado = decidir_parada(
+            proyecto, "aprobacion_final", cuerpo.decision, ahora, cuerpo.notas, cuerpo.capitulos
+        )
+        encolar_si_regenera(conexion, instante(ahora))
+    return EstadoRespuesta.model_validate(estado)
+
+
+@router.post("/{id}/auditoria", status_code=204)
+def auditoria(proyecto: ProyectoAbierto, ahora: Ahora, cuerpo: Auditoria) -> None:
+    """§4.1.9: registra una decisión de la policy del harness, con tipo `policy`."""
+    auditar_policy(proyecto, cuerpo.model_dump(), ahora)
 
 
 @router.post("/{id}/reintentar", responses=documentar(C.TRANSICION_INVALIDA))

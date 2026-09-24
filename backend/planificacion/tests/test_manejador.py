@@ -72,7 +72,10 @@ CONTRADICCIONES: dict[str, tuple[Callable[[Salida], object], str]] = {
         lambda s: _nueva_localizacion(s, "meso", "comarca"),
         "B-1 · localizacion_nueva_micro",
     ),
-    "otro narrador": (lambda s: s["estilo"].update(narrador="primera"), "B-1 · estilo_del_contexto"),
+    "otro narrador": (
+        lambda s: s["estilo"].update(narrador="primera"),
+        "B-1 · estilo_del_contexto",
+    ),
     "lista negra sin las prohibidas": (
         lambda s: s["estilo"].update(lista_negra=[]),
         "B-4 · lista_negra_sin_prohibidas",
@@ -94,7 +97,10 @@ def test_la_salida_de_referencia_se_guarda_y_siembra_el_glosario(
     glosario = conexion.execute(
         "SELECT termino, referencia, tipo FROM glosario WHERE referencia = 'prot' ORDER BY termino"
     ).fetchall()
-    assert [tuple(t) for t in glosario] == [("Aitana", "prot", "canonico"), ("Aiti", "prot", "alias")]
+    assert [tuple(t) for t in glosario] == [
+        ("Aitana", "prot", "canonico"),
+        ("Aiti", "prot", "alias"),
+    ]
 
 
 @pytest.mark.parametrize(

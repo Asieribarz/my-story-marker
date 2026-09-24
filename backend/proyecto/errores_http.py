@@ -43,6 +43,9 @@ ESTADO_HTTP: dict[CodigoError, int] = {
     CodigoError.ENTRADA_NO_CANJEABLE: 404,
     # RF-09a: otra petición tiene abierta la base; el borrado no ha empezado.
     CodigoError.PROYECTO_EN_USO: 409,
+    # TC-3: falta Lean o Chromium en el backend; el resultado se puede reenviar después.
+    CodigoError.HERRAMIENTA_NO_DISPONIBLE: 503,
+    CodigoError.CAMBIO_INEXISTENTE: 404,
 }
 
 

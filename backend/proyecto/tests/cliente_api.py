@@ -19,7 +19,8 @@ from backend.app import crear_app
 from backend.proyecto import dependencias
 from backend.proyecto.abierto import Proyecto, abrir_proyecto
 from backend.proyecto.dependencias import CABECERA_BLOQUEO
-from backend.proyecto.tests.apoyo import AHORA
+from backend.proyecto.tests.apoyo import AHORA, salida_cruda, sello_de
+from backend.shared.tipos import Agente
 
 
 class Respuesta(Protocol):
@@ -89,11 +90,30 @@ class ClienteApi:
         orden: dict[str, Any] = decision["orden"]
         return orden
 
-    def registrar(self, proyecto: str, token: str, orden: int, resultado: object) -> Respuesta:
+    def registrar(
+        self,
+        proyecto: str,
+        token: str,
+        orden: int,
+        resultado: object,
+        metadatos: dict[str, Any] | None = None,
+    ) -> Respuesta:
+        """Registra como el hook: el sello de la orden `orden` y la salida cruda de
+        `resultado` (`apoyo.salida_cruda`)."""
+        with self.abrir(proyecto) as abierto:
+            fila = abierto.conexion.execute(
+                "SELECT agente FROM orden WHERE id = ?", (orden,)
+            ).fetchone()
+            sello = sello_de(abierto.conexion, proyecto, orden)
+        agente = Agente(fila["agente"]) if fila is not None else None
+        cuerpo: dict[str, Any] = {"orden": sello, "salida_cruda": salida_cruda(agente, resultado)}
+        if metadatos is not None:
+            cuerpo["metadatos"] = metadatos
+        return self.registrar_crudo(proyecto, token, cuerpo)
+
+    def registrar_crudo(self, proyecto: str, token: str, cuerpo: dict[str, Any]) -> Respuesta:
         return self.http.post(
-            f"/proyectos/{proyecto}/resultado",
-            json={"orden": orden, "resultado": resultado},
-            headers=con_token(token),
+            f"/proyectos/{proyecto}/resultado", json=cuerpo, headers=con_token(token)
         )
 
     def aceptado(self, proyecto: str, token: str, orden: int, resultado: object) -> dict[str, Any]:

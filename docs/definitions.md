@@ -52,7 +52,7 @@ El género primario es **siempre aventura**. Los valores están filtrados para u
 | Longitud de capítulo | Palabras por capítulo, igual para todos los públicos. | `min: 1000`, `max: 1500` |
 | Estructura interna | Patrón *escena* (objetivo → conflicto → desastre) + *secuela* (reacción → dilema → decisión). | `escenas_por_capitulo` |
 | Cierre de capítulo | Recurso con el que termina cada capítulo para sostener la lectura. Un valor para todos, o una lista de 10, uno por capítulo. | `cliffhanger`, `pausa`, `giro`, `pregunta`, `imagen` |
-| Titulación y macroestructura | Forma de encabezar los capítulos y elementos superiores: prólogo, epílogo, partes, interludios, mapa, glosario. | `titulacion`, booleanos y listas |
+| Titulación y macroestructura | Forma de encabezar los capítulos. En la v1 solo la titulación, con valores cerrados; prólogo, epílogo, partes e interludios quedan fuera del alcance. Un valor fuera de la lista se exporta como `numerado_y_titulado`. | `titulacion`: `numerado`, `titulado`, `numerado_y_titulado` |
 | **Curva de tensión** | Perfil objetivo de intensidad por capítulo (0-10), con picos en umbral, punto medio, crisis y clímax. | Array de 10 enteros |
 | Ratio acción / reflexión | Proporción de escenas de acción física frente a escenas de introspección o diálogo. | Ej. `70/30` |
 | **Cronología** | Orden en que se presentan los hechos respecto a su orden real. `analepsis` es la vía natural para contar recuerdos aportados. | `lineal`, `analepsis` |
@@ -118,7 +118,7 @@ Cuando el protagonista es el destinatario real, el **defecto fatal** y los arcos
 | **Prosa** | Métricas de la escritura. | `frase_media_palabras`, `descriptivo 1-5`, `legibilidad` |
 | Léxico especializado | Vocabulario técnico del subgénero que aporta verosimilitud. | Lista de dominios |
 | Convención onomástica | Reglas para crear nombres coherentes (fonética, sufijos, cultura). No se aplica a los personajes reales, que conservan su nombre. | Texto + ejemplos |
-| Palabras prohibidas | Términos o muletillas de estilo que el generador debe evitar. Se suman a los vetos del comprador (§9). | Lista |
+| Palabras prohibidas | Términos o muletillas de estilo que el generador debe evitar. Van a la **lista negra** de la guía de estilo (severidad baja). No son los vetos del comprador (§9), que van al guardarraíl de palabras prohibidas y bloquean. | Lista |
 | **Recursos narrativos** | Técnicas transversales que enriquecen la trama. | Lista activable |
 
 ---
@@ -163,10 +163,12 @@ Lo que el comprador aporta sobre la persona a la que regala la novela. La entrev
 | **Hecho aportado** | Dato concreto sobre el destinatario o su mundo que debe o puede aparecer en la novela. | `hecho{id, tipo, texto, prioridad, origen}`; `origen`: `entrevista`, `texto_libre`, `lector` |
 | Tipo de hecho | Qué es el hecho y adónde va dentro del contexto. | `evento` → cronología, con `momento` y `lugar`; `rasgo` → ficha del destinatario; `ser_querido` → personaje con origen `real`; `lugar` → localización y ruta; `objeto` → inventario y candidato a motivo; `frase` → debe aparecer literalmente |
 | Prioridad del hecho | Si su ausencia bloquea la novela. Por defecto son obligatorios el nombre del destinatario y hasta 5 hechos que elige el comprador; el resto es `deseable`. Todo obligatorio obligaría a meter los recuerdos con calzador. | `obligatorio`, `deseable` |
+| Exclusión de un evento | Solo en hechos `evento`, opcional: a quién deja fuera de la historia desde ese momento (una muerte o una partida). `fuente` es la del personaje excluido —`destinatario`, `segundo_destinatario` o el id de un hecho `ser_querido` que exista—. Al salir de `contexto` se lleva a la cronología, y es lo que permite a Lean detectar que alguien reaparece. | `excluye{fuente, tipo}`; `tipo`: `muerte`, `partida` |
 | Momento de un evento | Cuándo ocurrió. Puede ser una fecha o un periodo aproximado; solo los eventos con fecha entran en la comprobación de edad frente a fecha de nacimiento. El **lugar** de un evento es el id de una localización del mundo (§5): todo evento de la cronología necesita un lugar. | Fecha (`AAAA`, `AAAA-MM`, `AAAA-MM-DD`) o periodo en minúsculas (`infancia`, `adolescencia`…) |
 | **Texto libre** | Anécdota o carta que pega el comprador. Es **contenido no confiable**: se guarda aparte, solo se extraen de él hechos con esta misma estructura, y nunca llega en crudo a quien escribe. | `ref` al fichero, `confiable: false` |
 | **Vetos** | Palabras y temas que el comprador no quiere que aparezcan (por ejemplo, el nombre de una expareja). | `palabras[]`, `temas[]` |
 | **Dedicatoria** | Texto de la portada. | Texto |
+| Preferencias del comprador | Lo que el comprador pide en la entrevista sobre la novela. Viajan en `respuestas.preferencias` del brief y las traduce el Agente de Contexto a las claves de §1-§3; `publico` solo puede bajar el que da la edad (§10). | `tono`, `subgenero`, `cronologia`, `final`, `publico` |
 | Datos excluidos | Datos personales que la novela no necesita y que se descartan siempre, aunque el comprador los aporte en la entrevista o en el texto libre. No son claves del contexto: se listan para que el esquema los rechace. | documento de identidad, teléfono, email, dirección exacta, datos bancarios, datos de salud |
 
 **Uso de un hecho.** Cada hecho aportado registra los capítulos en que aparece. Es lo que permite comprobar la cobertura de los obligatorios y, cuando el lector corrige un hecho, saber qué capítulos hay que regenerar.

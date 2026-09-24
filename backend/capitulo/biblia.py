@@ -316,10 +316,16 @@ def acto_de(conexion: sqlite3.Connection, capitulo: int) -> Acto:
 
 
 def _resumen_vigente(conexion: sqlite3.Connection, ambito: str, numero: int) -> str | None:
+    """RF-87, B-17: el de capítulo, el de su versión vigente —sin vigente, el de su última
+    versión aprobada—; el de acto, el último escrito por una versión vigente de su capítulo.
+    Lo que escribió una versión en curso o fallida no cuenta."""
     fila = conexion.execute(
-        "SELECT texto FROM resumen WHERE ambito = ? AND numero = ? "
-        "ORDER BY version DESC, id DESC LIMIT 1",
-        (ambito, numero),
+        "SELECT r.texto FROM resumen r JOIN capitulo c ON c.numero = r.capitulo "
+        "WHERE r.ambito = :ambito AND r.numero = :numero AND r.version = coalesce("
+        "  c.version_vigente, (SELECT v.version FROM capitulo_version v "
+        "  WHERE v.capitulo = r.capitulo AND v.estado = 'aprobado' ORDER BY v.id DESC LIMIT 1)) "
+        "ORDER BY r.id DESC LIMIT 1",
+        {"ambito": ambito, "numero": numero},
     ).fetchone()
     return None if fila is None else str(fila["texto"])
 
@@ -327,7 +333,7 @@ def _resumen_vigente(conexion: sqlite3.Connection, ambito: str, numero: int) -> 
 def resumen_acumulado(conexion: sqlite3.Connection, antes_de: int) -> tuple[Resumen, ...]:
     """RF-55, §6.2: un resumen por acto cerrado antes de N y los de los capítulos del acto
     en curso. Un acto cerrado sin resumen de acto viaja con los de sus capítulos. De cada
-    ámbito vale el de mayor versión (y, a igual versión, el último escrito)."""
+    ámbito vale el de la versión vigente (`_resumen_vigente`)."""
     n = _fecha(antes_de)
     resumenes: list[Resumen] = []
     for acto in actos(conexion):
@@ -577,7 +583,11 @@ def registrar_evento(
     excluye: tuple[str, TipoExclusion] | None = None,
 ) -> int:
     """RF-82, B-6: un evento de la historia (`dia`, y `franja` si se sabe) o un recuerdo que
-    el capítulo cuenta en analepsis (`momento`). Devuelve su id."""
+    el capítulo cuenta en analepsis (`momento`). Devuelve su id.
+
+    Idempotente (la herramienta lo anuncia): el mismo suceso —capítulo, descripción, lugar,
+    día, franja y momento— devuelve el id que ya tenía, con sus presentes y su exclusión
+    sustituidos por los de la última llamada."""
     if (dia is None) == (momento is None):
         raise EscrituraInvalida("un evento lleva `dia` (historia) o `momento` (recuerdo)")
     if momento is not None and not es_momento(momento):
@@ -593,20 +603,35 @@ def registrar_evento(
         _exigir(conexion, "localizacion", lugar)
         for ident in (*presentes, *([excluye[0]] if excluye else [])):
             _exigir(conexion, "personaje", ident)
+        clave = {
+            "descripcion": descripcion,
+            "momento": momento,
+            "dia": dia,
+            "franja": franja.value if franja is not None else None,
+            "lugar": lugar,
+            "capitulo": capitulo,
+            "excluye": excluye[0] if excluye else None,
+            "tipo_exclusion": excluye[1].value if excluye else None,
+        }
         fila = conexion.execute(
-            "INSERT INTO evento (descripcion, momento, dia, franja, lugar, capitulo, excluye, "
-            "tipo_exclusion) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
-            (
-                descripcion,
-                momento,
-                dia,
-                franja.value if franja is not None else None,
-                lugar,
-                capitulo,
-                excluye[0] if excluye else None,
-                excluye[1].value if excluye else None,
-            ),
+            "SELECT id FROM evento WHERE capitulo = :capitulo AND descripcion = :descripcion "
+            "AND lugar = :lugar AND dia IS :dia AND franja IS :franja AND momento IS :momento",
+            clave,
         ).fetchone()
+        if fila is None:
+            fila = conexion.execute(
+                "INSERT INTO evento (descripcion, momento, dia, franja, lugar, capitulo, "
+                "excluye, tipo_exclusion) VALUES (:descripcion, :momento, :dia, :franja, "
+                ":lugar, :capitulo, :excluye, :tipo_exclusion) RETURNING id",
+                clave,
+            ).fetchone()
+        else:
+            conexion.execute(
+                "UPDATE evento SET excluye = :excluye, tipo_exclusion = :tipo_exclusion "
+                "WHERE id = :id",
+                {**clave, "id": fila["id"]},
+            )
+            conexion.execute("DELETE FROM evento_personaje WHERE evento = ?", (fila["id"],))
         conexion.executemany(
             "INSERT INTO evento_personaje (evento, personaje) VALUES (?, ?)",
             [(fila["id"], ident) for ident in dict.fromkeys(presentes)],

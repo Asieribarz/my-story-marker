@@ -30,9 +30,12 @@ def test_las_paradas_humanas_no_tienen_salida_automatica() -> None:
         assert all(a.humana for a in salidas(parada)), parada
 
 
-def test_cambio_solicitado_sale_sin_humano_solo_por_el_tope_del_interprete() -> None:
+def test_cambio_solicitado_sale_sin_humano_por_el_tope_del_interprete_o_el_worker() -> None:
     automaticas = [a for a in salidas(E.CAMBIO_SOLICITADO) if not a.humana]
-    assert [(a.destino, a.causa) for a in automaticas] == [(E.PUBLICADA, Causa.TOPE_AGOTADO)]
+    assert [(a.destino, a.causa) for a in automaticas] == [
+        (E.PUBLICADA, Causa.TOPE_AGOTADO),
+        (E.PUBLICADA, Causa.WORKER_FALLIDO),
+    ]
 
 
 def test_las_aristas_humanas_solo_salen_de_paradas() -> None:

@@ -29,6 +29,8 @@ class CodigoError(StrEnum):
     PROYECTO_EN_USO = "proyecto_en_uso"
     VALIDACION = "validacion"
     NO_ENCONTRADO = "no_encontrado"
+    HERRAMIENTA_NO_DISPONIBLE = "herramienta_no_disponible"
+    CAMBIO_INEXISTENTE = "cambio_inexistente"
 
 
 class ErrorProyecto(Exception):
@@ -170,6 +172,33 @@ class ProyectoEnUso(ErrorProyecto):
             "borrado nada; vuelve a intentarlo cuando acabe"
         )
         self.identificador = identificador
+
+
+class HerramientaNoDisponible(ErrorProyecto):
+    """TC-3: falta una herramienta del backend (Lean, Chromium) al registrar un resultado que
+    la necesita —publicar exige imprimir el PDF—. Nada se registra: la orden sigue vigente y
+    no gasta intento. `causa` es la de la decisión `error` (`pdf_no_disponible`…)."""
+
+    codigo = CodigoError.HERRAMIENTA_NO_DISPONIBLE
+    requisito = "RF-98"
+
+    def __init__(self, causa: str) -> None:
+        super().__init__(
+            f"falta una herramienta del backend ({causa}): el resultado no se ha registrado y "
+            "la orden sigue vigente sin gastar intento; vuelve a enviarlo cuando esté instalada"
+        )
+        self.causa = causa
+
+
+class CambioInexistente(ErrorProyecto, LookupError):
+    """RF-122: el proyecto no tiene un cambio del lector con ese número."""
+
+    codigo = CodigoError.CAMBIO_INEXISTENTE
+    requisito = "RF-122"
+
+    def __init__(self, cambio: int) -> None:
+        super().__init__(f"el proyecto no tiene el cambio {cambio}")
+        self.cambio = cambio
 
 
 class EntradaInvalida(ErrorProyecto, ValueError):

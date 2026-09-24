@@ -16,6 +16,7 @@ from backend.capitulo.biblia import (
     inventario_a_fecha,
     personajes_a_fecha,
     presentes_excluidos,
+    registrar_evento,
     registrar_traspaso,
     resumen_acumulado,
     salto_imposible,
@@ -121,6 +122,7 @@ def test_el_resumen_acumulado_compacta_los_actos_cerrados(tmp_path: Path) -> Non
     for capitulo in (1, 2, 3):
         escribir_resumen(conexion, capitulo, "capitulo", f"Pasa lo del {capitulo}.", MOMENTO)
     escribir_resumen(conexion, 2, "acto", "Aitana encuentra el mapa.", MOMENTO)
+    conexion.execute("UPDATE capitulo SET version_vigente = 1 WHERE numero <= 3")
     assert resumen_acumulado(conexion, 4) == (
         Resumen("acto", 1, "Aitana encuentra el mapa."),
         Resumen("capitulo", 3, "Pasa lo del 3."),
@@ -130,3 +132,55 @@ def test_el_resumen_acumulado_compacta_los_actos_cerrados(tmp_path: Path) -> Non
         conexion.execute("SELECT count(*) FROM resumen WHERE ambito = 'capitulo'").fetchone()[0]
         == 3
     )
+
+
+def test_vale_el_resumen_de_la_version_vigente_no_el_de_la_mas_alta(tmp_path: Path) -> None:
+    """RF-87, B-17: con la versión 2 del capítulo 2 en curso (una regeneración a medias), el
+    capítulo siguiente sigue leyendo los resúmenes de la vigente, la 1."""
+    conexion = biblia_de_referencia(tmp_path / "proyecto.sqlite")
+    verificar(conexion, 1, 2)
+    escribir_resumen(conexion, 1, "capitulo", "Pasa lo del 1.", MOMENTO)
+    escribir_resumen(conexion, 2, "capitulo", "Pasa lo del 2.", MOMENTO)
+    escribir_resumen(conexion, 2, "acto", "Aitana encuentra el mapa.", MOMENTO)
+    conexion.execute("UPDATE capitulo SET version_vigente = 1 WHERE numero <= 2")
+    conexion.execute(
+        "INSERT INTO capitulo_version (capitulo, version, intento, estado, ruta, creado) "
+        "VALUES (2, 2, 1, 'verificado', 'capitulos/cap-02/v2-intento1.md', ?)",
+        (MOMENTO,),
+    )
+    escribir_resumen(conexion, 2, "capitulo", "Otra cosa en el 2.", MOMENTO)
+    escribir_resumen(conexion, 2, "acto", "Otro acto.", MOMENTO)
+    assert resumen_acumulado(conexion, 3) == (Resumen("acto", 1, "Aitana encuentra el mapa."),)
+    conexion.execute("DELETE FROM resumen WHERE ambito = 'acto'")
+    assert resumen_acumulado(conexion, 3) == (
+        Resumen("capitulo", 1, "Pasa lo del 1."),
+        Resumen("capitulo", 2, "Pasa lo del 2."),
+    )
+
+
+def test_registrar_el_mismo_evento_dos_veces_no_lo_duplica(tmp_path: Path) -> None:
+    """La herramienta anuncia `idempotent_hint`: repetir la llamada devuelve el mismo id.
+    Control: otro día es otro evento."""
+    conexion = biblia_de_referencia(tmp_path / "proyecto.sqlite")
+    verificar(conexion, 1)
+    primero = registrar_evento(conexion, 1, "Abre el cofre.", "casa_abuela", ["nala"], dia=1)
+    assert (
+        registrar_evento(conexion, 1, "Abre el cofre.", "casa_abuela", ["nala"], dia=1) == primero
+    )
+    otro = registrar_evento(conexion, 1, "Abre el cofre.", "casa_abuela", ["nala"], dia=2)
+    assert otro != primero
+    cuenta = "SELECT count(*) FROM evento WHERE capitulo = 1"
+    assert conexion.execute(cuenta).fetchone()[0] == 2
+    assert conexion.execute("SELECT count(*) FROM evento_personaje").fetchone()[0] == 2
+
+
+def test_un_recuerdo_con_fecha_imposible_no_se_registra(tmp_path: Path) -> None:
+    """Un `2023-02-30` no entra en la biblia: después rompería la cronología de Lean."""
+    import pytest
+
+    from backend.capitulo.biblia import EscrituraInvalida
+
+    conexion = biblia_de_referencia(tmp_path / "proyecto.sqlite")
+    verificar(conexion, 1)
+    with pytest.raises(EscrituraInvalida):
+        registrar_evento(conexion, 1, "Un recuerdo.", "casa_abuela", [], momento="2023-02-30")

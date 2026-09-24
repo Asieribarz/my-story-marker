@@ -62,7 +62,7 @@ flowchart LR
   HG1 -->|"ok o inactiva"| ES["4 · Escaleta · una ficha por capítulo"]
   ES --> GEN["5 · Bucle por capítulo · escribir → verificar → biblia"]
   GEN --> FA{"¿Fin de acto?"}
-  FA -->|"sí"| VA["Verificación de acto"] --> GEN
+  FA -->|"sí"| VA["Resumen de acto · Bibliotecario"] --> GEN
   FA -->|"no"| GEN
   GEN --> FM["6 · Verificación de manuscrito · gates"]
   FM -->|"fallos"| REV["7 · Pasada de revisión dirigida"] --> FM
@@ -77,32 +77,31 @@ flowchart LR
 
 | Fase | Entrada | Salida | Responsable |
 |---|---|---|---|
-| Intake | Respuestas de la entrevista y texto libre del comprador | Brief normalizado, con los hechos extraídos ya confirmados | Panel + Agente de Contexto + Extractor de hechos |
+| Intake | Respuestas de la entrevista y texto libre del comprador | Brief normalizado, con los hechos extraídos ya confirmados | Skill `/entrevista` (E-3) + Agente de Contexto + Extractor de hechos |
 | Instanciar ontología | Brief normalizado | Objeto de contexto completo (YAML de `definitions.md`) con valores por defecto heredados | Agente de Contexto + Verificador de Esquema |
-| Planificación | Objeto de contexto | Plan narrativo: hitos por capítulo, fichas, mundo y ruta, tema, guía de estilo | Agentes de planificación |
+| Planificación | Objeto de contexto | Plan narrativo: hitos por capítulo, fichas, mundo y ruta, tema, guía de estilo | Planificador, en una sola salida (R-1) |
 | Escaleta | Plan narrativo | 10 fichas de capítulo | Escaletista |
-| Bucle por capítulo | Ficha + biblia | Capítulo aprobado + biblia actualizada | Escritor, Editor, verificadores, Bibliotecario |
+| Bucle por capítulo | Ficha + biblia | Capítulo aprobado + biblia actualizada | Escritor, Editor, verificadores, juez de capítulo, Bibliotecario |
 | Verificación de manuscrito | Manuscrito completo + biblia | Informe de los gates: cobertura, cronología formal, juez | Verificadores de manuscrito |
-| Revisión dirigida | Informe | Capítulos corregidos | Revisor |
+| Revisión dirigida | Informe de los gates | Capítulos corregidos, con la biblia al día | Revisor, deterministas y Bibliotecario, por capítulo |
 | Publicación | Manuscrito verificado | Versión de novela nueva, lectura web y PDF | Exportador + código |
 | Cambio del lector | Fragmento seleccionado + petición en texto libre | Cambio de un hecho, confirmado por el comprador | Panel + Intérprete de cambios |
 | Regeneración | Cambio confirmado | Nuevas versiones de los capítulos que usan el hecho | Escritor, Editor, verificadores, Bibliotecario |
+
+La verificación de acto queda fuera de la v1: al cerrar un acto, el Bibliotecario de su último capítulo escribe el resumen del acto (B-17, §6.2).
 
 ---
 
 ## 3. Agentes y orquestación
 
-Cada agente de esta tabla es un **subagente de Claude Code**, con su propio contexto y el modelo de la columna *Modelo*, que es el valor del campo `model` de su definición (§8). El reparto sigue lo que produce cada agente: `opus` para la prosa, que es el producto; `sonnet` para planificar, extraer los hechos de cada capítulo (Bibliotecario), juzgar y corregir estilo; `haiku` solo donde la salida es corta y la valida un esquema cerrado. Los jueces de §4 son también subagentes (`juez-capitulo` y `juez-manuscrito`, en `sonnet`): un juez más débil que el escritor no detecta lo que tiene que detectar.
+Cada agente de esta tabla es un **subagente de Claude Code**, con su propio contexto y el modelo de la columna *Modelo*, que es el valor del campo `model` de su definición (§8). El reparto sigue lo que produce cada agente: `opus` para la prosa, que es el producto; `sonnet` para planificar, extraer los hechos de cada capítulo (Bibliotecario), juzgar y corregir estilo; `haiku` solo donde la salida es corta y la valida un esquema cerrado. Los jueces de §4 son también subagentes (`juez-capitulo` y `juez-manuscrito`, en `sonnet`): un juez más débil que el escritor no detecta lo que tiene que detectar. Con ellos, la novela usa **12 agentes**: la planificación es un solo `planificador` más el `escaletista` (R-1).
 
 ```mermaid
 flowchart LR
   ORQ["Claude Code · orquestador"]
   ORQ --> CTX["Agente de Contexto"]
   ORQ --> EXH["Extractor de hechos"]
-  ORQ --> ARQ["Arquitecto narrativo"]
-  ORQ --> PER["Diseñador de personajes"]
-  ORQ --> MUN["Constructor de mundo"]
-  ORQ --> EST["Director de estilo"]
+  ORQ --> PLA["Planificador"]
   ORQ --> ESC["Escaletista"]
   ORQ --> WRI["Escritor de capítulo"]
   ORQ --> EDI["Editor de estilo"]
@@ -110,15 +109,18 @@ flowchart LR
   ORQ --> REV["Revisor dirigido"]
   ORQ --> EXP["Exportador"]
   ORQ --> INT["Intérprete de cambios"]
+  ORQ --> JC["Juez de capítulo"]
+  ORQ --> JM["Juez de manuscrito"]
   EXH -.-> CTX
-  CTX -.-> ARQ
-  ARQ -.-> PER
-  PER -.-> MUN
-  MUN -.-> EST
-  EST -.-> ESC
+  CTX -.-> PLA
+  PLA -.-> ESC
   ESC -.-> WRI
   WRI -.-> EDI
-  EDI -.-> BIB
+  EDI -.-> JC
+  JC -.-> BIB
+  BIB -.-> JM
+  JM -.-> REV
+  REV -.-> BIB
   INT -.-> WRI
 ```
 
@@ -127,17 +129,18 @@ flowchart LR
 | **Claude Code · orquestador** | Pide al backend la siguiente orden, lanza el subagente que indica con la entrada que indica y registra el resultado. **No decide** qué paso toca, ni si se reintenta, ni cuándo parar: eso es del backend. No genera prosa de la novela. | Siguiente orden del backend | Invocaciones de subagente y resultados registrados | Sesión de Claude Code |
 | **Agente de Contexto** | Convierte el brief en el objeto de contexto de la ontología, rellena valores por defecto según el pipeline de decisión y pregunta lo que falte. | Brief | Contexto YAML validado | `sonnet` |
 | **Extractor de hechos** | Lee el texto libre del comprador —contenido no confiable— y devuelve solo hechos en el esquema cerrado de `definitions.md` §9. **Una sola herramienta, de solo lectura**: recibe el identificador opaco de un solo uso y devuelve ese texto y nada más. No puede escribir, no ve la biblia ni otros proyectos, y una salida fuera del esquema falla la validación, así que una instrucción inyectada no tiene efecto fuera de su salida. Descarta los datos excluidos (§10). | Identificador del texto libre | Hechos propuestos, pendientes de confirmación | `haiku` |
-| **Arquitecto narrativo** | Elige modelo estructural, reparte hitos por capítulo, define curva de tensión, pregunta dramática y tipo de final. | Contexto | Plan estructural | `sonnet` |
-| **Diseñador de personajes** | Crea fichas, arcos, evolución y grafo de relaciones coherentes con los hitos. | Contexto + plan estructural | Fichas y grafo | `sonnet` |
-| **Constructor de mundo** | Define tipo de mundo, ruta ligada a los hitos, localizaciones clave, reglas del mundo con costes. | Contexto + plan + fichas | Biblia inicial de mundo | `sonnet` |
-| **Director de estilo** | Fija narrador, registro, métricas de prosa, léxico, lista negra y convención onomástica; produce una guía de estilo con ejemplos. | Contexto + fichas | Guía de estilo | `sonnet` |
+| **Planificador** | En una sola salida JSON (R-1): plan estructural (modelo, hitos por capítulo, curva de tensión, pregunta dramática, final), personajes con arco, relaciones y estado inicial, mundo (localizaciones, ruta, reglas, objetos con su poseedor inicial) y guía de estilo (narrador, métricas, léxico, lista negra, onomástica). Añade al contexto, no lo cambia (B-1). | Contexto + `notas_plan` si el comprador pidió cambios | Plan, personajes, mundo y guía de estilo | `sonnet` |
 | **Escaletista** | Produce una ficha por capítulo: hito, escenas y secuelas, POV, localización, tensión objetivo, elementos a plantar y cobrar. | Plan completo | 10 fichas de capítulo | `sonnet` |
 | **Escritor de capítulo** | Redacta el borrador a partir de la ficha, el resumen acumulado y el estado de la biblia. | Ficha + contexto recuperado | Borrador | `opus` |
 | **Editor de estilo** | Pasada de corrección local: métricas de prosa, repeticiones, lista negra, ritmo. No cambia hechos. | Borrador + guía de estilo | Borrador editado | `sonnet` |
-| **Bibliotecario** | Extrae del capítulo aprobado los hechos nuevos (estado de personajes, objetos, fechas, presagios) y actualiza la biblia y el resumen acumulado. | Capítulo aprobado | Biblia actualizada | `sonnet` |
-| **Revisor dirigido** | Corrige capítulos concretos a partir de un informe de fallos, con cambios mínimos. | Capítulo + informe | Capítulo corregido | `opus` |
-| **Exportador** | Genera título, sinopsis y palabras clave; el código genera la lectura web y el PDF de la versión. | Manuscrito verificado | Metadatos, lectura web, PDF | `haiku` + código |
+| **Juez de capítulo** | Juzga el capítulo editado por criterio, con la biblia como evidencia; cada hallazgo cita el párrafo (B-15). | Capítulo editado | Informe por criterio | `sonnet` |
+| **Bibliotecario** | Extrae del capítulo verificado los hechos nuevos (estado de personajes, objetos, días, presagios) y actualiza la biblia y el resumen, etiquetado con el capítulo de la orden vigente (B-16). | Capítulo verificado | Biblia actualizada | `sonnet` |
+| **Juez de manuscrito** | Puntúa la novela entera con la rúbrica de §4.1. | Manuscrito vigente | Cinco puntuaciones con justificación | `sonnet` |
+| **Revisor dirigido** | Corrige un capítulo concreto a partir del informe de los gates, con cambios mínimos. | Capítulo + manuscrito vigente + informe de los gates + notas | Capítulo corregido | `opus` |
+| **Exportador** | Genera título, sinopsis y palabras clave; el código genera la lectura web y el PDF de la versión. | Manuscrito vigente | Metadatos, lectura web, PDF | `haiku` + código |
 | **Intérprete de cambios** | Traduce la petición del lector («el perro se llama Nala») a un cambio sobre un hecho de la biblia, o a un hecho nuevo con el capítulo del fragmento como destino. Mismo patrón que el Extractor: una sola herramienta de solo lectura con identificador de un solo uso, que devuelve la petición, el fragmento y los hechos vigentes; salida en esquema cerrado; el texto del lector es **no confiable**. | Identificador de la petición | Cambio de hecho propuesto, pendiente de confirmación | `haiku` |
+
+**Qué lleva la entrada de cada orden.** La orden del Escritor trae `version`, `intento`, `rutas_prompt` (las partes del prompt, rutas absolutas) y `tokens_estimados`; las del Editor, el juez de capítulo, el Bibliotecario y el Revisor traen `version`, `intento_texto` y `etapa`, para leer el texto exacto con `leer_capitulo`; la del Planificador, `notas_plan`; las del juez de manuscrito, el Revisor y el Exportador, `manuscrito` (los punteros vigentes de los diez capítulos), y la del Revisor además `informe_gates` y las notas de `aprobacion_final`.
 
 El **Recuperador de contexto** de §5 no está en esta tabla a propósito: no es un agente. Es código del backend y no consume modelo. Su sitio es §6.3.
 
@@ -145,7 +148,7 @@ El **Recuperador de contexto** de §5 no está en esta tabla a propósito: no es
 
 La sesión de Claude Code no guarda el estado en su propia ventana. El estado del proyecto es una fila en SQLite y la sesión es un **ejecutor sin memoria propia**: lee dónde está, lanza un subagente, escribe el resultado y vuelve a leer. Un fin de ventana de contexto, un portátil cerrado y una pausa de tres días esperando una aprobación son el mismo caso, y reanudar es siempre lo mismo: leer la fila y seguir.
 
-**Quién decide el siguiente paso.** El backend expone la **siguiente orden** de un proyecto. Su elección es una función determinista del estado persistido, y la orden **se persiste al emitirse** —con los identificadores de un solo uso y el fichero de prompt que necesite—, así que pedirla otra vez mientras sigue vigente devuelve la misma. Indica qué subagente lanzar, con qué entrada (el prompt ensamblado o los identificadores que necesita) y dónde registrar el resultado; o bien `esperar_humano`, que el proyecto está en `publicada` o `detenida`, o `error_ensamblado` cuando el Recuperador no consigue que el prompt quepa (D-9, abierta). Cada orden lleva su número de intento, con tope 3 para cualquier agente. El resultado se registra contra la orden vigente: el backend valida su esquema, lo persiste y **escribe él la transición**; la sesión no escribe transiciones. Reintentos, topes, paradas y `detenida` se deciden ahí, con los contadores que ya viven en la base. La sesión no interpreta el grafo: pide, ejecuta, registra y vuelve a pedir. Así lo más frágil del sistema —un modelo aplicando reglas— pasa a ser código con pruebas, y la especificación TLA+ de §3.4 modela esa función.
+**Quién decide el siguiente paso.** El backend expone la **siguiente orden** de un proyecto. Su elección es una función determinista del estado persistido, y la orden **se persiste al emitirse** —con los identificadores de un solo uso y el fichero de prompt que necesite—, así que pedirla otra vez mientras sigue vigente devuelve la misma. Indica qué subagente lanzar, con qué entrada (el prompt ensamblado o los identificadores que necesita) y dónde registrar el resultado; o bien `esperar_humano`, que el proyecto está en `publicada` o `detenida`, o `error` con una causa cuando la orden no se puede emitir: `no_cabe` (el prompt no cabe ni con la ficha sola, D-9), `inconsistencia` (la continuidad falla antes de escribir, B-9), `lean_no_disponible` o `pdf_no_disponible` (falta la herramienta, TC-3), `cronologia_invalida` (la biblia no se puede convertir en el fichero Lean) o `contexto_incoherente` (Lean falla solo con eventos del contexto, sin ningún capítulo al que mandar el Revisor: nunca se lanza un Revisor sin capítulo) o `revision_sin_capitulos`. Cobertura y Lean corren en una fase previa, fuera de la transacción de escritura, para que Lean no bloquee la base (M-27). Con `error` el estado no cambia y no se gasta intento ni ciclo de revisión (AJ-5). Cada orden lleva su número de intento, con tope 3 para cualquier agente, y un **sello** `<proyecto>:<orden>:<generación>` que la sesión devuelve con el resultado (AJ-4, §3.2). El resultado se registra contra la orden vigente: el backend valida su esquema, lo persiste y **escribe él la transición**; la sesión no escribe transiciones. Reintentos, topes, paradas y `detenida` se deciden ahí, con los contadores que ya viven en la base. La sesión no interpreta el grafo: pide, ejecuta, registra y vuelve a pedir. Así lo más frágil del sistema —un modelo aplicando reglas— pasa a ser código con pruebas, y la especificación TLA+ de §3.4 modela esa función.
 
 Esto es lo que convierte «el grafo de estados» de metáfora en tabla. Hay dos máquinas anidadas: la del **proyecto**, que recorre las fases de §2, y la del **capítulo**, que es el bucle de §5 y cuyos estados ya estaban definidos en §6 (`borrador`, `editado`, `verificado`, `aprobado`, `revision_humana`), más `pendiente` para el capítulo que aún no tiene borrador: su contador de intentos existe desde el principio, porque un resultado fuera de esquema ya consume intento.
 
@@ -175,24 +178,31 @@ flowchart LR
   S11 -->|"capítulo o veto agotado · cambio fallido"| S9
   S6 -->|"revisiones agotadas · regeneración"| S9
   D1 -->|"reintentar · humano"| S5
+  S1 & S2 & S3 & S4 & S7 & S8 -->|"tope agotado"| D1
+  S6 -->|"tope agotado"| D1
+  S6 & S7 & S8 & S10 -->|"tope agotado · regeneración"| S9
+  S10 & S11 & S6 & S7 & S8 -->|"worker_fallido"| S9
+  D1 -->|"reintentar · fase de origen"| S1 & S2 & S3 & S4 & S7 & S8
 ```
 
 | Estado | Subagente que se lanza | Sale cuando | Quién decide la salida |
 |---|---|---|---|
 | `intake` | Agente de Contexto; Extractor de hechos si hay texto libre | El brief normalizado está completo y el comprador ha confirmado los hechos extraídos | El agente, o el comprador si falta un dato |
 | `contexto` | Agente de Contexto | El Verificador de Esquema da verde | Verificador determinista |
-| `planificacion` | Arquitecto, Personajes, Mundo, Estilo (secuenciales) | Existe plan estructural, fichas, biblia de mundo y guía de estilo | Los cuatro agentes, en orden |
+| `planificacion` | Planificador: una sola orden (R-1, AJ-1) | Existe plan estructural, fichas, biblia de mundo y guía de estilo | El agente |
 | `aprobacion_plan` | Ninguno | El comprador aprueba o pide cambios. Solo se entra si la parada está activa en el proyecto | **Humano** |
 | `escaleta` | Escaletista | Hay 10 fichas de capítulo | El agente |
 | `capitulos` | Bucle de §5, capítulo a capítulo | Los 10 están en `aprobado` → `verificacion_manuscrito`; alguno en `revision_humana` al acabar el bucle, o el guardarraíl agotado → `detenida` | Verificadores |
 | `verificacion_manuscrito` | Verificadores de manuscrito (gates de §4) | Los tres gates en verde; o revisiones agotadas | Verificadores |
-| `revision` | Revisor dirigido | Los capítulos del informe están corregidos | El agente; vuelve siempre a verificar |
+| `revision` | Por cada capítulo señalado en los gates de la pasada: Revisor → deterministas → Bibliotecario (AJ-2). Nunca se lanza un Revisor sin capítulo | Los capítulos del informe están corregidos y con la biblia al día | El agente; vuelve siempre a verificar |
 | `aprobacion_final` | Ninguno | El comprador aprueba o deja notas. Solo se entra si la parada está activa | **Humano** |
 | `publicacion` | Exportador | Existe la versión de novela nueva, con su lectura web y su PDF en disco | Código |
 | `publicada` | Ninguno | El lector pide un cambio | **Humano** |
-| `cambio_solicitado` | Intérprete de cambios | El comprador confirma o rechaza el cambio propuesto | **Humano** |
+| `cambio_solicitado` | Intérprete de cambios | El comprador confirma o rechaza el cambio propuesto; si el Intérprete agota su tope, vuelve a `publicada` con el cambio fallido | **Humano**, salvo el tope |
 | `regeneracion` | Bucle de §5 sobre los capítulos afectados | Todos aprobados → `verificacion_manuscrito`; alguno agotado, o el guardarraíl agotado → `publicada`, con la versión anterior vigente y el cambio marcado como fallido | Verificadores |
-| `detenida` | Ninguno | El comprador pide reintentar: se reabren los capítulos en `revision_humana` con su contador a cero, se pone a cero el contador de ciclos de revisión y se vuelve a `capitulos` | **Humano** |
+| `detenida` | Ninguno | El comprador pide reintentar: se reabren los capítulos en `revision_humana` con su contador a cero, se pone a cero el contador de ciclos de revisión y se vuelve a la fase de la que vino (`proyecto.detenida_desde`); desde `verificacion_manuscrito`, a `capitulos` (Q6) | **Humano** |
+
+Además de las aristas de la tabla, la de transiciones (`backend/proyecto/transiciones.py`) tiene las del tope de intentos de una orden que no es de capítulo (Q6): `tope_agotado` lleva a `detenida` desde `intake`, `contexto`, `planificacion`, `escaleta`, `verificacion_manuscrito`, `revision` y `publicacion`, y a `publicada` con el cambio fallido desde `verificacion_manuscrito`, `revision`, `publicacion` y `cambio_solicitado`. Y las de `worker_fallido` (R-4): si el `claude -p` del worker falla durante una regeneración, el proyecto vuelve a `publicada` con el cambio fallido desde cualquiera de los cinco estados que recorre (`cambio_solicitado`, `regeneracion`, `verificacion_manuscrito`, `revision`, `publicacion`).
 
 ### 3.2 Reintentos, fallos y reanudación
 
@@ -212,6 +222,12 @@ Eso obliga a que cada paso sea **repetible sin daño**: las escrituras van clave
 
 Esto es **protocolo, no algo que el backend pueda imponer**. El backend clavea las escrituras por intento y cuenta hasta tres, pero no puede saber si dos intentos salieron de una invocación o de dos. Es la misma clase de riesgo que ya está declarado sobre el comportamiento del orquestador.
 
+**Estados del capítulo y qué gasta un intento.** El Escritor deja el capítulo en `borrador`; el Editor con los deterministas en verde lo pasa a `editado`; el juez de capítulo en verde, a `verificado`; y el resultado aceptado del Bibliotecario, a `aprobado`, que actualiza `capitulo.version_vigente` (M-3). Hay dos clases de fallo (Q4, Q5): **de contenido** —deterministas altos o bloqueantes, guardarraíl, juez que rechaza o salida inválida del Escritor—, que gasta `capitulo.intentos` y vuelve al Escritor; y **de formato** —salida inválida de un agente posterior al Escritor—, que repite solo ese agente sobre el mismo texto y gasta `proyecto.intentos_paso`.
+
+**Pasadas de verificación (AJ-3).** `proyecto.pasadas` suma 1 cada vez que se entra en `verificacion_manuscrito` y nunca vuelve a cero. Los gates se guardan por pasada (`gate_resultado`), no por ciclo, para que las notas de `aprobacion_final` o un «reintentar» no reutilicen la cobertura y el Lean de una versión anterior. Los capítulos que van a `revision` son los que los gates de la pasada en curso señalan en `detalle.capitulos`.
+
+**El sello lleva la generación del bloqueo (AJ-4).** `proyecto.generacion_bloqueo` sube cada vez que toma el bloqueo un titular distinto o uno caducado, y la orden vigente se vuelve a sellar: si es del Bibliotecario, se borra lo escrito para su capítulo (B-16); si es del Extractor o del Intérprete, se emite un identificador nuevo. `/resultado` y las herramientas de `/mcp/escritura` rechazan un sello viejo, así que un ejecutor caído no duplica la biblia ni gasta un intento. El sello sale en `/siguiente`, no en `GET /estado`.
+
 ### 3.3 Lo que el orquestador no hace
 
 Cuatro cosas, y conviene que estén escritas porque las cuatro son tentadoras cuando quien orquesta es un modelo:
@@ -219,7 +235,7 @@ Cuatro cosas, y conviene que estén escritas porque las cuatro son tentadoras cu
 - **No decide el siguiente paso.** Lo pide al backend y ejecuta la orden tal como llega, aunque crea que otra sería mejor.
 - **No escribe prosa de la novela.** Ni un párrafo de relleno, ni un arreglo rápido de una frase que el Editor dejó torcida. Si hace falta texto, se lanza el agente que corresponde.
 - **No escribe en la biblia.** Solo el Bibliotecario, y solo tras la verificación. La regla no depende de la buena voluntad del orquestador: la superficie de escritura se declara solo en la definición del Bibliotecario, así que la sesión principal no la ve, y el hook de policy la deniega a cualquier otro llamante (§7, §8).
-- **No se salta una parada humana activa.** Las paradas `aprobacion_plan` y `aprobacion_final` son configurables por proyecto y están desactivadas por defecto: para un regalo, el punto de control natural del comprador es leer y pedir cambios. Cuando están activas, no tienen transición automática de salida, ni siquiera con todos los verificadores en verde. `publicada`, `cambio_solicitado` y `detenida` tampoco salen sin acción humana.
+- **No se salta una parada humana activa.** Las paradas `aprobacion_plan` y `aprobacion_final` son configurables por proyecto y están desactivadas por defecto: para un regalo, el punto de control natural del comprador es leer y pedir cambios. Cuando están activas, no tienen transición automática de salida, ni siquiera con todos los verificadores en verde. `publicada`, `cambio_solicitado` y `detenida` tampoco salen sin acción humana, con dos excepciones escritas en la tabla: en `cambio_solicitado`, la parada es la confirmación del cambio ya propuesto, y el Intérprete que agota su tope devuelve el proyecto a `publicada` con el cambio fallido; y el worker que falla también (§3.1).
 
 ---
 
@@ -253,16 +269,16 @@ flowchart LR
   D --> D2["Longitud · capítulo y manuscrito dentro de tolerancia"]
   D --> D3["Métricas de estilo · frase media, % diálogo, legibilidad, lista negra"]
   D --> D4["Consistencia de nombres y grafías"]
-  D --> D5["Continuidad dura · personaje ausente, objeto duplicado, tiempo de viaje imposible"]
+  D --> D5["Continuidad dura · antes de escribir · presente excluido, tiempo de viaje imposible"]
   D --> D6["Guardarraíl de palabras prohibidas · global, por público, por novela"]
   D --> D7["Frases literales del comprador"]
   D --> D8["Cobertura de hechos obligatorios · gate"]
   V --> F["Formal · Lean 4"]
-  F --> F1["Cronología · gate · lugar único, exclusión, edad"]
+  F --> F1["Cronología · gate · lugar único, exclusión, nacimiento"]
   J --> J1["Hito estructural cumplido"]
   J --> J2["Coherencia blanda · motivaciones, reglas del mundo, conocimiento de cada personaje"]
   J --> J3["Voz y POV constantes"]
-  J --> J4["Contenido dentro de topes y líneas rojas"]
+  J --> J4["Contenido · criterio del juez de capítulo"]
   J --> J5["Manuscrito · rúbrica de cinco criterios · gate"]
 ```
 
@@ -273,11 +289,11 @@ flowchart LR
 | Longitud | Cada capítulo y al final | Determinista | Media | Editor amplía o recorta |
 | Métricas de estilo | Cada capítulo | Determinista | Baja / Media | Editor de estilo |
 | Nombres y grafías | Cada capítulo | Determinista contra glosario | Media | Editor de estilo |
-| Continuidad dura | Cada capítulo | Determinista contra biblia | Alta | Escritor regenera el pasaje |
+| Continuidad dura | Antes de escribir cada capítulo: al registrar la escaleta y al ensamblar | Determinista contra ficha y biblia a fecha N−1 (R-2) | Alta | La orden es `error` con causa `inconsistencia`; no gasta intento |
 | Hito estructural | Cada capítulo | LLM-juez | Alta | Escritor regenera el capítulo |
 | Coherencia blanda | Cada capítulo | LLM-juez con biblia como evidencia | Alta | Escritor regenera el pasaje |
 | Voz y POV | Cada capítulo | LLM-juez | Media | Editor de estilo |
-| Contenido y líneas rojas | Cada capítulo | Clasificador + LLM-juez | Bloqueante | Regeneración obligatoria |
+| Contenido y líneas rojas | Cada capítulo | En la v1, solo el criterio `contenido` del juez de capítulo (B-15); el clasificador es de fase 2 | Alta (bloqueante con el clasificador) | Escritor regenera el capítulo |
 | Palabras prohibidas (§4.3) | Cada capítulo | Determinista contra las tres listas | Bloqueante | Escritor reescribe; consume el contador de intentos |
 | Frases literales | Cada capítulo cuya ficha usa un hecho `frase` | Determinista | Alta | Escritor regenera el pasaje |
 | Cobertura de hechos | Gate de manuscrito | Determinista contra el uso de cada hecho | Bloqueante | Revisor dirigido |
@@ -286,13 +302,15 @@ flowchart LR
 | Verificación de manuscrito | Gate de manuscrito | LLM-juez con rúbrica (§4.1) + deterministas | Bloqueante | Revisor dirigido |
 | Originalidad | Final | Búsqueda de similitud contra corpus | Bloqueante | Revisor dirigido |
 
+Los hallazgos medios y bajos solo se registran y viajan al intento siguiente en el bloque «Informe del intento anterior» (§6.3): no hay regeneración de pasaje ni una pasada extra del Editor. La continuidad del texto, tras R-2, la miran el juez de capítulo y Lean, no una heurística sobre la prosa. Verificación de acto y Originalidad quedan fuera de la v1.
+
 **Política de reintentos:** máximo 3 ciclos por capítulo; si persiste el fallo, el capítulo pasa a cola de revisión humana con el informe adjunto. **Excepción: el guardarraíl de palabras prohibidas.** Si agota los intentos, la generación se detiene y se informa, porque un capítulo con un veto del comprador no puede quedar en la novela ni siquiera marcado.
 
 **Gate de manuscrito.** Cobertura, cronología formal y juez de manuscrito se ejecutan sobre la novela completa, en `verificacion_manuscrito`. Ninguna versión se publica sin pasar los tres.
 
 ### 4.1 Rúbrica del juez de manuscrito
 
-Cinco criterios, cada uno con una puntuación de 1 a 5 y una justificación: **continuidad** entre capítulos, **coherencia de personajes**, **arco y ritmo**, **tono** adecuado a la ocasión y al lector, y **personalización integrada** con naturalidad, no forzada. Pasa con ≥3 en todos y media ≥3,5. Los dos objetivos del producto pesan lo mismo: una novela con todos los hechos y mala prosa suspende, y una novela bien escrita en la que el destinatario no se reconoce, también.
+Cinco criterios, cada uno con una puntuación de 1 a 5 y una justificación: **continuidad** entre capítulos, **coherencia de personajes**, **arco y ritmo**, **tono** adecuado a la ocasión y al lector, y **personalización integrada** con naturalidad, no forzada. Pasa con ≥3 en todos y **suma ≥ 18** (TC-5): con cinco enteros equivale a media ≥ 3,5 y se puede probar en la frontera. Los criterios son un enum cerrado: `continuidad`, `personajes`, `arco_ritmo`, `tono` y `personalizacion`. Los dos objetivos del producto pesan lo mismo: una novela con todos los hechos y mala prosa suspende, y una novela bien escrita en la que el destinatario no se reconoce, también.
 
 La **revisión humana** de al menos una novela usa exactamente esta rúbrica, para comparar el criterio humano con el del juez.
 
@@ -302,13 +320,15 @@ A partir de la biblia se genera, por novela, un fichero Lean con los eventos (mo
 
 1. Un personaje no está en dos lugares en el mismo momento.
 2. Nadie aparece después de un evento que lo excluye.
-3. La edad de un personaje en cada evento fechado cuadra con su fecha de nacimiento.
+3. Nadie aparece en un evento fechado antes de nacer (TC-2): la v1 no compara edades explícitas.
 
-Las invariantes viven en un proyecto Lake del repositorio; el fichero de hechos de cada novela se escribe en su directorio de proyecto, como el resto de ficheros (§6). Se ejecuta como gate y no por capítulo: las invariantes 1 y 2 ya las cubre Continuidad dura en cada capítulo, así que el gate formal es donde se ve qué atrapa Lean que los demás no atrapan —la 3 sobre todo, y cualquier incoherencia que se cuele entre capítulos—.
+Los momentos van en dos escalas (B-6): los recuerdos del comprador como intervalo de días de calendario, y la historia como `dia-N` más una franja opcional; toda la historia es posterior a todos los recuerdos. Mientras el proyecto Lake no acepte la franja opcional, un evento sin franja se emite como `manana` (M-14).
+
+Las invariantes viven en un proyecto Lake del repositorio (`formal/lean`); el fichero de cada pasada se escribe en `verificacion/pasada-k/cronologia.lean` y se copia a `export/vN/` al publicar (§6). Se ejecuta como gate y no por capítulo. Tras R-2, ningún determinista mira la presencia en el texto: la 1 y la 2 sobre la prosa las ve solo Lean, a partir de los eventos que registra el Bibliotecario. Si Lean no está instalado, o su salida no se puede leer, la orden es `error` con causa `lean_no_disponible`, no un gate rojo.
 
 ### 4.3 Guardarraíl de palabras prohibidas
 
-Tres listas en SQLite: **global** (insultos y términos ofensivos), **por público** (lista adicional para infantil) y **por novela** (los vetos del comprador, `definitions.md` §9). Antes de comparar se normaliza el texto: minúsculas, sin acentos, plurales simples (-s, -es) y variantes sencillas, con código propio y sin dependencias. Cada coincidencia queda en el audit log. Las muletillas de estilo de la guía de estilo son otra cosa y siguen en Métricas de estilo, con severidad baja.
+Tres listas: **global** (insultos y términos ofensivos), **por público** (lista adicional para infantil; la de juvenil se usa también en `crossover`) y **por novela** (los vetos del comprador, `definitions.md` §9). La global y las de público son ficheros versionados en `backend/capitulo/listas/`, copiados a `palabra_prohibida` con su hash en `lista_guardarrail`; los vetos se materializan al salir de `contexto`. Antes de comparar se normaliza el texto: minúsculas, sin tildes ni diéresis conservando la ñ, variantes de género y número en palabras de 4 letras o más, y comparación por palabras enteras (B-11), con código propio y sin dependencias. `lenguaje.prohibidas` del contexto va a la lista negra de estilo, no aquí. Cada coincidencia queda en el audit log con el id de la palabra y su posición, **sin el término literal** (B-12). Las muletillas de estilo de la guía de estilo son otra cosa y siguen en Métricas de estilo, con severidad baja.
 
 ---
 
@@ -326,7 +346,7 @@ sequenceDiagram
   O->>K: siguiente orden
   K-->>O: lanzar Escritor · prompt ensamblado por el Recuperador
   O->>W: prompt
-  W-->>K: borrador · lo registra el hook de validación
+  W-->>K: borrador · lo registra el hook SubagentStop
   O->>K: siguiente orden
   K-->>O: lanzar Editor de estilo · borrador y guía de estilo
   O->>E: borrador
@@ -344,7 +364,7 @@ sequenceDiagram
     else ok
       K-->>O: lanzar Bibliotecario · capítulo verificado
       O->>L: capítulo
-      L->>K: hechos, uso de hechos y resumen · por /mcp/escritura
+      L->>K: hechos, uso de hechos y resumen · por /mcp/escritura con el sello
       K-->>O: siguiente capítulo
     end
   end
@@ -365,7 +385,7 @@ flowchart LR
   PRJ --> BIB["Biblia"]
   BIB --> B1["Personajes · ficha, estado, evolución, qué saben"]
   BIB --> B2["Localizaciones · jerarquía, estado"]
-  BIB --> B3["Cronología · eventos con momento, lugar y personajes presentes"]
+  BIB --> B3["Cronología · eventos con recuerdo o día de la historia, lugar y presentes"]
   BIB --> B4["Inventario · objeto → poseedor → capítulo"]
   BIB --> B5["Presagios · plantado en / cobrado en"]
   BIB --> B6["Glosario y nombres"]
@@ -375,6 +395,7 @@ flowchart LR
   PRJ --> VN["Versiones de novela · una versión de cada capítulo, cambio que la originó"]
   PRJ --> CL["Cambios del lector · petición, cambio propuesto, estado"]
   PRJ --> TR["Trabajos · cola de regeneraciones"]
+  PRJ --> GT["Gates · resultado por pasada"]
 ```
 
 | Almacén | Contenido | Tecnología |
@@ -401,7 +422,11 @@ La restricción que acota la segunda rama no es «no usar embeddings», es que *
 
 La decisión es de la fase 2 (§11), porque la v1 implementa el caso vacío del contrato de similitud y no depende de ella.
 
-**Versión de capítulo y versión de novela no son lo mismo.** Un capítulo acumula versiones por intento y por regeneración; una **versión de novela** es una selección publicada: apunta a una versión concreta de cada uno de los 10 capítulos y guarda qué cambio del lector la originó. Publicar la N+1 copia los punteros de los capítulos que no cambiaron, y **la N no se modifica nunca**. Qué capítulos cambiaron es la diferencia entre punteros. Cada versión publicada deja en disco su lectura web, su PDF, su ficha de personajes y lugares y su fichero Lean, así que se puede leer entera sin reconstruir la biblia, que guarda solo el estado vigente.
+**Versión de capítulo y versión de novela no son lo mismo.** Un capítulo acumula versiones por intento y por regeneración; una **versión de novela** es una selección publicada: apunta a una versión concreta de cada uno de los 10 capítulos y guarda qué cambio del lector la originó. Publicar la N+1 copia los punteros de los capítulos que no cambiaron, y **la N no se modifica nunca**. Qué capítulos cambiaron es la diferencia entre punteros. Cada versión publicada deja en `export/vN/` seis ficheros —`manuscrito.md`, `metadatos.json`, `lectura.html` (autocontenida, con anclas `#cap-NN`; es la fuente del PDF), `lectura.json` (la que sirve la API a React, con la ficha de personajes y lugares), `novela.pdf` y `cronologia.lean`—, así que se puede leer entera sin reconstruir la biblia. La publicación es atómica: se escribe en un directorio temporal, se renombra a `export/vN` y después se escriben las filas; un `export/vN` sin fila no cuenta como versión.
+
+**La biblia guarda historia por capítulo** (B-2). Cada fila que cambia lleva el capítulo desde el que vale, y toda consulta es «a fecha de N−1»: la última fila anterior a N. El estado que siembran la planificación y el contexto es el capítulo 0. Así una regeneración del capítulo 5 ve el mundo del capítulo 4.
+
+Las tablas de la v1 están en `backend/shared/esquema.sql`. Las que añadieron los bloques 2 y 3: la historia de la biblia (`personaje_estado`, `personaje_sabe`, `localizacion_estado`, `presagio_estado`), `objeto` con su poseedor inicial, `ficha_capitulo_hito` (un capítulo puede tener varios hitos, B-3), `gate_resultado` (por pasada y gate), `lista_guardarrail` (hash de las listas copiadas), `cambio_capitulo` (los capítulos que reabre un cambio y su versión nueva) y `trabajo.detalle` (la causa de un fallo, sin la salida del proceso). `cambio_lector` guarda los párrafos del fragmento, el hecho, los valores anterior y nuevo o el hecho nuevo, y el estado del cambio, pero no el texto del lector, que solo va a `cambios/`. Hay un `informe` por versión de capítulo y verificador; `evento` separa el recuerdo (`momento`) de la historia (`dia` y `franja`), con exactamente uno de los dos; y `resumen` guarda qué versión lo escribió.
 
 Cada capítulo se guarda con versión, estado (`borrador`, `editado`, `verificado`, `aprobado`, `revision_humana`; el capítulo sin borrador todavía está en `pendiente`) y los informes que lo produjeron, de modo que cualquier fallo es trazable hasta el prompt exacto.
 
@@ -435,7 +460,7 @@ La regla es que el resumen acumulado sea **O(actos), no O(capítulos)**:
 
 - Al aprobar un capítulo, el Bibliotecario escribe su resumen con **presupuesto fijo** (≈200 palabras). No es negociable por capítulo interesante.
 - Mientras el acto está abierto, el resumen acumulado son los resúmenes de sus capítulos, uno a uno.
-- Al **cerrar un acto** —el mismo punto en el que ya se dispara la verificación de acto de §4— los resúmenes de sus capítulos se destilan en un único resumen de acto y dejan de enviarse individualmente.
+- Al **cerrar un acto**, el Bibliotecario de su último capítulo destila los resúmenes de sus capítulos en un único resumen de acto (B-17, tope de 360 palabras), que dejan de enviarse individualmente. Regenerar un capítulo de un acto cerrado reescribe también el resumen del acto.
 
 Así, con el reparto 2 / 6 / 2 de diez capítulos, el resumen que recibe el Escritor del capítulo 10 son dos resúmenes de acto cerrado más el resumen del capítulo 9. Los resúmenes por capítulo no se borran: siguen en el nivel 3, consultables, y simplemente dejan de viajar en el prompt.
 
@@ -451,14 +476,17 @@ Dada una ficha de capítulo, arma el prompt del Escritor por bloques:
 
 | Bloque | Tamaño esperado | Prioridad si no cabe |
 |---|---|---|
-| Ficha del capítulo | ~2k | 1 — nunca se recorta |
+| Ficha del capítulo, con vetos, frases literales y lista negra | ~2k | 1 — nunca se recorta |
+| Informe del intento anterior | ~1k | 2 — se recorta entero, antes que la guía |
 | Guía de estilo | ~5k | 2 |
-| Presagios pendientes e inventario vivo | ~2k | 3 |
+| Presagios pendientes, inventario vivo y estado de los presentes | ~2k | 3 |
 | Fichas de los personajes presentes | ~8k | 4 |
 | Localización y reglas del mundo aplicables | ~5k | 5 |
 | Resumen acumulado (§6.2) | ~3k | 6 |
 | Capítulo anterior íntegro | ~3k | 7 |
 | Pasajes recuperados por búsqueda | ~15k | 8 — primero en caer |
+
+Un bloque obligatorio vacío (ficha, guía, fichas de presentes, localización) es un error; uno opcional vacío (presagios e inventario, resumen, capítulo anterior, reglas) se emite con su encabezado y la línea fija «Ninguno.», que no cuenta como recorte (B-8). Si el capítulo N−1 no está aprobado, se usa el último aprobado y una frase fija lo avisa. Si hubo recortes, el prompt termina con «## Omitido por espacio».
 
 Estos números son **tamaños esperados, no asignaciones**: no son porciones repartidas de un presupuesto, son lo que cada cosa mide. Una ficha ocupa ~2k porque eso es lo que ocupa una ficha con el contenido que pide la escaleta, y no ocuparía más por darle más sitio. El único número con fuerza normativa es el techo de 100.000: **el recorte se dispara contra él**, no contra la suma de la tabla.
 
@@ -466,7 +494,7 @@ Cuando un capítulo con nueve personajes en escena no cabe, el Recuperador **rec
 
 **El recorte elimina unidades completas, nunca bytes.** La unidad es semántica, no una longitud de cadena: en el bloque de pasajes recuperados se caen fragmentos enteros desde la cola del ranking, uno a uno, hasta que cabe; en los demás bloques se cae el bloque entero. No se corta un resumen a media frase ni una ficha de personaje por la mitad. Un texto cortado a media frase es la versión sofisticada del truncado silencioso que el párrafo anterior prohíbe: el Escritor lo lee como si estuviera completo, porque nada en el prompt le dice que no lo está.
 
-De ahí que el recorte sea **discreto y finito**: se retiran unidades en orden inverso hasta que el ensamblado cabe, y el caso límite es quedarse solo con la ficha del capítulo, que nunca se recorta. Qué hacer si ni siquiera eso cabe **está sin decidir**, y el código no lo puede inventar por su cuenta.
+De ahí que el recorte sea **discreto y finito**: se retiran unidades en orden inverso hasta que el ensamblado cabe, y el caso límite es quedarse solo con la ficha del capítulo, que nunca se recorta. Qué hacer si ni siquiera eso cabe **está sin decidir** (D-9), y el código no lo puede inventar por su cuenta: mientras tanto, la orden es `error` con causa `no_cabe` y no se envía nada.
 
 La prioridad está puesta así a propósito. Los pasajes recuperados son lo primero que cae porque son la ayuda, no el encargo: sin ellos el capítulo sale más pobre, pero sale. Sin la ficha, el Escritor escribe otro capítulo.
 
@@ -474,7 +502,9 @@ La prioridad está puesta así a propósito. Los pasajes recuperados son lo prim
 
 Ese control no es solo editorial, y esta es la razón por la que aparece aquí y no solo en §4: **la salida de hoy es la entrada de mañana**. Un capítulo que sale al doble de su longitud objetivo no rompe nada al escribirse, pero entra inflado como «capítulo anterior íntegro» en el prompt del capítulo siguiente, y como entrada del Editor, de los jueces, del Bibliotecario y del Revisor. Los tamaños de la tabla suponen capítulos en su longitud objetivo; el verificador de Longitud es lo que mantiene cierto ese supuesto. Tiene dos clientes: el comprador, que quiere capítulos parejos, y el Recuperador, que cuenta con ello.
 
-Además del prompt, el Recuperador devuelve un **desglose por bloque**: identificador, tokens finales, tamaño esperado y, si hubo recorte, cuánto quedó fuera; más el total de entrada y la lista ordenada de recortes aplicados. El bloque de similitud declara también de qué fragmentos salió, con capítulo y posición de cada uno. Esa es la única traza que conecta un fallo de continuidad con su causa: sin ella, cuando el capítulo 8 contradice al 3, no hay forma de saber si fue por un pasaje recuperado.
+El prompt se guarda entero para auditoría y, además, **en partes de 20.000 tokens estimados como mucho** (`…prompt.parte-N.md`), cortadas por párrafo y después por línea, cuya concatenación es el fichero entero: `Read` corta hacia los 25.000 tokens, así que la orden del Escritor lleva en `rutas_prompt` la lista de rutas absolutas de las partes, en orden.
+
+Además del prompt, el Recuperador devuelve un **desglose por bloque**: identificador, tokens finales, tamaño esperado y, si hubo recorte, cuánto quedó fuera; más el total de entrada, la lista ordenada de recortes aplicados, el SHA-256 del prompt y el motor del estimador que contó. El bloque de similitud declara también de qué fragmentos salió, con capítulo y posición de cada uno. Esa es la única traza que conecta un fallo de continuidad con su causa: sin ella, cuando el capítulo 8 contradice al 3, no hay forma de saber si fue por un pasaje recuperado.
 
 #### Cómo se cuentan los tokens
 
@@ -492,6 +522,7 @@ Dos consecuencias de implementación:
 
 - El estimador vive **detrás de una interfaz estrecha** —recibe texto, devuelve un entero—, con la misma disciplina que el módulo de similitud. El día que haya acceso a `count_tokens` o a un tokenizador de Claude, se cambia ese módulo y nada más lo nota. El factor de inflación es una constante de ese módulo: medible y ajustable en un sitio único.
 - El fichero BPE de la codificación se **versiona en el repositorio**, en `backend/capitulo/bpe/` junto al estimador que lo usa, con `TIKTOKEN_CACHE_DIR` apuntando a él, y **marcado como binario en `.gitattributes`**: `tiktoken` comprueba su SHA-256 y, si no coincide, borra la copia y la vuelve a descargar, y una conversión de saltos de línea de Git (`core.autocrlf`) basta para romper ese hash. `tiktoken` se lo descarga de la red la primera vez que se usa; si el estimador depende de esa descarga, se caen a la vez el determinismo y el arranque sin red.
+- **Respaldo en Python puro** (M-10). Si la extensión nativa de `tiktoken` no carga —en la máquina de desarrollo la bloquea una directiva de control de aplicaciones de Windows—, el estimador usa un BPE propio sobre el **mismo** fichero `o200k_base`, con la pre-tokenización hecha con `re` y el mismo factor de 1,35. Reproduce los ids de o200k; un pre-token de más de 256 bytes cuenta un token por byte, que es una cota superior. La decisión sigue siendo `tiktoken`: el respaldo vive detrás de la misma interfaz, y la prueba de paridad entre los dos caminos corre donde la extensión carga.
 
 #### Dos mecanismos, no uno
 
@@ -534,14 +565,14 @@ Lo decidido hasta ahora es solo esto:
 | Componente | Decisión |
 |---|---|
 | Backend | Python + FastAPI, servido con **`uvicorn`**. `fastapi[standard]` no se usa: arrastraría dependencias sin nombrarlas y V-10 no las vería |
-| Frontend | React con Vite |
+| Frontend | React con Vite: `react`, `react-dom`, `vite` y `@vitejs/plugin-react`, con npm (F-1) |
 | Orquestación de agentes | Claude Code ejecuta: la sesión pide al backend la siguiente orden y lanza el subagente que indica. El backend decide |
 | Base de datos | SQLite local, un fichero por proyecto, en modo WAL: relacional, vectorial y caché en la misma base |
 | Almacén de objetos | Ficheros en disco, sin servicio aparte |
-| Acceso de Claude Code a la biblia | **Servidor MCP con el paquete `fastmcp`, montado dentro del FastAPI** —el `lifespan` de cada superficie montada se combina con el de la aplicación, porque Starlette no arranca el de las subaplicaciones—, sobre la misma base SQLite y en el mismo proceso, en **tres superficies**: `/mcp/lectura`, declarada en `.mcp.json`, y `/mcp/escritura`, declarada **solo** en el campo `mcpServers` de la definición del Bibliotecario; y `/mcp/entrada`, que entrega el texto no confiable al Extractor y al Intérprete, y solo ellos la declaran (§8). Herramientas tipadas, nunca SQL libre |
+| Acceso de Claude Code a la biblia | **Servidor MCP con el paquete `fastmcp`, montado dentro del FastAPI** —el `lifespan` de cada superficie montada se combina con el de la aplicación, porque Starlette no arranca el de las subaplicaciones—, sobre la misma base SQLite y en el mismo proceso, en **tres superficies**: `/mcp/lectura`, declarada en `.mcp.json`, y `/mcp/escritura`, declarada **solo** en el campo `mcpServers` de la definición del Bibliotecario; y `/mcp/entrada`, que entrega el texto no confiable al Extractor y al Intérprete, y solo ellos la declaran (§8). Herramientas tipadas, nunca SQL libre: las de lectura reciben `proyecto` como argumento y las de escritura el `sello` de la orden vigente del Bibliotecario, del que sale el proyecto y el capítulo (M-12) |
 | Estado del orquestador | Una fila en SQLite, no la ventana de la sesión (§3.1) |
-| Cola de trabajos | Una **tabla en SQLite** y un worker del backend que procesa un trabajo cada vez —el escritor único de SQLite lo exige— lanzando **`claude -p`** en modo headless con un comando propio de regeneración. El backend lanza un proceso, no llama a un modelo: sigue sin cliente LLM y el gasto sigue siendo de suscripción |
-| Estimación de tokens del Recuperador | `tiktoken` con `o200k_base` × 1,35, como **estimador conservador**, con el fichero BPE versionado en el repositorio. No es el tokenizador de Claude: ver §6.3 |
+| Cola de trabajos | Una **tabla en SQLite** y un worker del backend que procesa un trabajo cada vez —el escritor único de SQLite lo exige— lanzando **`claude -p "/regenerar <proyecto> <trabajo>" --permission-prompts none --output-format json`**, nunca `--bare` y sin `ANTHROPIC_API_KEY` en el entorno del hijo. Es un hilo del `lifespan`, que `MSM_WORKER=0` desactiva. El backend lanza un proceso, no llama a un modelo: sigue sin cliente LLM y el gasto sigue siendo de suscripción |
+| Estimación de tokens del Recuperador | `tiktoken` con `o200k_base` × 1,35, como **estimador conservador**, con el fichero BPE versionado en el repositorio. No es el tokenizador de Claude: ver §6.3. Si su extensión nativa no carga, un respaldo en Python puro sobre el mismo fichero y con el mismo factor (M-10), sin dependencias nuevas |
 | Verificación formal de la cronología | **Lean 4** con `lake`, instalado con `elan`, **sin Mathlib**: las invariantes son sobre listas finitas y basta la librería estándar (§4.2) |
 | Model checking del grafo de estados | **TLA+** puro, verificado con **TLC** (`tla2tools.jar`, requiere Java). Se ejecuta en desarrollo, no en cada generación |
 | Validación de la ontología | **Pydantic v2** como fuente única; el JSON Schema se genera desde los modelos |
@@ -549,6 +580,7 @@ Lo decidido hasta ahora es solo esto:
 | Pruebas y análisis estático | **`pytest`** con **`Hypothesis`** para las propiedades, **`httpx`** —solo en desarrollo— para el `TestClient` de FastAPI, **`mypy --strict`**, **`ruff`**. Sin pruebas de mutación: `cosmic-ray` se retiró el 2026-09-23 por tiempo, y V-15 se sostiene con cobertura por regla |
 | Legibilidad en español | Índice de **Szigriszt-Pazos** con la escala **INFLESZ**, en código propio |
 | Inspección visual de la lectura web | **Playwright MCP**, declarado en `.mcp.json`. Lo usa la sesión de desarrollo, no ningún agente de la novela |
+| Exportación a PDF | **`playwright`** para Python imprime la misma `lectura.html` con el Chromium de Playwright (`uv run playwright install --only-shell chromium`); plan B, `channel="msedge"`. **`pypdf`**, solo en desarrollo, comprueba los enlaces internos del PDF. Si no hay navegador, la orden es `error` con causa `pdf_no_disponible` (TC-6, TC-3) |
 
 SQLite es una decisión de las **fases 1 y 2**. El multiusuario de la fase 3 (§11) obligará a revisarla; queda dicho aquí para que ese día se lea como un cambio previsto y no como una sorpresa.
 
@@ -556,7 +588,7 @@ El acceso por **MCP** se elige frente a endpoints de FastAPI llamados con Bash p
 
 **Por qué superficies separadas, y por qué la de escritura no va en `.mcp.json`.** MCP no transporta la identidad del agente que llama: un servidor no puede saber si quien invoca la escritura es el Bibliotecario, y preguntárselo —un campo `agente` en la llamada— sería una convención de prompt disfrazada de mecanismo. Pero separar las superficies no basta si las dos están en `.mcp.json`, porque la **sesión principal recibe las herramientas de todos los servidores de ese fichero**: el orquestador tendría la escritura igualmente. Por eso `/mcp/escritura` se declara solo en el `mcpServers` del Bibliotecario, que Claude Code no carga en la sesión principal. Y como segunda barrera, el hook de policy (§8) deniega las herramientas de escritura a cualquier llamada cuyo `agent_type` no sea `bibliotecario`. Una regla `deny` en la configuración no sirve para esto: se aplica también a los subagentes y la lista `tools` no la anula. La comprobación de que el capítulo esté verificado sigue viviendo en el backend (RF-106), porque esa no depende de quién llame.
 
-Todo lo demás está **sin decidir**: el mecanismo de búsqueda dentro de SQLite (con embeddings locales o con FTS5, §6), la observabilidad, el mecanismo de exportación a PDF y el despliegue. El resto del documento describe esas piezas por su función, no por su implementación; cada decisión se tomará cuando la fase correspondiente la exija y se añadirá a esta tabla.
+Todo lo demás está **sin decidir**: el mecanismo de búsqueda dentro de SQLite (con embeddings locales o con FTS5, §6), la observabilidad y el despliegue. El resto del documento describe esas piezas por su función, no por su implementación; cada decisión se tomará cuando la fase correspondiente la exija y se añadirá a esta tabla.
 
 ---
 
@@ -593,6 +625,8 @@ Dos carpetas están en el árbol pero **fuera del reparto por fases**, y convien
 
 Las carpetas **aparecen cuando hay código que poner dentro**, no antes: no se crean vacías por simetría con este árbol.
 
+**Cómo se registra un resultado.** Cada rebanada que valida la salida de un agente expone `MANEJADORES` (agente → manejador) en `<rebanada>/manejadores.py`: `planificacion`, `escaleta`, `capitulo` (Escritor, Editor, juez de capítulo, Bibliotecario y Revisor), `verificacion` (juez de manuscrito), `exportacion` y `cambio`. `proyecto/manejadores.py` los agrega —y guarda los del Agente de Contexto y el Extractor— y `/resultado` despacha por agente; `proyecto/` no conoce los modelos de salida de nadie. `revision/` guarda solo la revisión humana del manuscrito. El worker de `cambio/` arranca en el `lifespan` de la aplicación (`backend/app.py`).
+
 Fuera de `backend/`, un directorio `formal/` guarda el proyecto Lake con las invariantes de §4.2 y la especificación TLA+ con su configuración de TLC. No es una rebanada: es verificación, y la especificación TLA+ ni siquiera se ejecuta en producción.
 
 `shared/` es solo para lo que es transversal de verdad: la conexión a SQLite con sus pragmas, el esquema de la ontología, los tipos comunes y la disposición del directorio de proyecto —la tienen que compartir las rebanadas que escriben ficheros, la API y el servidor MCP, que son más de tres sitios—. La tensión es real en las dos direcciones. Sin `shared/`, los pragmas acaban duplicados en ocho sitios y un día divergen —y un `PRAGMA foreign_keys` olvidado en una sola rebanada no da error, solo filas huérfanas—. Con un `shared/` que crece sin control, vuelves a tener capas horizontales con otro nombre. Ante la duda, duplicar dentro de la rebanada; se promueve a `shared/` cuando el tercer sitio lo necesite.
@@ -607,7 +641,11 @@ Los agentes **no viven en `backend/`**: son configuración de Claude Code, versi
   skills/
     orquestar-novela/  · la skill reutilizable: el bucle de ejecución de §3.1
     generar/           · punto de entrada interactivo · /generar
-    regenerar/         · punto de entrada headless · /regenerar <trabajo>, lo lanza el worker
+    regenerar/         · punto de entrada headless · /regenerar <proyecto> <trabajo>, lo lanza el worker
+    entrevista/        · la entrevista al comprador · /entrevista (E-3)
+  harness/           · msm.py y los scripts de los hooks
+  tests/             · pruebas del harness
+  estado/            · estado local, ignorado por git
   settings.json      · hooks y permisos del proyecto
 .mcp.json            · /mcp/lectura y Playwright MCP
 ```
@@ -621,18 +659,18 @@ Los agentes **no viven en `backend/`**: son configuración de Claude Code, versi
 | Bibliotecario | `/mcp/lectura` y `/mcp/escritura`, esta última declarada en su propio `mcpServers` |
 | El resto | `/mcp/lectura` |
 
-**La skill reutilizable es el bucle de ejecución.** `orquestar-novela` recoge cómo se ejecuta §3.1: tomar el bloqueo del proyecto, pedir la siguiente orden, lanzar el subagente que indica con la entrada que indica, registrar el resultado —salvo los borradores de capítulo, que registra el hook de validación— y repetir hasta recibir `esperar_humano`, `publicada` o `detenida`. No contiene reglas de decisión: esas viven en el backend. La invocan dos puntos de entrada finos: `/generar`, en la terminal, y `/regenerar`, que el worker lanza con `claude -p`. El worker **nunca** usa el modo `--bare`: en ese modo Claude Code lee una clave de API en vez de la suscripción, y además no carga hooks ni MCP.
+**La skill reutilizable es el bucle de ejecución.** `orquestar-novela` recoge cómo se ejecuta §3.1: tomar el bloqueo del proyecto, pedir la siguiente orden, lanzar el subagente que indica con la entrada que indica, leer el acuse del registro, que hace el hook, y repetir hasta recibir `esperar_humano`, `publicada`, `detenida` o `error`. No contiene reglas de decisión: esas viven en el backend. La invocan dos puntos de entrada finos: `/generar`, en la terminal, y `/regenerar`, que el worker lanza con `claude -p`. El worker **nunca** usa el modo `--bare`: en ese modo Claude Code lee una clave de API en vez de la suscripción, y además no carga hooks ni MCP.
 
 **Dos hooks, en `.claude/settings.json`:**
 
-- **Validación de capítulo** (`SubagentStop` del Escritor, el Editor de estilo y el Revisor). Es quien **registra** los borradores de capítulo: envía el que devuelve el subagente al backend como resultado de la orden vigente, y el backend valida su esquema y, sobre los del Editor y el Revisor, ejecuta los verificadores deterministas y el guardarraíl. Las demás salidas las registra la skill; nunca hay dos vías para lo mismo. Garantiza que ningún borrador avanza sin verificar, se acuerde o no el orquestador. **No fuerza al subagente a seguir**: eso convertiría un reintento en una continuación dentro de la misma invocación, lo que §3.2 prohíbe. El reintento lo decide el backend y es una invocación nueva.
-- **Policy** (`PreToolUse`). Hace cumplir las reglas de §3.3 que no cubre la configuración: deniega las herramientas de escritura de la biblia a cualquier llamada cuyo `agent_type` no sea `bibliotecario`; deniega escribir con las herramientas de fichero en los datos del proyecto —la base, `capitulos/`, `export/`—, a los que solo se entra por la API o el MCP; y deniega leer con ellas el texto libre y las peticiones del lector. Cada decisión, permitida o denegada, queda en el audit log (`auditoria`).
+- **Registro de salidas** (`SubagentStop` de todos los subagentes de la novela, P-2). Es quien **registra** cada salida: envía `last_assistant_message` sin tocarlo a `POST /proyectos/{id}/resultado` como `{orden: sello, salida_cruda, metadatos?}`, y el backend extrae el Markdown o el bloque JSON, valida su esquema y, sobre los capítulos del Editor y el Revisor, ejecuta los verificadores deterministas y el guardarraíl. La skill solo lee el acuse; nunca hay dos vías para lo mismo, y así el orquestador no reteclea salidas largas. Garantiza que ningún borrador avanza sin verificar, se acuerde o no el orquestador. **No fuerza al subagente a seguir**: eso convertiría un reintento en una continuación dentro de la misma invocación, lo que §3.2 prohíbe. El reintento lo decide el backend y es una invocación nueva.
+- **Policy** (`PreToolUse`). Hace cumplir las reglas de §3.3 que no cubre la configuración: deniega las herramientas de escritura de la biblia a cualquier llamada cuyo `agent_type` no sea `bibliotecario`; deniega escribir con las herramientas de fichero en los datos del proyecto —la base, `capitulos/`, `export/`—, a los que solo se entra por la API o el MCP; y deniega leer con ellas el texto libre y las peticiones del lector. Cada decisión, permitida o denegada, queda en el audit log (`auditoria`, por `POST /proyectos/{id}/auditoria`).
 
 Se commitea todo lo anterior. `.claude/settings.local.json` no: son permisos personales.
 
 ### Frontend — package by feature, sin FSD
 
-Una carpeta por funcionalidad, con sus componentes, sus hooks, su estado y sus llamadas a la API dentro: `entrevista/`, `lectura/` (portada con dedicatoria, índice navegable, ficha de personajes y lugares con enlaces al capítulo donde aparece cada uno, selector de versión y marca de capítulos actualizados) y `cambio/` (seleccionar un fragmento, pedir el cambio y confirmarlo). No hay `components/`, `hooks/` ni `services/` en la raíz recogiendo piezas de pantallas que no tienen nada que ver entre sí.
+Una carpeta por funcionalidad, con sus componentes, sus hooks, su estado y sus llamadas a la API dentro: `lectura/` (portada con dedicatoria, índice navegable, ficha de personajes y lugares con enlaces al capítulo donde aparece cada uno, selector de versión y marca de capítulos actualizados) y `cambio/` (seleccionar un fragmento, pedir el cambio y confirmarlo). No hay `components/`, `hooks/` ni `services/` en la raíz recogiendo piezas de pantallas que no tienen nada que ver entre sí. La entrevista no es del frontend: es la skill `/entrevista` (E-3).
 
 **Sin FSD**: no se adopta Feature-Sliced Design. Sus capas obligatorias (`shared`, `entities`, `features`, `widgets`, `pages`, `app`) y sus reglas de importación entre capas son más metodología de la que este frontend necesita, y el coste de aprenderla y respetarla no se paga con un panel de comprador.
 
@@ -692,7 +730,7 @@ Este diagrama es el **estado objetivo**, no el de la fase 1. La cola ya está de
 ```mermaid
 flowchart LR
   F1["Fase 1 · Entrega"] --> F2["Fase 2 · Calidad"] --> F3["Fase 3 · Producto"]
-  F1 --> F1a["Entrega · backend completo · los cuatro agentes de planificación · gates de manuscrito con Lean y juez · guardarraíl · versiones y regeneración por el lector · lectura web y PDF · TLA+ · evals · observabilidad, pendiente de D-3"]
+  F1 --> F1a["Entrega · backend completo · planificador y escaletista · gates de manuscrito con Lean y juez · guardarraíl · versiones y regeneración por el lector · lectura web y PDF · TLA+ · evals · observabilidad, pendiente de D-3"]
   F2 --> F2a["Calidad · índice semántico, D-1 · linters de prosa · originalidad · contenido y líneas rojas"]
   F3 --> F3a["Producto · multiusuario y login · servidor MCP de consulta · cifrado en reposo · control de coste"]
 ```

@@ -10,7 +10,8 @@ Tres funciones, y ninguna mueve el proyecto sin pasar por `transiciones.arista()
 
 - `siguiente_orden(inst)`: la decisión de un paso. `Avanzar` es una transición que se
   deriva del estado (una fase completa) y `resolver` las encadena hasta una decisión final:
-  lanzar un agente, esperar al humano, `publicada`, `detenida` o `error_ensamblado`.
+  lanzar un agente, esperar al humano, `publicada`, `detenida` o `error` con su causa
+  (AJ-5: una orden que no se puede emitir, como un prompt que no cabe, D-9).
 - `aplicar_desenlace(inst, orden, desenlace)`: el resultado de la orden vigente, ya
   validado por su manejador, sobre la instantánea que dejó ese manejador. Devuelve el
   estado nuevo del proyecto, del capítulo y de los contadores, y los pasos por la tabla.
@@ -25,7 +26,7 @@ Correspondencia rama → fila de la tabla de architecture.md §3.1, para la espe
 | `_derivar` · `INTAKE`, brief normalizado y sin pendientes | `intake` → `contexto` |
 | `siguiente_orden` · `CONTEXTO` | `contexto`: Agente de Contexto |
 | `_derivar` · `CONTEXTO`, contexto validado (RF-22, V-20) | `contexto` → `planificacion` |
-| `siguiente_orden` · `PLANIFICACION` | Arquitecto → Personajes → Mundo → Estilo |
+| `siguiente_orden` · `PLANIFICACION` | el planificador, una sola orden (AJ-1) |
 | `_derivar` · `PLANIFICACION` completa | → `aprobacion_plan` o `escaleta` |
 | `siguiente_orden` · `APROBACION_PLAN`, `APROBACION_FINAL` | las dos paradas: esperar |
 | `siguiente_orden` · `ESCALETA`; `_derivar` con 10 fichas | `escaleta` → `capitulos` |
@@ -35,12 +36,16 @@ Correspondencia rama → fila de la tabla de architecture.md §3.1, para la espe
 | `_desenlace_de_capitulo` · veto agotado (RF-72a) | → `detenida`; regenerando, `publicada` |
 | `_gates` · verdes | → `aprobacion_final` o `publicacion` |
 | `_gates` · fallos, y agotados (RF-64a) | → `revision`; agotados, `detenida` o `publicada` |
-| `_desenlace_de_paso` · Revisor | `revision` → `verificacion_manuscrito` |
+| `_en_revision`, `_desenlace_de_paso` · Revisor, Bibliotecario | `revision` (AJ-2): por |
+| | capítulo, Revisor → Bibliotecario; sin capítulos, un Revisor |
+| `_derivar` · `REVISION`, todos registrados | `revision` → `verificacion_manuscrito` |
+| `_transitar` a `verificacion_manuscrito` | AJ-3: `pasadas` + 1 y gates sin evaluar |
 | `_desenlace_de_paso` · Exportador | `publicacion` → `publicada` |
 | `_desenlace_de_paso` · tope agotado (RF-07a, Q6) | → `detenida`; regenerando, `publicada` |
 | `siguiente_orden` · `CAMBIO_SOLICITADO` | Intérprete; con el cambio propuesto, esperar |
 | `siguiente_orden` · `PUBLICADA`, `DETENIDA` | `publicada`, `detenida`: sin agente |
 | `aplicar_accion_humana` | las aristas humanas, reintentar incluido (RF-64b) |
+| `aplicar_fallo_del_worker` (R-4) | → `publicada` con `worker_fallido` |
 
 Los contadores (Q4, Q5): `capitulo.intentos` cuenta los fallos de contenido de un capítulo
 y numera los intentos del Escritor; `intentos_paso` numera los de cualquier otra orden y
@@ -51,12 +56,13 @@ cambio de estado de capítulo.
 
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
-from typing import assert_never
+from typing import Any, assert_never
 
 from backend.proyecto.errores import DecisionHumanaInvalida, TransicionInvalida
 from backend.proyecto.transiciones import (
     DESTINO_DE_REINTENTAR,
     ORIGENES_DE_DETENIDA,
+    ORIGENES_DE_WORKER_FALLIDO,
     Causa,
     arista,
 )
@@ -150,7 +156,8 @@ class CapituloInstantanea:
     numero: int
     estado: C = C.PENDIENTE
     intentos: int = 0
-    # El Bibliotecario ya registró la biblia de su versión vigente: el capítulo sale del bucle.
+    # §3 punto 2: el Bibliotecario registró la biblia y el capítulo quedó `aprobado`: sale del
+    # bucle. Va si y solo si el estado es `aprobado`.
     terminado: bool = False
 
     @property
@@ -181,8 +188,6 @@ class Avance:
     plan: bool = False
     # Hay notas de «cambios» del comprador en aprobacion_plan que el planificador no ha atendido.
     notas_plan_pendientes: bool = False
-    personajes: bool = False
-    mundo: bool = False
     guia_estilo: bool = False
     fichas: int = 0
     gates: ResultadoGates = ResultadoGates.SIN_EVALUAR
@@ -192,13 +197,19 @@ class Avance:
 
     @property
     def plan_completo(self) -> bool:
-        return (
-            self.plan
-            and self.personajes
-            and self.mundo
-            and self.guia_estilo
-            and not self.notas_plan_pendientes
-        )
+        """AJ-1: el planificador deja plan y guía en la misma salida. Personajes y mundo no
+        cuentan: los materializa el contexto (B-1) antes de planificar."""
+        return self.plan and self.guia_estilo and not self.notas_plan_pendientes
+
+
+@dataclass(frozen=True)
+class CapituloRevision:
+    """AJ-2: un capítulo que corregir en el ciclo de `revision` en curso. `revisado`: el
+    Revisor entregó y pasó los deterministas; `registrado`: el Bibliotecario, después."""
+
+    numero: int
+    revisado: bool = False
+    registrado: bool = False
 
 
 def _capitulos_iniciales() -> tuple[CapituloInstantanea, ...]:
@@ -216,6 +227,10 @@ class Instantanea:
     ciclos_revision: int = 0
     intentos_paso: int = 0
     orden_vigente: OrdenVigente | None = None
+    # AJ-3: cuántas veces se ha entrado en verificacion_manuscrito; nunca vuelve a cero.
+    pasadas: int = 0
+    # AJ-2: los capítulos que corregir en el ciclo de revisión en curso, de los gates.
+    revision: tuple[CapituloRevision, ...] = ()
 
     def capitulo(self, numero: int) -> CapituloInstantanea:
         return self.capitulos[numero - 1]
@@ -255,15 +270,18 @@ class Detenida:
 
 
 @dataclass(frozen=True)
-class ErrorEnsamblado:
-    """D-9: el Recuperador no consigue que el prompt quepa ni con la ficha sola. Hoy no se
-    produce; el tipo existe para que la sesión lo reconozca cuando llegue el paso 6."""
+class ErrorConCausa:
+    """AJ-5, TC-3: la orden que toca no se puede emitir —el prompt no cabe (D-9), una
+    inconsistencia de continuidad antes de escribir (B-9), falta una herramienta—. No la
+    decide la máquina sino quien construye la entrada: el estado no cambia y no gasta
+    intento ni ciclo de revisión."""
 
-    capitulo: int
-    desglose: tuple[tuple[str, int], ...] = ()
+    causa: str
+    capitulo: int | None = None
+    detalle: dict[str, Any] = field(default_factory=dict)
 
 
-Final = Lanzar | EsperarHumano | Publicada | Detenida | ErrorEnsamblado
+Final = Lanzar | EsperarHumano | Publicada | Detenida | ErrorConCausa
 Decision = Final | Avanzar
 
 
@@ -316,7 +334,7 @@ AGENTES_DEL_ESTADO: dict[E, tuple[A, ...]] = {
     E.CAPITULOS: (A.ESCRITOR, A.EDITOR_ESTILO, A.JUEZ_CAPITULO, A.BIBLIOTECARIO),
     E.REGENERACION: (A.ESCRITOR, A.EDITOR_ESTILO, A.JUEZ_CAPITULO, A.BIBLIOTECARIO),
     E.VERIFICACION_MANUSCRITO: (A.JUEZ_MANUSCRITO,),
-    E.REVISION: (A.REVISOR,),
+    E.REVISION: (A.REVISOR, A.BIBLIOTECARIO),
     E.PUBLICACION: (A.EXPORTADOR,),
     E.CAMBIO_SOLICITADO: (A.INTERPRETE_CAMBIOS,),
 }
@@ -326,9 +344,9 @@ AGENTES_DE_CAPITULO = frozenset({A.ESCRITOR, A.EDITOR_ESTILO, A.JUEZ_CAPITULO, A
 # Qué estado de capítulo recibe cada agente del bucle de §5.
 _ESTADOS_DEL_AGENTE: dict[A, frozenset[C]] = {
     A.ESCRITOR: frozenset({C.PENDIENTE}),
-    A.EDITOR_ESTILO: frozenset({C.BORRADOR, C.EDITADO}),
-    A.JUEZ_CAPITULO: frozenset({C.VERIFICADO}),
-    A.BIBLIOTECARIO: frozenset({C.APROBADO}),
+    A.EDITOR_ESTILO: frozenset({C.BORRADOR}),
+    A.JUEZ_CAPITULO: frozenset({C.EDITADO}),
+    A.BIBLIOTECARIO: frozenset({C.VERIFICADO}),
 }
 
 REGISTRADOS_POR_HOOK = frozenset({A.ESCRITOR, A.EDITOR_ESTILO, A.REVISOR})
@@ -401,6 +419,14 @@ def _transitar(inst: Instantanea, destino: E, causa: Causa) -> tuple[Instantanea
         detenida_desde=inst.estado if destino is E.DETENIDA else None,
         intentos_paso=0,
     )
+    if destino is E.VERIFICACION_MANUSCRITO:
+        # AJ-3: una pasada nueva, con sus gates por evaluar.
+        avance = replace(nuevo.avance, gates=ResultadoGates.SIN_EVALUAR)
+        nuevo = replace(nuevo, pasadas=inst.pasadas + 1, avance=avance)
+    if causa is Causa.GATES_CON_FALLOS:
+        # AJ-2: un ciclo de revisión nuevo empieza sin capítulos corregidos; reintentar
+        # desde `detenida` sigue donde se quedó.
+        nuevo = replace(nuevo, revision=tuple(CapituloRevision(c.numero) for c in inst.revision))
     return nuevo, Paso(inst.estado, destino, causa)
 
 
@@ -451,13 +477,20 @@ def _derivar(inst: Instantanea) -> Avanzar | None:
                 if any(c.estado is C.REVISION_HUMANA for c in inst.capitulos):
                     return Avanzar(_destino_de_fracaso(inst), Causa.CAPITULO_AGOTADO)
                 return Avanzar(E.VERIFICACION_MANUSCRITO, Causa.CAPITULOS_APROBADOS)
+        case E.REVISION:
+            if inst.revision and all(c.registrado for c in inst.revision):
+                return Avanzar(E.VERIFICACION_MANUSCRITO, Causa.REVISION_HECHA)
         case _:
             pass
     return None
 
 
 def _en_bucle(inst: Instantanea) -> Lanzar:
-    """§5: Escritor → Editor (+ deterministas al registrar) → juez → Bibliotecario."""
+    """§5: Escritor → Editor (+ deterministas al registrar) → juez → Bibliotecario.
+
+    §3 punto 2: `editado` = Editor y deterministas en verde; `verificado` = además el juez;
+    el Bibliotecario trabaja sobre `verificado` y al aceptarlo el capítulo queda `aprobado`.
+    """
     capitulo = _capitulo_en_curso(inst)
     if capitulo is None:
         raise ValueError("bucle sin capítulo en curso: la derivación debía haberlo cerrado")
@@ -465,18 +498,28 @@ def _en_bucle(inst: Instantanea) -> Lanzar:
     match capitulo.estado:
         case C.PENDIENTE:
             return _lanzar(inst, A.ESCRITOR, capitulo.intentos + 1, capitulo.numero)
-        case C.BORRADOR | C.EDITADO:
-            # `editado` es transitorio: al registrar al Editor se pasan los deterministas en
-            # la misma transacción. Si una instantánea lo muestra, se relanza el Editor, que
-            # es el único camino que pasa por ellos.
+        case C.BORRADOR:
             return _lanzar(inst, A.EDITOR_ESTILO, siguiente, capitulo.numero)
-        case C.VERIFICADO:
+        case C.EDITADO:
             return _lanzar(inst, A.JUEZ_CAPITULO, siguiente, capitulo.numero)
-        case C.APROBADO:
+        case C.VERIFICADO:
             return _lanzar(inst, A.BIBLIOTECARIO, siguiente, capitulo.numero)
-        case C.REVISION_HUMANA:
-            raise ValueError("un capítulo en revision_humana no está en curso")
+        case C.APROBADO | C.REVISION_HUMANA:
+            raise ValueError(f"un capítulo en {capitulo.estado.value} no está en curso")
     assert_never(capitulo.estado)
+
+
+def _en_revision(inst: Instantanea) -> Lanzar | ErrorConCausa:
+    """AJ-2, §3 punto 7: por cada capítulo que corregir, Revisor (con los deterministas al
+    registrar) → Bibliotecario sobre la versión nueva. M-6: nunca hay Revisor sin capítulo;
+    los señalan los gates rojos o, tras «cambios» en `aprobacion_final`, la decisión (todos
+    si no dice cuáles). Sin ninguno, `error` sin gastar ciclo."""
+    siguiente = inst.intentos_paso + 1
+    pendiente = next((c for c in inst.revision if not c.registrado), None)
+    if pendiente is None:
+        return ErrorConCausa("revision_sin_capitulos")
+    agente = A.BIBLIOTECARIO if pendiente.revisado else A.REVISOR
+    return _lanzar(inst, agente, siguiente, pendiente.numero)
 
 
 def siguiente_orden(inst: Instantanea) -> Decision:
@@ -515,7 +558,7 @@ def siguiente_orden(inst: Instantanea) -> Decision:
         case E.VERIFICACION_MANUSCRITO:
             return _lanzar(inst, A.JUEZ_MANUSCRITO, siguiente)
         case E.REVISION:
-            return _lanzar(inst, A.REVISOR, siguiente)
+            return _en_revision(inst)
         case E.APROBACION_FINAL:
             return EsperarHumano(MotivoEspera.APROBACION_FINAL)
         case E.PUBLICACION:
@@ -572,6 +615,19 @@ def _gates(inst: Instantanea) -> tuple[Instantanea, tuple[Paso, ...]]:
     return nuevo, (paso,)
 
 
+def _marcar_revision(
+    inst: Instantanea, numero: int, *, revisado: bool = False, registrado: bool = False
+) -> Instantanea:
+    """AJ-2: el Revisor o el Bibliotecario de revisión dejan hecho su paso del capítulo."""
+    revision = tuple(
+        replace(c, revisado=c.revisado or revisado, registrado=c.registrado or registrado)
+        if c.numero == numero
+        else c
+        for c in inst.revision
+    )
+    return replace(inst, revision=revision)
+
+
 def _desenlace_de_paso(
     inst: Instantanea, orden: OrdenVigente, desenlace: Desenlace
 ) -> tuple[Instantanea, tuple[Paso, ...]]:
@@ -591,9 +647,13 @@ def _desenlace_de_paso(
             return replace(aceptado, avance=avance), ()
         case A.JUEZ_MANUSCRITO:
             return _gates(aceptado)
+        case A.REVISOR if orden.capitulo is not None:
+            return _marcar_revision(aceptado, orden.capitulo, revisado=True), ()
         case A.REVISOR:
             nuevo, paso = _transitar(aceptado, E.VERIFICACION_MANUSCRITO, Causa.REVISION_HECHA)
             return nuevo, (paso,)
+        case A.BIBLIOTECARIO if orden.capitulo is not None:
+            return _marcar_revision(aceptado, orden.capitulo, registrado=True), ()
         case A.EXPORTADOR:
             nuevo, paso = _transitar(aceptado, E.PUBLICADA, Causa.VERSION_PUBLICADA)
             return nuevo, (paso,)
@@ -621,9 +681,9 @@ def _desenlace_de_capitulo(
     if tipo is TipoDesenlace.ACEPTADO:
         avanzado = {
             A.ESCRITOR: replace(capitulo, estado=C.BORRADOR),
-            A.EDITOR_ESTILO: replace(capitulo, estado=C.VERIFICADO),
-            A.JUEZ_CAPITULO: replace(capitulo, estado=C.APROBADO),
-            A.BIBLIOTECARIO: replace(capitulo, terminado=True),
+            A.EDITOR_ESTILO: replace(capitulo, estado=C.EDITADO),
+            A.JUEZ_CAPITULO: replace(capitulo, estado=C.VERIFICADO),
+            A.BIBLIOTECARIO: replace(capitulo, estado=C.APROBADO, terminado=True),
         }[orden.agente]
         return _con_capitulo(replace(inst, intentos_paso=0), avanzado), ()
 
@@ -661,7 +721,8 @@ def aplicar_desenlace(inst: Instantanea, orden: OrdenVigente, desenlace: Desenla
     ):
         raise ValueError(f"{orden.agente.value} no tiene orden en {inst.estado.value}")
     base = replace(inst, orden_vigente=None)
-    if orden.agente in AGENTES_DE_CAPITULO:
+    # AJ-2: el Bibliotecario de `revision` tiene su propio desenlace, no el del bucle.
+    if orden.agente in AGENTES_DE_CAPITULO and orden.estado in (E.CAPITULOS, E.REGENERACION):
         nuevo, pasos = _desenlace_de_capitulo(base, orden, desenlace)
     else:
         nuevo, pasos = _desenlace_de_paso(base, orden, desenlace)
@@ -716,6 +777,16 @@ def aplicar_accion_humana(inst: Instantanea, accion: AccionHumana) -> Efecto:
     return Efecto(final, (paso, *derivados))
 
 
+def aplicar_fallo_del_worker(inst: Instantanea) -> Efecto:
+    """R-4, TC-9: el `claude -p` de un trabajo falló, se colgó o murió. El proyecto vuelve a
+    `publicada` con el cambio fallido (AJ-6 lo deshace `cambio/`) y la orden vigente, si la
+    hay, deja de serlo. Solo en una regeneración: fuera de sus fases, `TransicionInvalida`."""
+    if inst.estado not in ORIGENES_DE_WORKER_FALLIDO or not inst.avance.es_regeneracion:
+        raise TransicionInvalida(inst.estado, E.PUBLICADA, Causa.WORKER_FALLIDO.value)
+    nuevo, paso = _transitar(replace(inst, orden_vigente=None), E.PUBLICADA, Causa.WORKER_FALLIDO)
+    return Efecto(nuevo, (paso,))
+
+
 # ─── Invariantes ─────────────────────────────────────────────────────────────
 
 
@@ -740,8 +811,15 @@ def incoherencias(inst: Instantanea) -> tuple[str, ...]:
         tope = TOPE if c.estado is C.REVISION_HUMANA else TOPE - 1
         if not 0 <= c.intentos <= tope:
             fallos.append(f"capítulo {c.numero}: intentos={c.intentos} en {c.estado.value}")
-        if c.terminado and c.estado is not C.APROBADO:
-            fallos.append(f"capítulo {c.numero}: terminado en {c.estado.value}")
+        if c.terminado != (c.estado is C.APROBADO):
+            fallos.append(f"capítulo {c.numero}: terminado={c.terminado} en {c.estado.value}")
+    if inst.pasadas < 0:
+        fallos.append(f"pasadas={inst.pasadas}")
+    numeros = [c.numero for c in inst.revision]
+    if len(set(numeros)) != len(numeros) or not all(1 <= n <= NUMERO_DE_CAPITULOS for n in numeros):
+        fallos.append(f"revision={numeros}")
+    if any(c.registrado and not c.revisado for c in inst.revision):
+        fallos.append("un capítulo registrado en revisión sin revisar")
     orden = inst.orden_vigente
     if orden is not None:
         if orden.estado is not inst.estado:

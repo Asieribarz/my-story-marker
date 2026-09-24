@@ -6,6 +6,8 @@
 - Pedir la siguiente orden y registrar un resultado exigen el token vigente. Con el
   bloqueo de otro, `BloqueoAjeno` dice quién lo tiene y cuándo caduca.
 - Las acciones humanas no lo exigen. Borrar el proyecto se deniega con uno vigente.
+- Tomarlo sube la generación del bloqueo y vuelve a sellar la orden vigente (AJ-4,
+  `sello.py`): lo que llegue con el sello anterior se rechaza.
 """
 
 import secrets
@@ -15,6 +17,7 @@ from datetime import datetime, timedelta
 
 from backend.proyecto.abierto import Proyecto, instante, leer_instante
 from backend.proyecto.errores import BloqueoAjeno, BloqueoRequerido
+from backend.proyecto.sello import volver_a_sellar
 from backend.shared.db import transaccion
 from backend.shared.tipos import TipoEjecutor
 
@@ -90,6 +93,7 @@ def tomar_bloqueo(proyecto: Proyecto, tipo: TipoEjecutor, ahora: datetime) -> Bl
             raise BloqueoAjeno(vigente.tipo, vigente.caduca)
         bloqueo = Bloqueo(secrets.token_urlsafe(24), tipo, _caducidad(ahora))
         _escribir(conexion, bloqueo)
+        volver_a_sellar(proyecto, ahora)
     return bloqueo
 
 
@@ -126,4 +130,13 @@ def soltar_bloqueo(proyecto: Proyecto, token: str, ahora: datetime) -> None:
             if caduca > ahora:
                 raise BloqueoAjeno(tipo, caduca)
             return
+        _escribir(conexion, None)
+
+
+def soltar_bloqueo_del_worker(conexion: sqlite3.Connection) -> None:
+    """R-4: el worker suelta el bloqueo que tomó su `claude -p` cuando ese proceso ya no
+    existe —falló, se colgó y se mató, o murió—. Solo uno de tipo `worker`: el de una sesión
+    no es suyo. Se llama dentro de la transacción de quien abandona el trabajo."""
+    fila = _fila(conexion)
+    if fila is not None and fila[1] is TipoEjecutor.WORKER:
         _escribir(conexion, None)

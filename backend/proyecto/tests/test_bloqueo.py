@@ -35,9 +35,16 @@ from backend.proyecto.persistencia import (
     decidir,
     emitir_siguiente_orden,
     leer_estado,
-    registrar_resultado,
 )
-from backend.proyecto.tests.apoyo import AHORA, BRIEF, MOMENTO, TEXTO_LIBRE, despues, forzar
+from backend.proyecto.tests.apoyo import (
+    AHORA,
+    BRIEF,
+    MOMENTO,
+    TEXTO_LIBRE,
+    despues,
+    forzar,
+    registrar,
+)
 from backend.shared.tipos import EstadoProyecto as E
 from backend.shared.tipos import TipoEjecutor
 
@@ -94,8 +101,8 @@ def test_registrar_un_resultado_exige_el_bloqueo(proyecto: Proyecto) -> None:
     soltar_bloqueo(proyecto, sesion.token, despues(1))
     worker = tomar_bloqueo(proyecto, TipoEjecutor.WORKER, despues(2))
     with pytest.raises(BloqueoAjeno):
-        registrar_resultado(proyecto, orden.id, {"hechos": []}, sesion.token, despues(3))
-    registro = registrar_resultado(proyecto, orden.id, {"hechos": []}, worker.token, despues(3))
+        registrar(proyecto, orden.id, {"hechos": []}, sesion.token, despues(3))
+    registro = registrar(proyecto, orden.id, {"hechos": []}, worker.token, despues(3))
     assert registro.orden == orden.id
 
 

@@ -1,0 +1,51 @@
+# Lista del público infantil del guardarraíl (RF-72a, B-12), v1. Español de España.
+# Violencia explícita, sexo, drogas y tacos leves que no caben en un libro para niños.
+# Una entrada por línea, en su forma base: el normalizador de B-11 añade las variantes.
+# Ojo con las palabras con otro sentido: «heroína» no está porque es la protagonista.
+# Pendiente de revisión por la persona (B-12). No bloquea.
+degollar
+degollado
+decapitar
+descuartizar
+destripar
+mutilar
+torturar
+tortura
+masacre
+matanza
+asesinar
+asesinato
+apuñalar
+acuchillar
+estrangular
+ahorcar
+suicidio
+suicidarse
+violar
+violación
+charco de sangre
+sexo
+sexual
+erótico
+pornografía
+porno
+orgasmo
+prostituta
+prostitución
+burdel
+lujuria
+droga
+drogarse
+drogadicto
+cocaína
+marihuana
+porro
+hachís
+cannabis
+anfetamina
+metanfetamina
+borracho
+emborracharse
+mierda
+cagarse
+hostia

@@ -3,6 +3,8 @@
 > **Estado: propuesta.** Traduce [specs/spec1.md](spec1.md) en un orden de trabajo ejecutable. No añade requisitos: cada paso cita los RF/RNF que cierra y el criterio de §9 que lo comprueba. Si este documento y la spec discrepan, manda la spec; si la spec y `docs/` discrepan, manda `docs/`.
 >
 > Este plan **no es código acordado**. AGENTS.md regla 2 sigue aplicando: lo que aquí aparece como premisa y no esté confirmado, se confirma antes de escribirlo.
+>
+> **Avance (2026-09-24).** Construidos los pasos 0 a 10 con los recortes y ajustes de [decisiones-backend.md](decisiones-backend.md) (R-1 a R-6, AJ-1 a AJ-6, M-1 a M-20): planificación con un solo agente, Recuperador con partes de 20.000 tokens y respaldo del estimador, verificadores deterministas y guardarraíl, escritura MCP con sello, gates por pasada, publicación en `export/vN/` con PDF, cambio del lector y worker. Queda: el **paso S** con agentes reales; ejecutar **Lean y TLC de verdad** (sin `elan` ni Java en esta máquina, esas pruebas se saltan); y la **prueba manual de `claude -p`** con un `/regenerar` mínimo (TC-10).
 
 ---
 
@@ -16,7 +18,7 @@ Todas están **cerradas** en [spec1.md](spec1.md) §10 y en la tabla de `archite
 | **D-4** | Validación de la ontología | Pydantic v2 como fuente única. JSON Schema se **genera** desde los modelos como salida documental, no se mantiene a mano. |
 | **D-5** | Estimador de tokens | `tiktoken` `o200k_base` × 1,35, con el BPE versionado. |
 | **D-6** | Legibilidad en español | Índice de **Szigriszt-Pazos** con la escala INFLESZ, en código propio (sílabas por palabra y palabras por frase). Umbral por público: infantil 65, juvenil 55, adulto 40. |
-| **D-7** | Pruebas y tipos | `pytest` + `Hypothesis` + `mypy --strict` + `ruff`, y `cosmic-ray` solo sobre el validador de ontología y los verificadores. Entorno con `uv` + `pyproject.toml` + `uv.lock`, Python 3.12. |
+| **D-7** | Pruebas y tipos | `pytest` + `Hypothesis` + `mypy --strict` + `ruff`; sin `cosmic-ray` (R-5: V-15 es cobertura por regla). Entorno con `uv` + `pyproject.toml` + `uv.lock`, Python 3.12. |
 | **D-11** | Texto no confiable | Superficie `/mcp/entrada` con identificador de un solo uso, solo para el Extractor y el Intérprete. |
 
 Siguen abiertas, y no bloquean el arranque:
@@ -290,7 +292,7 @@ El fichero Lean se genera de forma determinista: misma biblia → mismo fichero,
 | **Produce** | Rebanada `exportacion/`: publicación de la versión de novela N+1 con sus punteros, lectura en disco (portada con dedicatoria, índice, capítulos, ficha de personajes y lugares con enlaces) y PDF con página de novedades. Manuscrito en Markdown con la titulación y macroestructura del contexto y metadatos editoriales. |
 | **Cierra** | RF-90 a RF-98 |
 | **Verifica** | Prueba de que publicar desde cualquier estado que no sea `publicacion` falla (RF-93); V-30 (propiedad: publicar nunca modifica versiones anteriores) |
-| **Bloqueado en parte** | RF-98 espera a D-8, el mecanismo de exportación a PDF. El resto del paso no. |
+| **Desbloqueado** | D-8 se cerró con TC-6: `playwright` imprime la `lectura.html`. |
 
 ### Paso 9a · cambio del lector y cola de trabajos
 
@@ -327,7 +329,7 @@ AGENTS.md regla 3: cada cambio termina actualizando `docs/` y diciendo explícit
 | Paso 6 | `spec1.md` §10 | D-9, si se decide |
 | Paso 9 | `architecture.md` §7 + `AGENTS.md` + `spec1.md` §10 | D-8, el mecanismo de PDF |
 
-Las herramientas del paso 0 —`uv`, `pytest`, `Hypothesis`, `mypy`, `ruff`, `cosmic-ray`— y D-4, D-6 y D-7 **ya están** en `architecture.md` §7, `AGENTS.md` y `spec1.md` §10.
+Las herramientas del paso 0 —`uv`, `pytest`, `Hypothesis`, `mypy`, `ruff`; `cosmic-ray` salió con R-5— y D-4, D-6 y D-7 **ya están** en `architecture.md` §7, `AGENTS.md` y `spec1.md` §10.
 
 `architecture.md` §7 (superficies MCP separadas) y §8 (la carpeta `proyecto/`) **ya están actualizados**: eran las premisas P-2 y P-3 y se ratificaron antes de empezar, no durante los pasos 3 y 5.
 

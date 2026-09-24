@@ -23,9 +23,15 @@ canjea una sola vez por la superficie `/mcp/entrada`.
   canjearlo y no gasta un intento (RNF-01).
 - **Invalidación**: volver a enviar el brief retira los identificadores del texto libre que
   nadie ha canjeado: el texto al que apuntaban ya no es el del brief (RF-14).
+- **Registro** (RF-105, decisiones-backend §4.1.10): cada canje con un proyecto que existe,
+  válido o no, queda en `llamada_mcp` de ese proyecto, sin el texto ni el secreto: el agente
+  inferido de la orden vigente (§3, punto 10), el recurso y por qué no sirvió. Es la prueba
+  del red team de E2 para un identificador ajeno, usado o caducado. El motivo no llega al
+  agente: para él, los cinco casos siguen siendo el mismo error.
 """
 
 import hashlib
+import json
 import re
 import secrets
 import sqlite3
@@ -138,11 +144,37 @@ def invalidar(conexion: sqlite3.Connection, recurso: RecursoEntrada) -> None:
     )
 
 
+HERRAMIENTA = "leer_entrada"
+# Como la nombra `llamada_mcp`: `<superficie>.<nombre>`, el formato de `backend/mcp/llamada.py`.
+_HERRAMIENTA_EN_AUDITORIA = f"entrada.{HERRAMIENTA}"
+
+
+def _registrar_canje(
+    conexion: sqlite3.Connection, momento: str, recurso: str | None, motivo: str | None
+) -> None:
+    """§4.1.10: el canje en `llamada_mcp`, sin el identificador ni el texto, con la forma de
+    fila de `backend/mcp/llamada.py`. No se registra con `llamada.ejecutar`: su error para un
+    proyecto desconocido es distinto del de `EntradaNoCanjeable`, y sería un oráculo (V-29)."""
+    vigente = conexion.execute("SELECT agente FROM orden WHERE cerrada IS NULL").fetchone()
+    conexion.execute(
+        "INSERT INTO llamada_mcp (momento, agente, herramienta, argumentos, resultado) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (
+            momento,
+            vigente["agente"] if vigente is not None else None,
+            _HERRAMIENTA_EN_AUDITORIA,
+            json.dumps({"recurso": recurso}),
+            json.dumps({"ok": motivo is None, "error": motivo, "agente_inferido": True}),
+        ),
+    )
+
+
 def canjear(identificador: str, ahora: datetime, raiz_proyectos: Path | None = None) -> str:
     """RF-14: el texto al que da acceso el identificador, una sola vez.
 
     Desconocido, usado, caducado, mal formado o de un proyecto que no existe dan
-    `EntradaNoCanjeable`, la misma para los cinco. Un canje que falla no consume nada.
+    `EntradaNoCanjeable`, la misma para los cinco. Un canje que falla no consume nada, pero
+    queda registrado en su proyecto si el proyecto existe (§4.1.10).
     """
     momento = instante(ahora)
     partes = _FORMATO.fullmatch(identificador)
@@ -152,18 +184,31 @@ def canjear(identificador: str, ahora: datetime, raiz_proyectos: Path | None = N
         proyecto = abrir_proyecto(partes["proyecto"], raiz_proyectos)
     except (IdentificadorInvalido, ProyectoInexistente):
         raise EntradaNoCanjeable() from None
+    texto: str | None = None
     with proyecto, transaccion(proyecto.conexion) as conexion:
         huella = _huella(partes["secreto"])
         fila = conexion.execute(
-            "SELECT ruta, caduca, consumido FROM identificador_entrada WHERE huella = ?",
+            "SELECT recurso, ruta, caduca, consumido FROM identificador_entrada WHERE huella = ?",
             (huella,),
         ).fetchone()
-        if fila is None or fila["consumido"] is not None or leer_instante(fila["caduca"]) <= ahora:
-            raise EntradaNoCanjeable()
-        conexion.execute(
-            "UPDATE identificador_entrada SET consumido = ? WHERE huella = ?", (momento, huella)
-        )
-        try:
-            return proyecto.disposicion.absoluta(fila["ruta"]).read_text(encoding="utf-8")
-        except (OSError, ValueError):
-            raise EntradaNoCanjeable() from None
+        motivo: str | None = None
+        if fila is None:
+            motivo = "desconocido"
+        elif fila["consumido"] is not None:
+            motivo = "usado"
+        elif leer_instante(fila["caduca"]) <= ahora:
+            motivo = "caducado"
+        else:
+            try:
+                texto = proyecto.disposicion.absoluta(fila["ruta"]).read_text(encoding="utf-8")
+            except (OSError, ValueError):
+                motivo = "ilegible"
+        if texto is not None:
+            conexion.execute(
+                "UPDATE identificador_entrada SET consumido = ? WHERE huella = ?",
+                (momento, huella),
+            )
+        _registrar_canje(conexion, momento, fila["recurso"] if fila else None, motivo)
+    if texto is None:
+        raise EntradaNoCanjeable()
+    return texto

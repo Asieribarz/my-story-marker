@@ -23,7 +23,7 @@ from backend.intake.persistencia import (
     guardar_brief,
     hechos_pendientes,
 )
-from backend.proyecto import persistencia
+from backend.proyecto import manejadores, persistencia
 from backend.proyecto.abierto import Proyecto, abrir_proyecto
 from backend.proyecto.bloqueo import BloqueoVisible, bloqueo_vigente, tomar_bloqueo
 from backend.proyecto.errores import (
@@ -33,6 +33,7 @@ from backend.proyecto.errores import (
     OrdenAjena,
     ProyectoEnUso,
     ProyectoInexistente,
+    SelloInvalido,
     TransicionInvalida,
 )
 from backend.proyecto.manejadores import MANEJADORES, ContextoManejo, Salida
@@ -65,7 +66,6 @@ from backend.proyecto.persistencia import (
     emitir_siguiente_orden,
     leer_estado,
     leer_instantanea,
-    registrar_resultado,
     reintentar,
 )
 from backend.proyecto.tests.apoyo import (
@@ -79,7 +79,9 @@ from backend.proyecto.tests.apoyo import (
     estado,
     forzar,
     proponer_cambio,
+    registrar,
     transiciones,
+    valor_de_ensayo,
     volcado,
 )
 from backend.proyecto.tests.generadores import desenlaces, desenlaces_del_recorrido
@@ -231,7 +233,7 @@ def test_intake_y_contexto_de_punta_a_punta(proyecto: Proyecto, token: str) -> N
     )
     assert extraccion.entrada["necesita"] == ["texto_libre"]
     assert extraccion.registro is ViaRegistro.SKILL
-    registro = registrar_resultado(proyecto, extraccion.id, {"hechos": [HECHO]}, token, AHORA)
+    registro = registrar(proyecto, extraccion.id, {"hechos": [HECHO]}, token, AHORA)
     assert (registro.desenlace, registro.estado) == (DesenlaceOrden.ACEPTADA, E.INTAKE)
 
     espera = emitir_siguiente_orden(proyecto, token, AHORA)
@@ -241,13 +243,13 @@ def test_intake_y_contexto_de_punta_a_punta(proyecto: Proyecto, token: str) -> N
     normalizar = _orden(emitir_siguiente_orden(proyecto, token, AHORA))
     assert normalizar.agente is A.AGENTE_CONTEXTO
     assert normalizar.entrada["necesita"] == ["brief", "hechos_confirmados"]
-    registro = registrar_resultado(proyecto, normalizar.id, NORMALIZADO, token, AHORA)
+    registro = registrar(proyecto, normalizar.id, NORMALIZADO, token, AHORA)
     assert registro.estado is E.CONTEXTO
     assert transiciones(conexion) == [("intake", "contexto", "brief_normalizado")]
 
     instanciar = _orden(emitir_siguiente_orden(proyecto, token, AHORA))
     assert (instanciar.agente, instanciar.estado) == (A.AGENTE_CONTEXTO, E.CONTEXTO)
-    registro = registrar_resultado(proyecto, instanciar.id, referencia(), token, AHORA)
+    registro = registrar(proyecto, instanciar.id, referencia(), token, AHORA)
     assert registro.estado is E.PLANIFICACION
     assert conexion.execute("SELECT count(*) FROM contexto").fetchone()[0] == 1
 
@@ -264,7 +266,7 @@ def test_el_tope_de_una_orden_detiene_y_reintentar_vuelve_a_la_fase(
         orden = _orden(emitir_siguiente_orden(proyecto, token, AHORA))
         assert (orden.agente, orden.intento) == (A.EXTRACTOR_HECHOS, intento)
         informes.append(orden.entrada["informe_anterior"])
-        registro = registrar_resultado(proyecto, orden.id, ["no es un sobre"], token, AHORA)
+        registro = registrar(proyecto, orden.id, ["no es un sobre"], token, AHORA)
         assert (registro.desenlace, registro.tipo) == (
             DesenlaceOrden.RECHAZADA,
             TipoDesenlace.FALLO_FORMA,
@@ -300,9 +302,9 @@ def test_registrar_el_mismo_resultado_dos_veces_devuelve_lo_registrado(
     proyecto: Proyecto, token: str
 ) -> None:
     orden = _extraccion_vigente(proyecto, token)
-    primero = registrar_resultado(proyecto, orden.id, {"hechos": [HECHO]}, token, AHORA)
+    primero = registrar(proyecto, orden.id, {"hechos": [HECHO]}, token, AHORA)
     antes = volcado(proyecto.conexion)
-    segundo = registrar_resultado(proyecto, orden.id, {"hechos": [HECHO]}, token, despues(5))
+    segundo = registrar(proyecto, orden.id, {"hechos": [HECHO]}, token, despues(5))
     assert volcado(proyecto.conexion) == antes
     assert not primero.repetido
     assert segundo == replace(primero, repetido=True)
@@ -311,26 +313,28 @@ def test_registrar_el_mismo_resultado_dos_veces_devuelve_lo_registrado(
 def test_un_resultado_para_otra_orden_se_rechaza(proyecto: Proyecto, token: str) -> None:
     orden = _extraccion_vigente(proyecto, token)
     antes = volcado(proyecto.conexion)
-    with pytest.raises(OrdenAjena, match="no existe"):
-        registrar_resultado(proyecto, orden.id + 1, {"hechos": []}, token, AHORA)
+    with pytest.raises(SelloInvalido, match="ninguna orden"):
+        registrar(proyecto, orden.id + 1, {"hechos": []}, token, AHORA)
     assert volcado(proyecto.conexion) == antes
 
-    registrar_resultado(proyecto, orden.id, {"hechos": [HECHO]}, token, AHORA)
+    registrar(proyecto, orden.id, {"hechos": [HECHO]}, token, AHORA)
     antes = volcado(proyecto.conexion)
     with pytest.raises(OrdenAjena, match="otro resultado"):
-        registrar_resultado(proyecto, orden.id, {"hechos": []}, token, AHORA)
+        registrar(proyecto, orden.id, {"hechos": []}, token, AHORA)
     assert volcado(proyecto.conexion) == antes
 
 
 def test_un_agente_sin_esquema_no_gasta_intento_ni_cierra_la_orden(
-    proyecto: Proyecto, token: str
+    proyecto: Proyecto, token: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    forzar(proyecto, E.PLANIFICACION, intentos_paso=1)
+    # Sin las rebanadas del bloque 3, el juez de manuscrito no tiene manejador (Q8).
+    monkeypatch.setattr(manejadores, "REBANADAS_DEL_BLOQUE_3", ())
+    forzar(proyecto, E.VERIFICACION_MANUSCRITO, intentos_paso=1)
     orden = _orden(emitir_siguiente_orden(proyecto, token, AHORA))
-    assert (orden.agente, orden.intento) == (A.PLANIFICADOR, 2)
+    assert (orden.agente, orden.intento) == (A.JUEZ_MANUSCRITO, 2)
     antes = volcado(proyecto.conexion)
-    with pytest.raises(AgenteSinEsquema, match="paso 4"):
-        registrar_resultado(proyecto, orden.id, {"plan": "lo que sea"}, token, AHORA)
+    with pytest.raises(AgenteSinEsquema, match="paso 8a"):
+        registrar(proyecto, orden.id, {"criterios": "lo que sea"}, token, AHORA)
     assert volcado(proyecto.conexion) == antes
     assert emitir_siguiente_orden(proyecto, token, AHORA) == orden
 
@@ -342,7 +346,7 @@ def test_el_informe_del_intento_no_guarda_datos_excluidos(proyecto: Proyecto, to
     orden = _orden(emitir_siguiente_orden(proyecto, token, AHORA))
     contexto = referencia()
     contexto["novela"]["personalizacion"]["destinatario"]["contacto"] = movil
-    registro = registrar_resultado(proyecto, orden.id, contexto, token, AHORA)
+    registro = registrar(proyecto, orden.id, contexto, token, AHORA)
     assert registro.tipo is TipoDesenlace.FALLO_CONTENIDO
     assert movil not in "\n".join(proyecto.conexion.iterdump())
     auditado = proyecto.conexion.execute("SELECT detalle FROM auditoria").fetchone()
@@ -376,6 +380,7 @@ def _forzables(draw: st.DrawFn) -> dict[str, Any]:
 
 def _ensayo(contexto: ContextoManejo, resultado: object) -> Salida:
     """Manejador de ensayo: el desenlace viene escrito en el resultado."""
+    resultado = valor_de_ensayo(resultado)
     assert isinstance(resultado, dict)
     desenlace = Desenlace(TipoDesenlace(resultado["tipo"]), bool(resultado["veto"]))
     return Salida(desenlace, {"eco": resultado["n"]})
@@ -403,13 +408,13 @@ def _registrar_otra_vez_no_cambia_nada(
     uno distinto para esa orden, o cualquiera para una orden anterior, se rechaza. Ninguno de
     los tres escribe."""
     antes = volcado(proyecto.conexion)
-    otra_vez = registrar_resultado(proyecto, registro.orden, resultado, token, AHORA)
+    otra_vez = registrar(proyecto, registro.orden, resultado, token, AHORA)
     assert otra_vez == replace(registro, repetido=True)
     with pytest.raises(OrdenAjena):
-        registrar_resultado(proyecto, registro.orden, {**resultado, "n": -1}, token, AHORA)
+        registrar(proyecto, registro.orden, {**resultado, "n": -1}, token, AHORA)
     if anterior is not None:
         with pytest.raises(OrdenAjena):
-            registrar_resultado(proyecto, anterior, {**resultado, "n": -2}, token, AHORA)
+            registrar(proyecto, anterior, {**resultado, "n": -2}, token, AHORA)
     assert volcado(proyecto.conexion) == antes
 
 
@@ -449,7 +454,7 @@ def test_pedir_la_orden_dos_veces_devuelve_la_misma_persistida(
             desenlace = Desenlace.forma()  # aceptado exige los gates del paso 8a
         efecto = aplicar_desenlace(leida, orden.vigente, desenlace)
         resultado = _resultado(desenlace, 0)
-        registro = registrar_resultado(proyecto, orden.id, resultado, token, despues(2))
+        registro = registrar(proyecto, orden.id, resultado, token, despues(2))
         assert leer_instantanea(proyecto) == efecto.instantanea
         assert registro.estado is efecto.instantanea.estado
         _registrar_otra_vez_no_cambia_nada(proyecto, token, registro, resultado, None)
@@ -484,7 +489,7 @@ def test_el_bucle_persistido_sigue_paso_a_paso_a_la_maquina(
             esperado = aplicar_desenlace(leer_instantanea(proyecto), emision.vigente, desenlace)
             previas = len(transiciones(proyecto.conexion))
             resultado = _resultado(desenlace, n)
-            registro = registrar_resultado(proyecto, emision.id, resultado, token, AHORA)
+            registro = registrar(proyecto, emision.id, resultado, token, AHORA)
             assert leer_instantanea(proyecto) == esperado.instantanea
             assert transiciones(proyecto.conexion)[previas:] == _pasos(esperado.pasos)
             assert registro.estado is esperado.instantanea.estado
@@ -513,8 +518,8 @@ def _una_sola_vez(accion: Callable[[], object]) -> Callable[[], object]:
 _EN_EL_BUCLE: dict[str, tuple[C, Desenlace]] = {
     "escritor": (C.PENDIENTE, Desenlace.aceptado()),
     "editor_mal_formado": (C.BORRADOR, Desenlace.forma()),
-    "juez_rechaza": (C.VERIFICADO, Desenlace.contenido()),
-    "bibliotecario": (C.APROBADO, Desenlace.aceptado()),
+    "juez_rechaza": (C.EDITADO, Desenlace.contenido()),
+    "bibliotecario": (C.VERIFICADO, Desenlace.aceptado()),
 }
 
 
@@ -528,7 +533,7 @@ def _preparar(proyecto: Proyecto, token: str, paso: str) -> Callable[[], object]
         forzar(proyecto, E.CAPITULOS, capitulos={1: (capitulo, 0)})
         orden = _orden(emitir_siguiente_orden(proyecto, token, AHORA))
         del_bucle = _resultado(desenlace, 0)
-        return lambda: registrar_resultado(proyecto, orden.id, del_bucle, token, AHORA)
+        return lambda: registrar(proyecto, orden.id, del_bucle, token, AHORA)
     if paso == "aprobar_plan":
         forzar(proyecto, E.APROBACION_PLAN, parada_plan=True)
         return _una_sola_vez(lambda: decidir(proyecto, AccionHumana.APROBAR_PLAN, AHORA))
@@ -537,7 +542,7 @@ def _preparar(proyecto: Proyecto, token: str, paso: str) -> Callable[[], object]
         return _una_sola_vez(lambda: reintentar(proyecto, AHORA))
     if paso == "confirmar_hechos":
         extraccion = _extraccion_vigente(proyecto, token)
-        registrar_resultado(proyecto, extraccion.id, {"hechos": [HECHO]}, token, AHORA)
+        registrar(proyecto, extraccion.id, {"hechos": [HECHO]}, token, AHORA)
         pendientes = {f["id"]: True for f in hechos_pendientes(conexion)}
         return _una_sola_vez(lambda: confirmar_hechos(conexion, pendientes, MOMENTO))
     resultados: dict[str, tuple[E, bool, object]] = {
@@ -551,7 +556,7 @@ def _preparar(proyecto: Proyecto, token: str, paso: str) -> Callable[[], object]
     guardar_brief(conexion, disposicion, BRIEF, TEXTO_LIBRE if con_texto else None, MOMENTO)
     forzar(proyecto, fase)
     orden = _orden(emitir_siguiente_orden(proyecto, token, AHORA))
-    return lambda: registrar_resultado(proyecto, orden.id, resultado, token, AHORA)
+    return lambda: registrar(proyecto, orden.id, resultado, token, AHORA)
 
 
 _PASOS_REPETIBLES = [
@@ -643,8 +648,8 @@ def test_ninguna_secuencia_automatica_sale_de_una_parada(
                 decision = emitir_siguiente_orden(proyecto, token, AHORA)
                 assert isinstance(decision, EsperarHumano | Publicada | Detenida)
             else:
-                with pytest.raises(OrdenAjena):
-                    registrar_resultado(proyecto, llamada, {"hechos": []}, token, AHORA)
+                with pytest.raises(SelloInvalido):
+                    registrar(proyecto, llamada, {"hechos": []}, token, AHORA)
         assert volcado(proyecto.conexion) == antes
         decidir(proyecto, _SALIDA_HUMANA[parada], AHORA)
         assert estado(proyecto.conexion) is not parada
@@ -682,7 +687,7 @@ def test_cambio_solicitado_sin_propuesta_solo_sale_sin_humano_por_el_tope_del_in
         for n, desenlace in enumerate(resultados):
             orden = _orden(emitir_siguiente_orden(proyecto, token, AHORA))
             assert (orden.agente, orden.intento) == (A.INTERPRETE_CAMBIOS, seguidos + 1)
-            registrar_resultado(proyecto, orden.id, _resultado(desenlace, n), token, AHORA)
+            registrar(proyecto, orden.id, _resultado(desenlace, n), token, AHORA)
             seguidos = 0 if desenlace.tipo is TipoDesenlace.ACEPTADO else seguidos + 1
             if seguidos == TOPE:
                 assert transiciones(proyecto.conexion) == [
@@ -704,7 +709,7 @@ def test_un_agente_no_recibe_el_informe_del_fallo_de_otro(proyecto: Proyecto, to
     """RF-07a: fuera del bucle de capítulo, el informe es del mismo agente. Aunque el
     contador no se hubiera puesto a cero, el Agente de Contexto no hereda el del Extractor."""
     extraccion = _extraccion_vigente(proyecto, token)
-    registrar_resultado(proyecto, extraccion.id, "no es un sobre", token, AHORA)
+    registrar(proyecto, extraccion.id, "no es un sobre", token, AHORA)
     guardar_brief(proyecto.conexion, proyecto.disposicion, BRIEF, None, MOMENTO)
     normalizar = _orden(emitir_siguiente_orden(proyecto, token, AHORA))
     assert (normalizar.agente, normalizar.intento) == (A.AGENTE_CONTEXTO, 2)
@@ -746,7 +751,7 @@ def test_una_accion_humana_caduca_la_orden_vigente(proyecto: Proyecto, token: st
     fila = proyecto.conexion.execute("SELECT desenlace FROM orden").fetchone()
     assert fila["desenlace"] == DesenlaceOrden.CADUCADA
     with pytest.raises(OrdenAjena):
-        registrar_resultado(proyecto, orden.id, {"cambio": {}}, token, AHORA)
+        registrar(proyecto, orden.id, {"cambio": {}}, token, AHORA)
 
 
 def test_las_decisiones_se_nombran_como_en_decision_humana() -> None:

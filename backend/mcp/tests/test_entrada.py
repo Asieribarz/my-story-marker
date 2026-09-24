@@ -15,6 +15,7 @@ aplicación lo usa al combinar lifespans.
 Todos los datos son ficticios (`backend/proyecto/tests/apoyo.py`).
 """
 
+import json
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
@@ -163,6 +164,11 @@ def test_publica_una_sola_herramienta_de_solo_lectura(tmp_path: Path) -> None:
     _en_marcha(tmp_path, prueba)
 
 
+def _bloque(valor: object) -> str:
+    """La salida del subagente como la envía el hook: un bloque JSON (§4.1.3)."""
+    return "```json" + chr(10) + json.dumps(valor) + chr(10) + "```"
+
+
 def test_de_la_orden_al_texto_sin_que_el_orquestador_lo_vea(tmp_path: Path) -> None:
     """El flujo del Extractor: la orden trae el identificador, el subagente lo canjea por
     MCP una sola vez, y ninguna respuesta REST lleva el texto libre."""
@@ -184,7 +190,7 @@ def test_de_la_orden_al_texto_sin_que_el_orquestador_lo_vea(tmp_path: Path) -> N
                 await _leer(cliente, identificador)
             assert str(segundo.value) == MENSAJE
 
-        cuerpo = {"orden": orden["id"], "resultado": {"hechos": [HECHO]}}
+        cuerpo = {"orden": orden["sello"], "salida_cruda": _bloque({"hechos": [HECHO]})}
         resultado = await m.pedir(
             "POST", f"/proyectos/{proyecto}/resultado", json=cuerpo, headers=con_token(token)
         )
@@ -197,7 +203,7 @@ def test_de_la_orden_al_texto_sin_que_el_orquestador_lo_vea(tmp_path: Path) -> N
         )
         assert normalizar["orden"]["agente"] == "agente-contexto"
         assert "texto_libre" not in normalizar["orden"]["entrada"]
-        cuerpo = {"orden": normalizar["orden"]["id"], "resultado": NORMALIZADO}
+        cuerpo = {"orden": normalizar["orden"]["sello"], "salida_cruda": _bloque(NORMALIZADO)}
         await m.pedir(
             "POST", f"/proyectos/{proyecto}/resultado", json=cuerpo, headers=con_token(token)
         )

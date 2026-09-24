@@ -109,7 +109,10 @@ CREATE TABLE decision_humana (
               'confirmacion_cambio')),
   decision  TEXT NOT NULL CHECK (decision IN (
               'aprobado', 'cambios', 'confirmado', 'rechazado', 'reintentar')),
-  notas     TEXT
+  notas     TEXT,
+  -- M-6: los capítulos que revisar tras «cambios» en `aprobacion_final` (todos, si no dijo).
+  capitulos TEXT CHECK (capitulos IS NULL OR (json_valid(capitulos)
+                                              AND json_type(capitulos) = 'array'))
 ) STRICT;
 
 -- Descartes de datos personales (tipo, nunca el valor), coincidencias del guardarraíl
@@ -522,6 +525,14 @@ CREATE TABLE palabra_prohibida (
 CREATE UNIQUE INDEX palabra_prohibida_unica
   ON palabra_prohibida (termino, nivel, coalesce(publico, ''));
 
+-- B-12: qué fichero de `capitulo/listas/` se copió a `palabra_prohibida`, con su SHA-256.
+-- Se copia la primera vez que se verifica un capítulo; después el proyecto conserva su copia.
+CREATE TABLE lista_guardarrail (
+  lista    TEXT PRIMARY KEY CHECK (lista IN ('global', 'infantil', 'juvenil', 'adulto')),
+  hash     TEXT NOT NULL CHECK (length(hash) = 64),
+  copiada  TEXT NOT NULL
+) STRICT;
+
 -- TC-4, AJ-3: un resultado por gate y pasada de verificación de manuscrito.
 CREATE TABLE gate_resultado (
   pasada   INTEGER NOT NULL CHECK (pasada >= 1),
@@ -540,7 +551,8 @@ CREATE TABLE informe_juez (
   version_novela INTEGER NOT NULL CHECK (version_novela >= 1),
   revisor        TEXT    NOT NULL CHECK (revisor IN ('juez', 'humano')),
   ciclo          INTEGER NOT NULL CHECK (ciclo >= 0),
-  criterio       TEXT    NOT NULL,
+  criterio       TEXT    NOT NULL CHECK (criterio IN (
+                   'continuidad', 'personajes', 'arco_ritmo', 'tono', 'personalizacion')),
   puntuacion     INTEGER NOT NULL CHECK (puntuacion BETWEEN 1 AND 5),
   justificacion  TEXT    NOT NULL,
   momento        TEXT    NOT NULL,
@@ -549,19 +561,38 @@ CREATE TABLE informe_juez (
 
 -- ─── exportacion/ y cambio/ ─────────────────────────────────────────────────
 
+-- RF-120 a RF-123: la petición del lector. Su texto y el fragmento citado son no confiables:
+-- van solo al fichero de `ruta_peticion` (cambios/), que se entrega por /mcp/entrada, y no
+-- a la base. `ruta_peticion` es NULL en un cambio `obsoleto` (RF-123): no se guarda nada.
+-- Los estados son los de `GET /cambios/{c}` (EstadoCambio de shared/tipos.py).
 CREATE TABLE cambio_lector (
-  id              INTEGER PRIMARY KEY,
-  version_novela  INTEGER NOT NULL,
-  capitulo        INTEGER NOT NULL CHECK (capitulo BETWEEN 1 AND 10),
-  fragmento       TEXT    NOT NULL,
-  ruta_peticion   TEXT    NOT NULL,
-  hecho           TEXT    REFERENCES hecho (id),
-  valor_anterior  TEXT,
-  valor_nuevo     TEXT,
-  hecho_nuevo     TEXT    CHECK (hecho_nuevo IS NULL OR json_valid(hecho_nuevo)),
-  estado          TEXT    NOT NULL DEFAULT 'recibido' CHECK (estado IN (
-                    'recibido', 'propuesto', 'confirmado', 'rechazado', 'aplicado', 'fallido')),
-  creado          TEXT    NOT NULL
+  id                 INTEGER PRIMARY KEY,
+  version_novela     INTEGER NOT NULL CHECK (version_novela >= 1),
+  capitulo           INTEGER NOT NULL CHECK (capitulo BETWEEN 1 AND 10),
+  parrafo_desde      INTEGER CHECK (parrafo_desde IS NULL OR parrafo_desde >= 1),
+  parrafo_hasta      INTEGER CHECK (parrafo_hasta IS NULL OR parrafo_hasta >= parrafo_desde),
+  ruta_peticion      TEXT,
+  hecho              TEXT    REFERENCES hecho (id),
+  valor_anterior     TEXT,
+  valor_nuevo        TEXT,
+  hecho_nuevo        TEXT    CHECK (hecho_nuevo IS NULL OR json_valid(hecho_nuevo)),
+  estado             TEXT    NOT NULL DEFAULT 'interpretando' CHECK (estado IN (
+                       'interpretando', 'propuesto', 'obsoleto', 'rechazado', 'regenerando',
+                       'fallido', 'publicado')),
+  -- Por qué quedó `obsoleto` o `fallido`: una causa de la lista cerrada de cambio/, sin texto.
+  motivo             TEXT,
+  version_publicada  INTEGER CHECK (version_publicada IS NULL OR version_publicada >= 1),
+  creado             TEXT    NOT NULL,
+  CHECK ((estado = 'obsoleto') = (ruta_peticion IS NULL))
+) STRICT;
+
+-- TC-8, V-31: los capítulos que reabre la confirmación del cambio, calculados desde el
+-- `hecho_uso` de las versiones vigentes, con la versión nueva que escribirá el Escritor.
+CREATE TABLE cambio_capitulo (
+  cambio    INTEGER NOT NULL REFERENCES cambio_lector (id),
+  capitulo  INTEGER NOT NULL CHECK (capitulo BETWEEN 1 AND 10),
+  version   INTEGER NOT NULL CHECK (version >= 1),
+  PRIMARY KEY (cambio, capitulo)
 ) STRICT;
 
 -- RF-94, RF-95: una versión publicada no se modifica nunca, ni sus punteros.
@@ -587,6 +618,9 @@ BEGIN SELECT RAISE(ABORT, 'una versión publicada no se modifica (RF-95)'); END;
 CREATE TRIGGER version_novela_capitulo_inmutable_d BEFORE DELETE ON version_novela_capitulo
 BEGIN SELECT RAISE(ABORT, 'una versión publicada no se modifica (RF-95)'); END;
 
+-- RF-124, TC-8: «orquestar este proyecto hasta la próxima parada». El worker procesa el más
+-- antiguo en cola de todos los proyectos; `detalle` lleva la causa de un fallo, sin salida
+-- del proceso (EstadoTrabajo de shared/tipos.py).
 CREATE TABLE trabajo (
   id         INTEGER PRIMARY KEY,
   cambio     INTEGER REFERENCES cambio_lector (id),
@@ -595,7 +629,7 @@ CREATE TABLE trabajo (
   creado     TEXT NOT NULL,
   empezado   TEXT,
   terminado  TEXT,
-  detalle    TEXT
+  detalle    TEXT CHECK (detalle IS NULL OR json_valid(detalle))
 ) STRICT;
 
 COMMIT;

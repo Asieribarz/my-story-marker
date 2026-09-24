@@ -7,9 +7,9 @@ de escribirlo, y la especificación TLA+ de §3.4 modela esta misma tabla.
 
 Las paradas humanas no se hacen cumplir con una comprobación, sino con la ausencia de la
 arista: de `aprobacion_plan`, `aprobacion_final`, `publicada` y `detenida` no sale ninguna
-automática (RF-05, RF-05a). `cambio_solicitado` tiene una sola, la del tope agotado del
-Intérprete; la parada es la confirmación del cambio ya propuesto, y de ahí solo se sale
-confirmando o rechazando.
+automática (RF-05, RF-05a). `cambio_solicitado` tiene dos: la del tope agotado del
+Intérprete y la del worker fallido (R-4). La parada es la confirmación del cambio ya
+propuesto, y de ahí solo se sale confirmando o rechazando.
 
 Además de las aristas del diagrama de §3.1, están las del tope de intentos (RF-07a): de
 cada fase con agente a `detenida` en la generación inicial, y a `publicada` con el cambio
@@ -42,6 +42,8 @@ class Causa(StrEnum):
     REVISION_HECHA = "revision_hecha"
     VERSION_PUBLICADA = "version_publicada"
     TOPE_AGOTADO = "tope_agotado"
+    # R-4: el `claude -p` del worker falló, se colgó o murió a mitad de una regeneración.
+    WORKER_FALLIDO = "worker_fallido"
     # Humanas: la única salida de las paradas.
     PLAN_APROBADO = "plan_aprobado"
     PLAN_CON_CAMBIOS = "plan_con_cambios"
@@ -106,6 +108,15 @@ _DETENIBLES_POR_TOPE = (
 )
 # …y las que, en una regeneración, vuelven a `publicada` con el cambio fallido.
 _FALLIDAS_POR_TOPE = (E.VERIFICACION_MANUSCRITO, E.REVISION, E.PUBLICACION, E.CAMBIO_SOLICITADO)
+# R-4, TC-9: las fases que recorre un trabajo del worker; si su `claude -p` falla, el proyecto
+# vuelve a `publicada` con el cambio fallido (AJ-6).
+ORIGENES_DE_WORKER_FALLIDO = (
+    E.CAMBIO_SOLICITADO,
+    E.REGENERACION,
+    E.VERIFICACION_MANUSCRITO,
+    E.REVISION,
+    E.PUBLICACION,
+)
 
 
 TRANSICIONES: tuple[Arista, ...] = (
@@ -142,6 +153,8 @@ TRANSICIONES: tuple[Arista, ...] = (
     # RF-07a y Q6 · el tope de una orden que no es ciclo de capítulo
     *(Arista(origen, E.DETENIDA, Causa.TOPE_AGOTADO) for origen in _DETENIBLES_POR_TOPE),
     *(Arista(origen, E.PUBLICADA, Causa.TOPE_AGOTADO) for origen in _FALLIDAS_POR_TOPE),
+    # R-4 · el worker falla a mitad de un trabajo
+    *(Arista(origen, E.PUBLICADA, Causa.WORKER_FALLIDO) for origen in ORIGENES_DE_WORKER_FALLIDO),
     # RF-64b y Q6 · reintentar desde detenida
     *(
         Arista(E.DETENIDA, destino, Causa.REINTENTAR)

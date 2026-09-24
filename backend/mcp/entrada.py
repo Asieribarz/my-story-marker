@@ -3,7 +3,8 @@ canjea el identificador de un solo uso de la orden por el texto no confiable.
 
 Solo la declaran las definiciones del Extractor y del Intérprete, en su propio `mcpServers`
 (architecture.md §8): la sesión principal no la carga y el orquestador no recibe nunca el
-texto. No reimplementa nada: delega en `intake.entrada.canjear`. Canjear marca el
+texto. No reimplementa nada: delega en `intake.entrada.canjear`, que además deja cada
+canje, válido o no, en `llamada_mcp` (§4.1.10). Canjear marca el
 identificador como consumido; «solo lectura» quiere decir que no toca la biblia ni ningún
 dato del proyecto.
 
@@ -32,13 +33,13 @@ from mcp_types import ToolAnnotations
 from pydantic import Field
 from starlette.applications import Starlette
 
+from backend.intake.entrada import HERRAMIENTA as HERRAMIENTA
 from backend.intake.entrada import canjear
 from backend.proyecto import dependencias
 from backend.proyecto.errores import EntradaNoCanjeable
 
 RUTA = "/mcp/entrada"
 NOMBRE = "entrada"
-HERRAMIENTA = "leer_entrada"
 
 _INSTRUCCIONES = (
     "Entrega el texto no confiable de tu orden. Llama a leer_entrada una sola vez con el "

@@ -28,7 +28,6 @@ from backend.proyecto.orden import OrdenEmitida, orden_vigente
 from backend.proyecto.persistencia import (
     emitir_siguiente_orden,
     leer_estado,
-    registrar_resultado,
 )
 from backend.proyecto.tests.apoyo import (
     AHORA,
@@ -37,6 +36,7 @@ from backend.proyecto.tests.apoyo import (
     MOMENTO,
     TEXTO_LIBRE,
     despues,
+    registrar,
     transiciones,
 )
 from backend.shared.tipos import Agente, DesenlaceOrden, TipoEjecutor
@@ -173,7 +173,7 @@ def test_el_resultado_se_registra_contra_la_orden_renovada(con_texto: Proyecto, 
     primera = _orden(emitir_siguiente_orden(con_texto, token, AHORA))
     _renovar_el_bloqueo(con_texto, token)
     emitir_siguiente_orden(con_texto, token, despues(30))
-    registro = registrar_resultado(con_texto, primera.id, {"hechos": [HECHO]}, token, despues(31))
+    registro = registrar(con_texto, primera.id, {"hechos": [HECHO]}, token, despues(31))
     assert registro.desenlace is DesenlaceOrden.ACEPTADA
 
 
@@ -184,7 +184,7 @@ def test_un_resultado_que_llega_antes_de_pedir_otra_orden_se_registra_aunque_cad
     canjeó el texto y su resultado vale."""
     orden = _orden(emitir_siguiente_orden(con_texto, token, AHORA))
     _renovar_el_bloqueo(con_texto, token)
-    registro = registrar_resultado(con_texto, orden.id, {"hechos": [HECHO]}, token, despues(35))
+    registro = registrar(con_texto, orden.id, {"hechos": [HECHO]}, token, despues(35))
     assert registro.desenlace is DesenlaceOrden.ACEPTADA
 
 
@@ -192,7 +192,7 @@ def test_un_reintento_renovado_conserva_su_intento_y_su_informe(
     con_texto: Proyecto, token: str
 ) -> None:
     primera = _orden(emitir_siguiente_orden(con_texto, token, AHORA))
-    fallo = registrar_resultado(con_texto, primera.id, "no es un sobre", token, AHORA)
+    fallo = registrar(con_texto, primera.id, "no es un sobre", token, AHORA)
     assert fallo.desenlace is DesenlaceOrden.RECHAZADA
     segunda = _orden(emitir_siguiente_orden(con_texto, token, AHORA))
     assert segunda.intento == 2 and segunda.entrada["informe_anterior"] is not None
@@ -221,6 +221,6 @@ def test_una_sesion_que_reanuda_recibe_un_identificador_que_puede_canjear(
     reanudada = _orden(emitir_siguiente_orden(con_texto, nueva, despues(30)))
     _misma_orden(reanudada, primera)
     assert canjear(_identificador(reanudada), despues(31), tmp_path) == TEXTO_LIBRE
-    registro = registrar_resultado(con_texto, reanudada.id, {"hechos": [HECHO]}, nueva, despues(32))
+    registro = registrar(con_texto, reanudada.id, {"hechos": [HECHO]}, nueva, despues(32))
     assert (registro.desenlace, registro.estado) == (DesenlaceOrden.ACEPTADA, E.INTAKE)
     assert leer_estado(con_texto, despues(32)).intentos_paso == 0

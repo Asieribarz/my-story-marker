@@ -88,8 +88,17 @@ _PERIODO = re.compile(r"[a-z][a-z_]*")
 
 
 def es_fecha(momento: str) -> bool:
-    """Un momento con fecha (`AAAA`, `AAAA-MM`, `AAAA-MM-DD`), no un periodo aproximado."""
-    return _FECHA_PARCIAL.fullmatch(momento) is not None
+    """Un momento con fecha (`AAAA`, `AAAA-MM`, `AAAA-MM-DD`), no un periodo aproximado. La
+    fecha tiene que existir: ni `2023-02-30` ni el año 0000 (la cronología de Lean la
+    convierte en `date`)."""
+    if _FECHA_PARCIAL.fullmatch(momento) is None:
+        return False
+    anio, mes, dia = ([int(p) for p in momento.split("-")] + [1, 1])[:3]
+    try:
+        date(anio, mes, dia)
+    except ValueError:
+        return False
+    return True
 
 
 def es_momento(momento: str) -> bool:

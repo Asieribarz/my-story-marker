@@ -17,6 +17,18 @@ _IDENTIFICADOR = re.compile(r"[0-9a-f]{32}")
 _CAMBIO = re.compile(r"[0-9]{1,9}")
 
 
+# TC-7: los ficheros de `export/vN/`. `cronologia.lean` solo está si la pasada lo generó.
+MANUSCRITO = "manuscrito.md"
+METADATOS = "metadatos.json"
+LECTURA_HTML = "lectura.html"
+LECTURA_JSON = "lectura.json"
+PDF = "novela.pdf"
+CRONOLOGIA = "cronologia.lean"
+FICHEROS_DE_VERSION = frozenset(
+    {MANUSCRITO, METADATOS, LECTURA_HTML, LECTURA_JSON, PDF, CRONOLOGIA}
+)
+
+
 class IdentificadorInvalido(ValueError):
     pass
 
@@ -124,6 +136,24 @@ class DisposicionProyecto:
         if numero < 1:
             raise ValueError(f"versión de novela no válida: {numero}")
         return self.export / f"v{numero}"
+
+    def version_novela_temporal(self, numero: int) -> Path:
+        """Supuesto menor de decisiones-backend §2.1: la versión se escribe aquí y se renombra
+        entera a `export/vN`. El nombre empieza por punto y no es `vN`: nada lo lee como
+        publicada. Único en cada llamada, en el mismo sistema de ficheros que `export/`."""
+        if numero < 1:
+            raise ValueError(f"versión de novela no válida: {numero}")
+        return self.export / f".v{numero}-publicando-{uuid.uuid4().hex}"
+
+    def fichero_de_version(self, numero: int, nombre: str) -> Path:
+        """TC-7: uno de los `FICHEROS_DE_VERSION` de una versión publicada."""
+        if nombre not in FICHEROS_DE_VERSION:
+            raise ValueError(f"fichero de versión desconocido: {nombre!r}")
+        return self.version_novela(numero) / nombre
+
+    def cronologia_de_pasada(self, numero: int) -> Path:
+        """§3 punto 9: el fichero Lean de una pasada, que se copia a `export/vN/`."""
+        return self.pasada(numero) / CRONOLOGIA
 
     def relativa(self, ruta: Path) -> str:
         """Ruta guardada en la base: relativa al proyecto, con barras de POSIX (RNF-08)."""

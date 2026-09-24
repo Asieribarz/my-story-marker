@@ -54,7 +54,7 @@ La tercera es **parte del producto**: sus verificadores (Continuidad dura, Hito 
 
 ## 2. Verificación de nuestro código
 
-Recorre las piezas de [architecture.md](architecture.md) §8 en el orden de construcción de [spec1.md](../specs/spec1.md) §12. La columna `Criterio` remite al enunciado exacto en `spec1.md` §9; `—` significa que la afirmación aún no tiene criterio escrito allí, y lo que se hace entonces está en §8, punto 2.
+Recorre las piezas de [architecture.md](architecture.md) §8 en el orden de construcción de [spec1.md](../specs/spec1.md) §12. La columna `Criterio` remite al enunciado exacto en `spec1.md` §9; `—` significa que la afirmación aún no tiene criterio escrito allí, y lo que se hace entonces está en §8, punto 2. Entre paréntesis, el fichero de pruebas que lo sostiene, relativo a `backend/`.
 
 Tres cosas sobre el alcance de este reparto, para que ninguna quede como omisión silenciosa:
 
@@ -76,11 +76,11 @@ El pragma es el caso de libro de «elige la garantía más barata»: la tentaci�
 
 | Afirmación | Método | Tipo | Criterio |
 |---|---|---|---|
-| Una instancia válida del ejemplo de [definitions.md](definitions.md) §12 pasa, y una instancia que infringe una regla concreta falla señalando esa regla | Batería de instancias válidas e inválidas, una por regla de RF-20 a RF-27 | T | V-11 |
+| Una instancia válida del ejemplo de [definitions.md](definitions.md) §12 pasa, y una instancia que infringe una regla concreta falla señalando esa regla | Batería de instancias válidas e inválidas, una por regla de RF-20 a RF-27, con las dos de B-18: `excluye` solo en un hecho `evento`, y a la fuente de un personaje real que exista (`contexto/tests/test_validacion.py`) | T | V-11 |
 | El fallo de esquema no deja salir del estado `contexto` | Prueba de integración sobre el grafo | T | V-20 |
-| La batería cubre de verdad las reglas y no solo las ejecuta | Pruebas de mutación sobre el validador | T | V-15 |
+| La batería cubre de verdad las reglas y no solo las ejecuta | Cobertura por regla (R-5): cada regla tiene una prueba que la dispara y otra de control que no (`contexto/tests/test_validacion_limites.py`) | T | V-15 |
 
-La mutación está aquí y no en todas partes por una razón de coste: se aplica donde una prueba verde y vacía es más probable y más cara. Un validador de 40 reglas con una batería que pasa siempre es justo ese sitio.
+La mutación se retiró el 2026-09-23 por tiempo (R-5, [iteraciones.md](iteraciones.md) I-03). Lo que queda es su versión barata: una batería que pasa siempre no sobrevive a exigir, regla a regla, un caso que dispare y otro que no.
 
 **V-11 y V-20 no son la misma prueba y conviene no fundirlas.** V-11 comprueba que el validador *detecta* la infracción; V-20, que el hallazgo *bloquea* la transición. Un validador impecable cuyo informe nadie consulta antes de avanzar deja pasar un contexto incoherente, y lo que se rompe entonces no es el estado `contexto`: es la novela siete capítulos después. Son dos piezas distintas —el validador y el grafo— y cada una puede fallar sola.
 
@@ -93,9 +93,9 @@ La forma de la batería la fija **D-4**, ya resuelta ([spec1.md](../specs/spec1.
 | Matar el proceso en cualquier estado y reanudar pierde como mucho el trabajo de un subagente | Prueba de integración que mata y reanuda en cada estado del grafo | T | V-1 |
 | El diseño del grafo —tabla de transiciones, función de siguiente orden y bloqueo— cumple sus invariantes de seguridad y su liveness | Model checking: especificación TLA+ verificada con TLC sobre un modelo pequeño | A | V-25 |
 | La siguiente orden es determinista, respeta la tabla de transiciones y nunca supera los topes | Propiedades sobre estados generados | T | V-33 |
-| Dos ejecutores nunca trabajan a la vez sobre el mismo proyecto, y un bloqueo caducado se puede retomar | Prueba de integración | T | V-34 |
+| Dos ejecutores nunca trabajan a la vez sobre el mismo proyecto, y un bloqueo caducado se puede retomar; al retomarlo sube la generación y el sello viejo se rechaza (AJ-4) | Prueba de integración (`proyecto/tests/test_bloqueo.py`, `test_bloque2.py`) | T | V-34 |
 | Repetir un paso ya completado no duplica filas ni ficheros | Prueba basada en propiedades sobre paso × número de repeticiones | T | V-2 |
-| No existe secuencia de llamadas que salga de una parada humana activa, ni de `publicada`, `cambio_solicitado` o `detenida`, sin acción humana | Prueba de integración sobre la tabla de transiciones | T | V-14 |
+| No existe secuencia de llamadas que salga de una parada humana activa, ni de `publicada`, `cambio_solicitado` o `detenida`, sin acción humana, salvo las aristas escritas del tope y del worker | Prueba de integración sobre la tabla y por la API (`proyecto/tests/test_api_grafo.py`, `test_maquina.py`, `test_persistencia.py`) | T | V-14 |
 | El contador de intentos sobrevive al reinicio y el tope de 3 sigue significando algo | Las mismas pruebas de V-1 y V-2, leyendo el contador tras el reinicio | T | V-1 |
 
 Las propiedades entran aquí porque la idempotencia **es** una propiedad —«para cualquier paso y cualquier `n`, el resultado de repetirlo `n` veces es el de ejecutarlo una»— y escribirla como ejemplos concretos es peor forma de decir lo mismo.
@@ -108,9 +108,9 @@ Es el paso 4 del orden de construcción y la sección más nueva de este reparto
 
 | Afirmación | Método | Tipo | Criterio |
 |---|---|---|---|
-| El número de fichas de capítulo coincide con el del contexto y el reparto por actos respeta los porcentajes | Batería de escaletas válidas e inválidas | T | V-21 |
+| El número de fichas de capítulo coincide con el del contexto y el reparto por actos respeta los porcentajes | Batería de escaletas válidas e inválidas (`escaleta/tests/test_manejador.py`) | T | V-21 |
 | Cada hito obligatorio del modelo estructural aparece en **exactamente una** ficha | La misma batería, con casos de hito ausente y de hito duplicado | T | V-21 |
-| Compactar un acto no pierde nada: lo compactado sigue reconstruible desde los capítulos aprobados | Propiedades sobre proyectos sintéticos con actos ya cerrados | T | V-22 |
+| Compactar un acto no pierde nada: lo compactado sigue reconstruible desde los capítulos aprobados | Propiedades sobre proyectos sintéticos con actos ya cerrados (`capitulo/tests/test_biblia.py`) | T | V-22 |
 | Presagios pendientes, estado de los personajes presentes e inventario vivo nunca se compactan | Pruebas unitarias sobre el compactado | T | — |
 | El intake descarta los datos excluidos sin rechazar el brief y registra el descarte sin el valor | Pruebas con entrevistas y hechos que contienen cada tipo de dato excluido | T | — |
 
@@ -126,12 +126,13 @@ Es la pieza con más superficie verificable del backend, porque es la que tiene 
 
 | Afirmación | Método | Tipo | Criterio |
 |---|---|---|---|
-| Recuperación estructurada: misma entrada → mismo resultado, byte a byte | Propiedades sobre entradas generadas + comparación exacta de salida | T | V-3a |
+| Recuperación estructurada: misma entrada → mismo resultado, byte a byte | Propiedades sobre entradas generadas + comparación exacta de salida (`capitulo/tests/test_ensamblado.py`, como V-4, V-5 y V-23) | T | V-3a |
 | Recuperación por similitud: misma entrada y mismo estado del índice → mismo resultado, empates incluidos | Propiedades con el índice congelado | T | V-3b |
 | Ningún ensamblado supera el tope **según el estimador**; si recorta, el informe de recorte es no vacío; todo lo recortado son unidades completas | Propiedades con biblias sintéticas grandes; ningún bloque emitido es prefijo de sí mismo | T | V-5 |
 | Desde un hallazgo de un informe se llega al fichero de prompt exacto | Prueba de integración que resuelve la cadena entera | T | V-4 |
 | El vacío de la similitud no emite encabezado ni registra recorte; el vacío de la estructurada aborta con mensaje accionable | Pruebas por rama, una por cada lado de la asimetría | T | V-23 |
-| Si ni la ficha sola cabe, el ensamblado falla de forma ruidosa y no envía nada | Prueba con una ficha sintética por encima del tope | T | — |
+| Si ni la ficha sola cabe, el ensamblado falla de forma ruidosa y no envía nada: la orden es `error` con causa `no_cabe` | Prueba con una ficha sintética por encima del tope | T | — |
+| El estimador cuenta antes de enviar, con el factor dentro, y su respaldo en Python puro reproduce los ids de `o200k_base` | Pruebas del estimador y del BPE; la de paridad con `tiktoken` se salta donde su extensión no carga (`capitulo/tests/test_estimador.py`, `test_bpe.py`) | T | RF-52 |
 | El encabezado de subordinación de los pasajes es constante y no se redacta al vuelo | Comprobación estática: el texto es una constante del módulo | A | — |
 | **El factor de inflación de 1,35 basta**: el estimador nunca infracuenta los tokens reales de Claude | **Ninguno** — ver §5 | **U** | — |
 
@@ -147,13 +148,13 @@ Aquí el objeto verificado es **nuestro código**, no el manuscrito. Lo que se c
 
 | Afirmación | Método | Tipo | Criterio |
 |---|---|---|---|
-| Continuidad dura (presencia, inventario, tiempo) dispara ante cada infracción y **no** dispara en los casos de control | Biblias y capítulos construidos para infringir cada regla, más casos de control | T | V-12 |
+| Continuidad dura antes de escribir (R-2: presentes excluidos a fecha N−1 y tiempo de viaje de RF-76) dispara ante cada infracción y **no** dispara en los casos de control | Fichas y biblias construidas para infringir cada regla, más casos de control (`capitulo/tests/test_ensamblado.py`, `escaleta/tests/test_manejador.py`) | T | V-12 |
 | Longitud, métricas de estilo, lista negra y nombres devuelven informe con severidad y localización, y nunca corrigen | Pruebas unitarias por verificador | T | — |
-| Ninguna salida de subagente mal formada se persiste, y cada una cuenta como intento | Por agente, salidas válidas y mal formadas | T | V-35 |
-| El guardarraíl detecta cada nivel —global, por público, por novela— y las variantes de acento y plural, y no dispara en los casos de control | Pruebas por nivel y por variante | T | V-26 |
+| Ninguna salida de subagente mal formada se persiste, y cada una cuenta como intento | Por agente, salidas válidas y mal formadas (`capitulo/tests/test_manejadores.py`) | T | V-35 |
+| El guardarraíl detecta cada nivel —global, por público, por novela— y las variantes de acento y plural, y no dispara en los casos de control | Pruebas por nivel y por variante (`capitulo/tests/test_verificadores.py`, como V-7, V-15 y las frases literales de V-28) | T | V-26 |
 | Las frases literales se detectan en los capítulos que las usan | Pruebas con frases presentes y ausentes | T | V-28 |
 | Los deterministas de un capítulo terminan en segundos | Prueba con capítulo de tamaño máximo y umbral de tiempo | T | V-7 |
-| La batería detecta un verificador roto y no solo lo ejecuta | Pruebas de mutación sobre los verificadores | T | V-15 |
+| La batería detecta un verificador roto y no solo lo ejecuta | Cobertura por regla (R-5): cada regla de cada verificador, una prueba que la dispara y otra de control que no | T | V-15 |
 | **Los deterministas detectan toda incoherencia real** | **Ninguno** — ver §5 | **U** | V-17 |
 
 Los casos de control de V-12 no son un adorno. Un verificador de continuidad que dispara siempre pasaría cualquier batería que solo probase infracciones, y en producción convertiría los tres intentos de cada capítulo en ruido.
@@ -166,11 +167,13 @@ La legibilidad es el índice de Szigriszt-Pazos con la escala INFLESZ (**D-6**, 
 
 | Afirmación | Método | Tipo | Criterio |
 |---|---|---|---|
-| Solo el Bibliotecario puede invocar las herramientas de escritura | Análisis estático de las definiciones de agente (quién declara `/mcp/escritura`) y prueba del hook de policy con y sin `agent_type` de Bibliotecario | A + T | V-13 |
-| Ninguna escritura en la biblia entra antes de que el capítulo esté verificado | Prueba de integración: se rechaza si el capítulo no está `verificado` o posterior, y se acepta cuando sí lo está | T | V-19 |
-| La exportación a Markdown respeta la macroestructura del contexto y la publicación solo es posible con los gates en verde | Prueba de integración | T | — |
-| Publicar una versión nunca modifica las anteriores | Propiedades sobre secuencias de publicaciones | T | V-30 |
-| Una regeneración toca exactamente los capítulos que usan el hecho, más los que corrija el Revisor | Prueba de integración | T | V-31 |
+| Solo el Bibliotecario puede invocar las herramientas de escritura | Análisis estático de las definiciones de agente (quién declara `/mcp/escritura`) y prueba del hook de policy con y sin `agent_type` de Bibliotecario (`.claude/tests`); del lado del backend, la escritura exige el sello de una orden vigente del Bibliotecario (`mcp/tests/test_lectura_escritura.py`) | A + T | V-13 |
+| Ninguna escritura en la biblia entra antes de que el capítulo esté verificado | Prueba de integración: se rechaza si el capítulo no está `verificado` o posterior, y se acepta cuando sí lo está (`mcp/tests/test_lectura_escritura.py`) | T | V-19 |
+| La exportación a Markdown respeta la titulación del contexto y la publicación solo es posible con los gates en verde | Prueba de integración (`exportacion/tests/test_publicar.py`) | T | — |
+| `lectura.json` tiene la forma de plan-frontend §5 y el PDF lleva la página de novedades con enlaces internos que resuelven | Pruebas de la lectura y del PDF con `pypdf`; las que imprimen se saltan sin navegador (`exportacion/tests/test_lectura.py`, `test_pdf.py`) | T | — |
+| Publicar una versión nunca modifica las anteriores | Propiedades sobre secuencias de publicaciones (`exportacion/tests/test_publicar.py`) | T | V-30 |
+| Una regeneración toca exactamente los capítulos que usan el hecho, más los que corrija el Revisor | Prueba de integración (`cambio/tests/test_cambio.py`, con la parte de V-29 que toca a la petición del lector) | T | V-31 |
+| El worker lanza `claude -p` una vez, respeta el bloqueo y deja el trabajo `fallido` si el proceso falla, se cuelga o muere | Prueba con un `claude` falso lanzado con `sys.executable` (`cambio/tests/test_worker.py`); la prueba con el `claude` real es manual | T | TC-10 |
 
 La primera fila combina **análisis y prueba** porque el permiso vive en dos sitios: en la configuración —quién declara la superficie de escritura, que se lee en el repositorio sin ejecutar nada— y en el hook de policy, que es código y se prueba con llamadas con y sin el `agent_type` del Bibliotecario. Un servidor MCP no puede saber quién llama, así que una prueba de contrato contra el servidor solo no demostraría nada. Juntas son lo que hace que RN-1 deje de ser una convención de prompt.
 
@@ -180,9 +183,9 @@ La primera fila combina **análisis y prueba** porque el permiso vive en dos sit
 
 | Afirmación | Método | Tipo | Criterio |
 |---|---|---|---|
-| El gate de cobertura bloquea si un hecho obligatorio no se usa en ningún capítulo | Pruebas con hechos obligatorios sin uso y casos de control | T | V-28 |
-| El fichero Lean generado es el mismo para la misma biblia, y la comprobación falla con cada invariante infringida | Cronologías construidas para infringir cada invariante, y casos de control | T | V-27 |
-| El umbral del juez se aplica bien en sus bordes | Informes construidos en los bordes del umbral | T | V-32 |
+| El gate de cobertura bloquea si un hecho obligatorio no se usa en ningún capítulo | Pruebas con hechos obligatorios sin uso y casos de control (`verificacion/tests/test_gates.py`) | T | V-28 |
+| El fichero Lean generado es el mismo para la misma biblia, y la comprobación falla con cada invariante infringida | Cronologías construidas para infringir cada invariante, y casos de control; la que ejecuta Lean de verdad lleva `skipif` sin `lake` (`verificacion/tests/test_gates.py`) | T | V-27 |
+| El umbral del juez se aplica bien en sus bordes: sumas 17 y 18, y un criterio a 2 | Informes construidos en los bordes del umbral (`verificacion/tests/test_juez.py`) | T | V-32 |
 | Todo fallo de gate vuelve al Revisor y después a verificar, con el tope de ciclos | Prueba de integración sobre el grafo | T | — |
 
 ### 2.9 Transversales del repositorio
@@ -196,6 +199,17 @@ La primera fila combina **análisis y prueba** porque el permiso vive en dos sit
 Las tres son `A` y no `T` a propósito: son afirmaciones sobre el **texto del repositorio**, no sobre su comportamiento en ejecución. Ejecutarlo para comprobarlas sería más caro y menos concluyente —una importación que nunca se ejecuta en la ruta probada seguiría ahí—.
 
 **La tercera fila es nueva y venía de un agujero de este documento.** El aislamiento por proyecto era el único requisito no funcional cuyo método en `spec1.md` §7 era «por construcción», o sea ninguno, y aquí no tenía fila — mientras §6 lo usaba como argumento para descartar la ejecución en sandbox. Un método descartado apoyándose en una afirmación que nadie sostiene es exactamente el supuesto silencioso que §1 prohíbe. «Por construcción» sí tiene traducción al marco: es `A`, se lee en el repositorio y no hace falta ejecutar nada.
+
+### 2.10 `frontend/`
+
+Las filas de [plan-frontend.md](../specs/plan-frontend.md) §8:
+
+| Afirmación | Método | Tipo | Criterio |
+|---|---|---|---|
+| El contrato de `lectura.json`, las rutas y el filtro HTML se cumplen | `node:test` | T | — |
+| El frontend compila | `vite build` | A | — |
+| La lectura se ve bien (portada, capítulo a 375 px, fichas, claro y oscuro) | Capturas del navegador con Playwright MCP | I | — |
+| Cada `export/vN/lectura.json` que genera el backend pasa el validador del frontend | `npm run validar-lectura` sobre el fichero generado | T | — |
 
 **Sobre V-6, V-10 y V-24: aquí se enuncian sin «en CI».** `spec1.md` §9 dice «comprobación estática de tipos en CI» y «comprobación en CI del fichero de dependencias»; este documento quita esa coletilla a propósito, y es la única vez que reformula un enunciado de §9. El motivo está en §3.1: CI **ejecuta** métodos, no es uno. Dónde corre una comprobación es logística; la garantía la da el análisis estático, corra donde corra.
 
@@ -262,7 +276,7 @@ Las tres afirmaciones marcadas `U` arriba, juntas y con su motivo. «Que el manu
 
 | Afirmación | Por qué no se verifica | Qué lo acota mientras tanto |
 |---|---|---|
-| **Los deterministas detectan toda incoherencia** (V-17) | Detectan las reglas escritas, no la incoherencia en general. Los falsos negativos son consustanciales al método, no un defecto de la batería | Los jueces de coherencia blanda y el de manuscrito, que atacan justo lo que un determinista no ve, y la cronología formal de Lean para lo temporal |
+| **Los deterministas detectan toda incoherencia** (V-17) | Detectan las reglas escritas, no la incoherencia en general. Los falsos negativos son consustanciales al método, no un defecto de la batería. Tras R-2, ninguna regla de continuidad mira la prosa: solo la ficha y la biblia antes de escribir | Los jueces de coherencia blanda y el de manuscrito, que atacan justo lo que un determinista no ve, y la cronología formal de Lean para lo temporal |
 | **La sesión ejecuta la orden que recibe** (V-18) | Quién decide el siguiente paso ya es el backend, y eso se verifica (V-25, V-33). Lo que no se puede verificar es que la sesión ejecute la orden tal como llega, incluida la regla de que **una invocación es un intento** ([architecture.md](architecture.md) §3.2) | La skill no contiene reglas que interpretar, solo el bucle pedir-ejecutar-registrar; y el backend rechaza cualquier resultado que no corresponda a la orden vigente |
 | **El factor 1,35 del estimador basta** (§2.5) | No existe la verdad contra la que comparar: el `count_tokens` de Anthropic exige una clave que no tenemos, y usarla rompería el determinismo de V-3a | El margen es amplio en el caso normal —74k efectivos frente a ~43k esperados—, el factor vive en un sitio único y es medible el día que haya con qué medirlo |
 
@@ -295,7 +309,7 @@ flowchart LR
   V --> A["§3 · Comportamiento de los agentes"]
   V --> M["§4 · Manuscrito · en architecture.md §4"]
 
-  C --> CT["T · propiedades en Recuperador, grafo y memoria derivada · integración · contrato MCP · baterías de esquema y escaleta · mutación"]
+  C --> CT["T · propiedades en Recuperador, grafo y memoria derivada · integración · contrato MCP · baterías de esquema y escaleta · cobertura por regla"]
   C --> CA["A · tipos, sin cliente LLM, dependencias acordadas, aislamiento por proyecto"]
 
   A --> AT["T · evals con dataset · Bibliotecario · red teaming del Extractor"]
@@ -317,4 +331,4 @@ Cuando aparece una afirmación nueva que hay que sostener:
 1. Se invoca la skill `verificacion`, que es el procedimiento de elección: escribir la afirmación en forma comprobable, decidir de cuál de las tres columnas de §1.1 habla, y elegir la garantía más barata que la sostenga.
 2. Si la afirmación es un requisito del backend v1, su criterio se escribe en [spec1.md](../specs/spec1.md) §9 como un `V-n` nuevo, y **aquí** se añade la fila que lo mapea a su pieza.
 3. Si ningún método la sostiene, se marca `U` y se añade a §5 con su motivo. Eso cierra el asunto de forma explícita, que es el objetivo.
-4. Si el método elegido exige una herramienta que no está en [architecture.md](architecture.md) §7, la herramienta **no se introduce aquí**: se propone como decisión y entra en esa tabla en el mismo cambio. Las herramientas que sostienen los métodos de este documento —`pytest`, `Hypothesis`, `mypy`, `ruff`, `cosmic-ray`, Lean 4 y TLC— ya están en esa tabla (D-7).
+4. Si el método elegido exige una herramienta que no está en [architecture.md](architecture.md) §7, la herramienta **no se introduce aquí**: se propone como decisión y entra en esa tabla en el mismo cambio. Las herramientas que sostienen los métodos de este documento —`pytest`, `Hypothesis`, `mypy`, `ruff`, Lean 4 y TLC— ya están en esa tabla (D-7). `cosmic-ray` salió con R-5.

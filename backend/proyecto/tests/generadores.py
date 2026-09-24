@@ -14,6 +14,7 @@ from backend.proyecto.maquina import (
     AccionHumana,
     Avance,
     CapituloInstantanea,
+    CapituloRevision,
     Desenlace,
     Detenida,
     Efecto,
@@ -39,7 +40,7 @@ from backend.shared.tipos import EstadoProyecto as E
 def capitulo(draw: st.DrawFn, numero: int) -> CapituloInstantanea:
     estado = draw(st.sampled_from(list(C)))
     intentos = draw(st.integers(0, 3 if estado is C.REVISION_HUMANA else 2))
-    terminado = estado is C.APROBADO and draw(st.booleans())
+    terminado = estado is C.APROBADO
     return CapituloInstantanea(numero, estado, intentos, terminado)
 
 
@@ -53,14 +54,20 @@ avances = st.builds(
     contexto_validado=st.booleans(),
     plan=st.booleans(),
     notas_plan_pendientes=st.booleans(),
-    personajes=st.booleans(),
-    mundo=st.booleans(),
     guia_estilo=st.booleans(),
     fichas=st.integers(0, 10),
     gates=st.sampled_from(list(ResultadoGates)),
     cambio_propuesto=st.booleans(),
     es_regeneracion=st.booleans(),
 )
+
+
+@st.composite
+def revisiones(draw: st.DrawFn) -> tuple[CapituloRevision, ...]:
+    """AJ-2: los capítulos que corregir en el ciclo de revisión, con su avance."""
+    numeros = sorted(draw(st.sets(st.integers(1, 10), max_size=3)))
+    avance = [draw(st.sampled_from([(False, False), (True, False), (True, True)])) for _ in numeros]
+    return tuple(CapituloRevision(n, *a) for n, a in zip(numeros, avance, strict=True))
 
 
 @st.composite
@@ -76,6 +83,8 @@ def instantaneas(draw: st.DrawFn, con_vigente: bool = True) -> Instantanea:
         parada_final=draw(st.booleans()),
         ciclos_revision=draw(st.integers(0, 3)),
         intentos_paso=draw(st.integers(0, 2)),
+        pasadas=draw(st.integers(0, 5)),
+        revision=draw(revisiones()),
     )
     if con_vigente and draw(st.booleans()):
         resolucion = resolver(inst)
@@ -97,7 +106,7 @@ def en_el_bucle(draw: st.DrawFn) -> Instantanea:
     """Una instantánea de `capitulos` o `regeneracion` con al menos un capítulo en curso."""
     inst = draw(instantaneas(con_vigente=False))
     numero = draw(st.integers(1, 10))
-    estado = draw(st.sampled_from([C.PENDIENTE, C.BORRADOR, C.EDITADO, C.VERIFICADO, C.APROBADO]))
+    estado = draw(st.sampled_from([C.PENDIENTE, C.BORRADOR, C.EDITADO, C.VERIFICADO]))
     en_curso = CapituloInstantanea(numero, estado, draw(st.integers(0, 2)))
     return replace(
         inst,
@@ -143,12 +152,16 @@ def simular_manejador(
         case A.AGENTE_CONTEXTO:
             a = replace(a, contexto_validado=True)
         case A.PLANIFICADOR:
-            a = replace(a, plan=True, personajes=True, mundo=True, guia_estilo=True)
+            a = replace(a, plan=True, guia_estilo=True)
         case A.ESCALETISTA:
             a = replace(a, fichas=10)
         case A.JUEZ_MANUSCRITO:
             gates = data.draw(st.sampled_from([ResultadoGates.VERDES, ResultadoGates.FALLOS]))
             a = replace(a, gates=gates)
+            # M-6: los gates fallidos señalan al menos un capítulo que corregir (AJ-2).
+            if gates is ResultadoGates.FALLOS:
+                numeros = data.draw(st.sets(st.integers(1, 10), min_size=1, max_size=3))
+                inst = replace(inst, revision=tuple(CapituloRevision(n) for n in sorted(numeros)))
         case A.EXPORTADOR:
             a = replace(a, es_regeneracion=True)
         case A.INTERPRETE_CAMBIOS:
@@ -176,6 +189,10 @@ def simular_humano(inst: Instantanea, decision: Final, data: st.DataObject) -> E
             accion = data.draw(
                 st.sampled_from([AccionHumana.APROBAR_FINAL, AccionHumana.NOTAS_FINAL])
             )
+            if accion is AccionHumana.NOTAS_FINAL:
+                # M-6: los capítulos de la decisión (sin ellos, la persistencia pone los diez).
+                numeros = data.draw(st.sets(st.integers(1, 10), min_size=1))
+                inst = replace(inst, revision=tuple(CapituloRevision(n) for n in sorted(numeros)))
             return aplicar_accion_humana(inst, accion)
         case EsperarHumano(MotivoEspera.CONFIRMACION_CAMBIO):
             if data.draw(st.booleans()):

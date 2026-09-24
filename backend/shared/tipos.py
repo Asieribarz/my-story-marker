@@ -113,6 +113,17 @@ class Gate(StrEnum):
     JUEZ = "juez"
 
 
+class CriterioManuscrito(StrEnum):
+    """RF-113, TC-5: los cinco criterios de la rúbrica del juez de manuscrito y de la
+    revisión humana (architecture.md §4.1). `informe_juez.criterio` repite la lista."""
+
+    CONTINUIDAD = "continuidad"
+    PERSONAJES = "personajes"
+    ARCO_RITMO = "arco_ritmo"
+    TONO = "tono"
+    PERSONALIZACION = "personalizacion"
+
+
 class DesenlaceOrden(StrEnum):
     """Cómo se cerró una orden: con su resultado aceptado, rechazado o sin resultado porque
     una acción humana movió el proyecto mientras estaba vigente."""
@@ -120,6 +131,28 @@ class DesenlaceOrden(StrEnum):
     ACEPTADA = "aceptada"
     RECHAZADA = "rechazada"
     CADUCADA = "caducada"
+
+
+class EstadoCambio(StrEnum):
+    """RF-120 a RF-123, decisiones-backend §4.3: el ciclo de un cambio del lector, con los
+    nombres que enseña `GET /cambios/{c}`. `cambio_lector.estado` repite la lista."""
+
+    INTERPRETANDO = "interpretando"
+    PROPUESTO = "propuesto"
+    OBSOLETO = "obsoleto"
+    RECHAZADO = "rechazado"
+    REGENERANDO = "regenerando"
+    FALLIDO = "fallido"
+    PUBLICADO = "publicado"
+
+
+class EstadoTrabajo(StrEnum):
+    """RF-124, TC-8: un trabajo de la cola del worker. `trabajo.estado` repite la lista."""
+
+    EN_COLA = "en_cola"
+    EN_CURSO = "en_curso"
+    HECHO = "hecho"
+    FALLIDO = "fallido"
 
 
 class TipoEjecutor(StrEnum):

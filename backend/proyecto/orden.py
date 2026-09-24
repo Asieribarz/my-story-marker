@@ -9,6 +9,8 @@ from backend.proyecto.maquina import OrdenVigente, ViaRegistro, via_de_registro
 from backend.shared.tipos import Agente, EstadoProyecto, RecursoEntrada
 
 _RECURSOS = frozenset(recurso.value for recurso in RecursoEntrada)
+# RF-36: las notas de «cambios» del plan viajan a quien pide la orden, no al estado (RF-02).
+_SOLO_PARA_EL_EJECUTOR = frozenset({"notas_plan", "notas"})
 
 
 @dataclass(frozen=True)
@@ -17,7 +19,8 @@ class OrdenEmitida:
 
     `entrada` es la persistida: pedir otra vez la orden vigente devuelve esta misma, con los
     mismos identificadores de un solo uso mientras se puedan entregar. `sello` es
-    `<proyecto>:<orden>:<generación>` (AJ-4, `sello.py`): cambia al volver a sellarla.
+    `<proyecto>:<orden>:<generación>` (AJ-4, `sello.py`): cambia al volver a sellarla, y
+    solo lo recibe quien pide la orden con el token del bloqueo.
     """
 
     id: int
@@ -28,7 +31,7 @@ class OrdenEmitida:
     entrada: dict[str, Any]
     registro: ViaRegistro
     emitida: str
-    sello: str
+    sello: str | None
 
     @property
     def vigente(self) -> OrdenVigente:
@@ -47,7 +50,7 @@ def orden_de_fila(fila: sqlite3.Row) -> OrdenEmitida:
         entrada=entrada,
         registro=via_de_registro(agente),
         emitida=fila["emitida"],
-        sello=fila["sello"] or "",
+        sello=fila["sello"],
     )
 
 
@@ -55,7 +58,9 @@ def sin_identificadores(orden: OrdenEmitida) -> OrdenEmitida:
     """RF-14: la orden como la enseña el estado (RF-02), sin los identificadores de un solo uso
     de `/mcp/entrada`; de cada recurso queda su caducidad. El identificador solo lo recibe
     quien pide la orden con el token del bloqueo: si no, cualquiera que lea el estado podría
-    canjearlo antes que el subagente."""
+    canjearlo antes que el subagente. Tampoco lleva el sello: con él, las herramientas de
+    `/mcp/escritura` escriben en la biblia (AJ-4). Ni las notas de una parada (RF-36,
+    M-6)."""
     entrada = {
         clave: (
             {k: v for k, v in valor.items() if k != "identificador"}
@@ -63,8 +68,9 @@ def sin_identificadores(orden: OrdenEmitida) -> OrdenEmitida:
             else valor
         )
         for clave, valor in orden.entrada.items()
+        if clave not in _SOLO_PARA_EL_EJECUTOR
     }
-    return replace(orden, entrada=entrada)
+    return replace(orden, entrada=entrada, sello=None)
 
 
 def orden_vigente(conexion: sqlite3.Connection) -> OrdenEmitida | None:
