@@ -41,7 +41,12 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from backend.contexto.persistencia import guardar_contexto
 from backend.contexto.validacion import puede_salir_de_contexto, validar
 from backend.intake.entrada import IdentificadorEmitido, emitir_texto_libre, entregable, retirar
-from backend.intake.persistencia import guardar_normalizado, proponer_hechos, registrar_extraccion
+from backend.intake.persistencia import (
+    guardar_normalizado,
+    hechos_confirmados,
+    proponer_hechos,
+    registrar_extraccion,
+)
 from backend.planificacion.materializar import materializar_contexto
 from backend.proyecto.abierto import Proyecto, instante
 from backend.proyecto.errores import AgenteSinEsquema
@@ -359,6 +364,45 @@ def _agente_de_contexto(contexto: ContextoManejo, resultado: object) -> Salida:
     except ValueError as error:
         return Salida(Desenlace.contenido(), {"errores": [f"(raíz): {error}"]})
     return Salida(Desenlace.aceptado(), {"rellenados": list(informe.rellenados)})
+
+
+@constructor_de_entrada(Agente.AGENTE_CONTEXTO)
+def _entrada_del_agente_de_contexto(
+    solicitud: SolicitudEntrada, base: dict[str, Any]
+) -> dict[str, Any]:
+    """RF-11: el brief, su normalización y los hechos confirmados van en la orden, como las
+    notas del planificador: `/mcp/lectura` no los expone. El texto libre no va nunca (RF-14):
+    solo los hechos que el Extractor sacó de él y el comprador confirmó."""
+    from backend.proyecto.maquina import Entrada
+
+    conexion = solicitud.proyecto.conexion
+    necesita = base["necesita"]
+    entrada = dict(base)
+    fila = conexion.execute("SELECT respuestas, normalizado FROM brief WHERE id = 1").fetchone()
+    if Entrada.BRIEF.value in necesita:
+        entrada[Entrada.BRIEF.value] = None if fila is None else json.loads(fila["respuestas"])
+    if Entrada.BRIEF_NORMALIZADO.value in necesita:
+        normalizado = None if fila is None else fila["normalizado"]
+        entrada[Entrada.BRIEF_NORMALIZADO.value] = (
+            None if normalizado is None else json.loads(normalizado)
+        )
+    if Entrada.HECHOS_CONFIRMADOS.value in necesita:
+        entrada[Entrada.HECHOS_CONFIRMADOS.value] = [
+            {
+                clave: valor
+                for clave, valor in {
+                    "tipo": h["tipo"],
+                    "texto": h["texto"],
+                    "prioridad": h["prioridad"],
+                    "origen": "texto_libre",
+                    "momento": h["momento"],
+                    "lugar": h["lugar"],
+                }.items()
+                if valor is not None
+            }
+            for h in hechos_confirmados(conexion)
+        ]
+    return entrada
 
 
 # ─── escritor y bibliotecario: la entrada ────────────────────────────────────

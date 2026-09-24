@@ -115,3 +115,36 @@ def _modelo_mayoritario(ruta: Path) -> str | None:
     if not cuenta:
         return None
     return max(cuenta, key=lambda m: (len(cuenta[m]), m))
+
+
+def textos_del_asistente(ruta: Path) -> list[str]:
+    """Lo que el subagente escribió, en orden: sus bloques de texto y el `message` de cada
+    llamada a `SubagentHandback`.
+
+    Un subagente en segundo plano puede dejar su entrega en cualquiera de ellos —en el
+    último mensaje, en la llamada a `SubagentHandback` o en un texto anterior a ella— y
+    cerrar con un resumen: quien registra elige entre todos (`subagente.elegir_salida`).
+    """
+    textos: list[str] = []
+    for datos in _lineas(ruta):
+        mensaje = datos.get("message")
+        if datos.get("type") != "assistant" or not isinstance(mensaje, dict):
+            continue
+        contenido = mensaje.get("content")
+        if isinstance(contenido, str):
+            textos.append(contenido)
+            continue
+        for bloque in contenido if isinstance(contenido, list) else []:
+            if not isinstance(bloque, dict):
+                continue
+            entrada = bloque.get("input")
+            if bloque.get("type") == "text" and isinstance(bloque.get("text"), str):
+                textos.append(bloque["text"])
+            elif (
+                bloque.get("type") == "tool_use"
+                and bloque.get("name") == "SubagentHandback"
+                and isinstance(entrada, dict)
+                and isinstance(entrada.get("message"), str)
+            ):
+                textos.append(entrada["message"])
+    return textos

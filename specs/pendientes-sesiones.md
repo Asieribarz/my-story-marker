@@ -1,5 +1,7 @@
 # pendientes-sesiones.md — Lo que cada sesión tiene que arreglar
 
+> 2026-09-24: marcados `[x]` los puntos que cerró la auditoría de cohesión para poder lanzar una novela (contrato `salida_cruda` por defecto, `lectura` en `.mcp.json`, entrada del Agente de Contexto —M-28—, prompts alineados con los modelos del backend y causas de `error` en las skills).
+
 > Sale de la revisión de solo lectura del 2026-09-23, 16:25: cinco revisores y un verificador que intentó refutar cada hallazgo. Se confirmaron 40 de 41. Manda [decisiones-backend.md](decisiones-backend.md): si un arreglo choca con ese fichero, se avisa a la sesión de backend en vez de resolverlo por cuenta propia. Al terminar un punto, márcalo como hecho aquí.
 
 ## Sesión de agentes (.claude/)
@@ -10,32 +12,32 @@
   - Arreglo: Normalizar con os.path.normpath (o Path.resolve(strict=False)) antes de _dentro, y denegar cualquier ruta que siga llevando `..` dentro de la raíz. Para el escritor, comparar partes[0] con el proyecto de la orden vigente, que el hook puede sacar de la cabecera del transcript o del estado local. Añadir pruebas con `..`.
 - [ ] **media** · `.claude/harness/politica.py:266` — La policy falla abierta si la auditoría lanza algo que no sea OSError después de haber decidido denegar: no se escribe la denegación, el proceso sale con 1 y Claude Code ejecuta la herramienta
   - Arreglo: Escribir la denegación en stdout antes de auditar, o envolver _auditar en `except Exception`, y contar Edit, Write, MultiEdit y NotebookEdit bajo la raíz como sensibles en el fallo. Añadir la prueba de un backend que responde 200 con HTML.
-- [ ] **media** · `.claude/agents/escritor.md:14` — El Escritor no puede leer su prompt ensamblado de una sola vez con Read: la herramienta corta a 25.000 tokens y el prompt no le dice cómo paginar ni cómo saber que ha llegado al final
+- [x] **media** · `.claude/agents/escritor.md:14` — El Escritor no puede leer su prompt ensamblado de una sola vez con Read: la herramienta corta a 25.000 tokens y el prompt no le dice cómo paginar ni cómo saber que ha llegado al final
   - Arreglo: En el prompt: leer con offset y limit hasta una marca fija de fin y no escribir antes de verla. Pedir al backend (paso 6) que termine el fichero de prompt con esa marca constante. Otra vía es subir CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS en el env de settings.json, pero es una decisión que hay que tomar a propósito.
-- [ ] **media** · `.claude/agents/escritor.md:21` — Los prompts contradicen R-2 sobre `mencionados`: quien solo sale en un recuerdo o una analepsis va en mencionados y no se bloquea, pero el escritor, el escaletista y el juez lo tratan como alguien que no puede aparecer
+- [x] **media** · `.claude/agents/escritor.md:21` — Los prompts contradicen R-2 sobre `mencionados`: quien solo sale en un recuerdo o una analepsis va en mencionados y no se bloquea, pero el escritor, el escaletista y el juez lo tratan como alguien que no puede aparecer
   - Arreglo: Escaletista: mencionados = quienes se nombran o salen solo en un recuerdo o analepsis. Escritor: pueden aparecer solo dentro de un recuerdo marcado como tal. Juez: una acción dentro de una analepsis marcada no cuenta como presencia; sí cuenta actuar en el presente de la historia.
 - [ ] **media** · `.claude/harness/politica.py:133` — La policy solo mira el nombre del `path` de Read y Grep: un Grep sobre un directorio, o con `glob`, lee el texto adversarial de E2. El brief E2 y plan-agentes §5.3 afirman que no se puede leer.
   - Arreglo: Denegar Grep cuando `glob` o `pattern` apunten a `texto_libre`, o cuando `path` sea un directorio que contenga esos ficheros; o sacarlos del alcance de ripgrep con un `.ignore` para `evals/briefs/texto_libre*.txt`. Ajustar plan-agentes §8 y, en la sesión de briefs, la redacción de e2 L10 y L119.
-- [ ] **baja** · `.claude/agents/agente-contexto.md:14` — El sello no se trata como opaco en todo el harness: dos prompts de H1 enseñan la cabecera como `orden: <proyecto>:<n>`, y comun.py saca el id de la orden del segundo segmento del sello
+- [x] **baja** · `.claude/agents/agente-contexto.md:14` — El sello no se trata como opaco en todo el harness: dos prompts de H1 enseñan la cabecera como `orden: <proyecto>:<n>`, y comun.py saca el id de la orden del segundo segmento del sello
   - Arreglo: Cambiar `<proyecto>:<n>` por `<sello>` en los dos prompts y en los docstrings. Limitar la lectura del segundo segmento al caso de una orden sin campo `sello` (contrato del bloque 1), o quitarla cuando llegue el bloque 2.
-- [ ] **baja** · `.claude/skills/generar/SKILL.md:31` — Las skills solo conocen `error_ensamblado`; AJ-5/TC-3 lo sustituyen por la decisión `error` con causa, y /generar no sabría explicar `lean_no_disponible` ni `pdf_no_disponible`
+- [x] **baja** · `.claude/skills/generar/SKILL.md:31` — Las skills solo conocen `error_ensamblado`; AJ-5/TC-3 lo sustituyen por la decisión `error` con causa, y /generar no sabría explicar `lean_no_disponible` ni `pdf_no_disponible`
   - Arreglo: Añadir a /generar la fila `error` · causa (lean_no_disponible, pdf_no_disponible, D-9) con lo que tiene que hacer la persona, y listar `error` en el paso 2 de orquestar-novela.
 - [ ] **baja** · `.claude/tests/test_definiciones.py:13` — Todo el análisis estático V-13·A depende de PyYAML, que es una dependencia transitiva no declarada, y se salta en silencio si desaparece
   - Arreglo: Leer el frontmatter con biblioteca estándar (son claves simples y una lista mcpServers), o sustituir importorskip por un import que falle.
 
 Avisos del backend al cerrar los bloques 2 y 3 (2026-09-24, decisiones-backend §4.5):
 
-- [ ] **aviso** · `/resultado` ya acepta `{orden: sello, salida_cruda, metadatos?}`: activar `MSM_CONTRATO_RESULTADO=salida_cruda`. Existe `POST /proyectos/{id}/auditoria` para la policy.
-- [ ] **aviso** · URLs MCP con barra final: `http://127.0.0.1:8000/mcp/lectura/` y `…/mcp/escritura/`. `.mcp.json` no declara el servidor `lectura`: añadir `{"type":"http","url":"http://127.0.0.1:8000/mcp/lectura/"}`. La lectura recibe `proyecto`; la escritura, `sello` y ningún `capitulo`.
-- [ ] **aviso** · `escritor.md` usa `entrada.ruta_prompt`: ahora es `rutas_prompt`, una lista de rutas absolutas de partes de 20.000 tokens como mucho.
-- [ ] **aviso** · `agente-contexto.md` describe la cabecera antigua del sello: es `<proyecto>:<orden>:<generación>`, opaca salvo el primer segmento.
-- [ ] **aviso** · La policy debe denegar `mcp__escritura__*` a todo `agent_type` que no sea `bibliotecario`.
-- [ ] **aviso** · `bibliotecario.md` pide registrar relaciones y no existe esa escritura: quitarlo del prompt (herramientas en spec1 §5.2).
-- [ ] **aviso** · `editor-estilo`, `juez-capitulo`, `bibliotecario` y `revisor` deben leer `version`, `intento_texto` y `etapa` de la entrada para `leer_capitulo`. El planificador recibe las notas en `entrada.notas_plan`. Juez de manuscrito, revisor y exportador reciben `manuscrito` (punteros vigentes), y el revisor además `informe_gates` y las notas.
-- [ ] **aviso** · Las skills `orquestar-novela` y `generar` nombran `error_ensamblado`: ahora es `error` con causa (`no_cabe`, `inconsistencia`, `lean_no_disponible`, `pdf_no_disponible`, `cronologia_invalida`, `contexto_incoherente`).
-- [ ] **aviso** · `juez-manuscrito.md`: si suspende, `capitulos` tiene que traer al menos un capítulo, o la salida es un fallo de forma (M-25). `revisor.md` y `exportador.md`: leer el manuscrito de `entrada.manuscrito` y, el Revisor, `entrada.informe_gates` y `entrada.notas`, sin herramienta MCP nueva.
-- [ ] **aviso** · Las causas de `error` incluyen también `revision_sin_capitulos`.
-- [ ] **aviso** · El worker lanza `claude -p "/regenerar <proyecto> <trabajo>" --permission-prompts none --output-format json` (requiere Claude Code ≥ 2.1.259).
+- [x] **aviso** · `/resultado` ya acepta `{orden: sello, salida_cruda, metadatos?}`: activar `MSM_CONTRATO_RESULTADO=salida_cruda`. Existe `POST /proyectos/{id}/auditoria` para la policy.
+- [x] **aviso** · URLs MCP con barra final: `http://127.0.0.1:8000/mcp/lectura/` y `…/mcp/escritura/`. `.mcp.json` no declara el servidor `lectura`: añadir `{"type":"http","url":"http://127.0.0.1:8000/mcp/lectura/"}`. La lectura recibe `proyecto`; la escritura, `sello` y ningún `capitulo`.
+- [x] **aviso** · `escritor.md` usa `entrada.ruta_prompt`: ahora es `rutas_prompt`, una lista de rutas absolutas de partes de 20.000 tokens como mucho.
+- [x] **aviso** · `agente-contexto.md` describe la cabecera antigua del sello: es `<proyecto>:<orden>:<generación>`, opaca salvo el primer segmento.
+- [x] **aviso** · La policy debe denegar `mcp__escritura__*` a todo `agent_type` que no sea `bibliotecario`.
+- [x] **aviso** · `bibliotecario.md` pide registrar relaciones y no existe esa escritura: quitarlo del prompt (herramientas en spec1 §5.2).
+- [x] **aviso** · `editor-estilo`, `juez-capitulo`, `bibliotecario` y `revisor` deben leer `version`, `intento_texto` y `etapa` de la entrada para `leer_capitulo`. El planificador recibe las notas en `entrada.notas_plan`. Juez de manuscrito, revisor y exportador reciben `manuscrito` (punteros vigentes), y el revisor además `informe_gates` y las notas.
+- [x] **aviso** · Las skills `orquestar-novela` y `generar` nombran `error_ensamblado`: ahora es `error` con causa (`no_cabe`, `inconsistencia`, `lean_no_disponible`, `pdf_no_disponible`, `cronologia_invalida`, `contexto_incoherente`).
+- [x] **aviso** · `juez-manuscrito.md`: si suspende, `capitulos` tiene que traer al menos un capítulo, o la salida es un fallo de forma (M-25). `revisor.md` y `exportador.md`: leer el manuscrito de `entrada.manuscrito` y, el Revisor, `entrada.informe_gates` y `entrada.notas`, sin herramienta MCP nueva.
+- [x] **aviso** · Las causas de `error` incluyen también `revision_sin_capitulos`.
+- [x] **aviso** · El worker lanza `claude -p "/regenerar <proyecto> <trabajo>" --permission-prompts none --output-format json` (requiere Claude Code ≥ 2.1.259).
 
 ## Sesión de briefs (evals/)
 
@@ -91,7 +93,7 @@ Avisos del backend al cerrar los bloques 2 y 3 (2026-09-24, decisiones-backend �
   - Arreglo: Cambiar §4.1.1 a `{orden, salida_cruda, metadatos?}`, con `orden` = sello, y dejar un único punto normativo, por ejemplo haciendo que §4.1.1 remita a §4.1.7.
 - [ ] **alta** · `specs/decisiones-backend.md:152` — La lista de §4.4 deja fuera los recortes R-1, R-2 y R-3, que según §0 mandan sobre todo lo demás, aunque dejan desfasados architecture, spec1, validators y plan-entrega.
   - Arreglo: Añadir a §4.4 una entrada por recorte, con estos destinos: R-1 → architecture §3, §3.1 y §11, spec1 §1.2 y plan-entrega §4 y H2; R-2 → architecture §4 y §4.2, spec1 RF-74, RF-75, V-12 y V-17, y validators V-12; R-3 → plan-entrega E-5, H3 y H9.
-- [ ] **media** · `.claude/agents/agente-contexto.md:42` — B-18 (`excluye` en un hecho evento) no llega al prompt del Agente de Contexto, y decisiones §4.5 no prevé avisar a la sesión de agentes. Cuando el backend lo aplique, el agente reconstruirá los hechos sin `excluye` y E3 no llegará a Lean
+- [x] **media** · `.claude/agents/agente-contexto.md:42` — B-18 (`excluye` en un hecho evento) no llega al prompt del Agente de Contexto, y decisiones §4.5 no prevé avisar a la sesión de agentes. Cuando el backend lo aplique, el agente reconstruirá los hechos sin `excluye` y E3 no llegará a Lean
   - Arreglo: Backend: añadir en §4.5 la fila «Bloque 2 → agentes: `excluye` en hecho evento (B-18)». Agentes, cuando llegue: añadir `excluye {fuente, tipo: muerte|partida}` al ejemplo y a la tabla, con «si el hecho lo trae, consérvalo tal cual», y alinear la lista de preferencias con B-19.
 - [ ] **media** · `specs/decisiones-backend.md:43` — B-14 no define qué es un párrafo, así que p<n> del backend, data-p del frontend y 'parrafo' del juez pueden desalinearse
   - Arreglo: Fijar en B-14 la unidad: solo los párrafos del cuerpo, sin el encabezado '#'; '---' no cuenta; cada párrafo dentro de '>' cuenta. Añadir en el paso 9 una prueba de que, para el mismo texto, la segmentación de B-14 y los data-p del conversor de TC-7 dan la misma numeración. Pedir a la sesión de agentes que juez-capitulo.md use esa misma definición.

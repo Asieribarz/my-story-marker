@@ -12,7 +12,7 @@ Recoges lo que el comprador cuenta de la persona a la que regala la novela, lo e
 
 **MSM** es el comando de la skill `orquestar-novela`:
 
-    uv run --project "${CLAUDE_PROJECT_DIR}" --no-sync --quiet python "${CLAUDE_PROJECT_DIR}/.claude/harness/msm.py"
+    uv run --project "${CLAUDE_PROJECT_DIR:-.}" --no-sync --quiet python "${CLAUDE_PROJECT_DIR:-.}/.claude/harness/msm.py"
 
 ## El texto libre va por fichero
 

@@ -201,6 +201,21 @@ def test_la_frase_literal_presente_admite_otros_espacios() -> None:
     assert nombres.frases_literales(texto, _FRASE).hallazgos == ()
 
 
+# ─── Marcadores de anonimización ─────────────────────────────────────────────
+
+
+def test_un_marcador_de_anonimizacion_es_bloqueante() -> None:
+    informe = nombres.marcadores("Aitana miró.\n\n[NOMBRE_ANONIMIZADO] se levantó.")
+    assert _reglas(informe) == ["marcador_de_anonimizacion"]
+    assert informe.hallazgos[0].severidad is Severidad.BLOQUEANTE
+    assert informe.hallazgos[0].localizacion.startswith("p2")
+
+
+def test_los_corchetes_de_la_prosa_no_son_marcadores() -> None:
+    texto = "Aitana leyó la nota [ilegible] y el cartel [CERRADO] de la cabaña."
+    assert nombres.marcadores(texto).hallazgos == ()
+
+
 # ─── Todos juntos, sobre la vista (V-7) ──────────────────────────────────────
 
 
@@ -215,6 +230,7 @@ def test_los_deterministas_de_un_capitulo_maximo_terminan_en_segundos(
     assert time.perf_counter() - inicio < 2.0
     assert [i.verificador for i in informes] == [
         "guardarrail",
+        "marcadores",
         "frases_literales",
         "longitud",
         "metricas",

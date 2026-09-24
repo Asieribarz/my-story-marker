@@ -224,3 +224,24 @@ def test_una_sesion_que_reanuda_recibe_un_identificador_que_puede_canjear(
     registro = registrar(con_texto, reanudada.id, {"hechos": [HECHO]}, nueva, despues(32))
     assert (registro.desenlace, registro.estado) == (DesenlaceOrden.ACEPTADA, E.INTAKE)
     assert leer_estado(con_texto, despues(32)).intentos_paso == 0
+
+
+# ─── RF-11 · el brief en la orden del Agente de Contexto ─────────────────────
+
+
+def test_el_agente_de_contexto_recibe_el_brief_y_luego_su_normalizacion(
+    proyecto: Proyecto, token: str
+) -> None:
+    guardar_brief(proyecto.conexion, proyecto.disposicion, BRIEF, None, MOMENTO)
+    normalizar = _orden(emitir_siguiente_orden(proyecto, token, AHORA))
+    assert (normalizar.agente, normalizar.estado) == (Agente.AGENTE_CONTEXTO, E.INTAKE)
+    assert normalizar.entrada["brief"] == BRIEF
+    assert normalizar.entrada["hechos_confirmados"] == []
+    assert "texto_libre" not in normalizar.entrada
+
+    normalizado = {"personalizacion": {"ocasion": "cumpleanos"}, "faltan": []}
+    registrar(proyecto, normalizar.id, normalizado, token, AHORA)
+    instanciar = _orden(emitir_siguiente_orden(proyecto, token, AHORA))
+    assert (instanciar.agente, instanciar.estado) == (Agente.AGENTE_CONTEXTO, E.CONTEXTO)
+    assert instanciar.entrada["brief_normalizado"] == normalizado
+    assert "brief" not in instanciar.entrada

@@ -20,4 +20,5 @@ Configuración de Claude Code que convierte el backend en una novela. Detalle y 
   - La **policy** deniega leer el texto no confiable (`brief/`, `cambios/`, `texto_libre*.txt`) y escribir en `proyectos/` con las herramientas de fichero; la escritura en la biblia solo se le permite al Bibliotecario. Una denegación es intencionada: a esos datos se llega por `msm.py`, la API o el MCP.
   - El hook de **`SubagentStop`** registra en el backend la salida de cada subagente de la novela.
   - El estado local va a `.claude/estado/`, que git ignora.
-- **Pruebas del harness:** `uv run pytest .claude/tests`. No entran en las cuatro del backend. `ruff` necesita `--no-force-exclude` para ver `.claude/`.
+- **Pruebas del harness:** `uv run pytest .claude/tests`. No entran en las cuatro del backend. `ruff` mira solo `backend/` (`include` en `pyproject.toml`): para `.claude/` pásale los ficheros, no la carpeta, con `--no-force-exclude` (`uv run ruff check --no-force-exclude .claude/harness/*.py .claude/tests/*.py`).
+- **Las definiciones de agentes se cargan al abrir la sesión** (S-12): tras editar `.claude/agents/`, genera en una sesión nueva.

@@ -4,6 +4,7 @@ de `/resultado` y estado local."""
 from __future__ import annotations
 
 import json
+from typing import Any
 
 import comun
 from apoyo import PROYECTO
@@ -44,7 +45,8 @@ def test_sin_cabecera_en_la_primera_linea_no_hay_orden() -> None:
     assert comun.leer_cabecera("orden: nohex:7") is None
 
 
-def test_json_se_extrae_del_ultimo_bloque_delimitado() -> None:
+def test_json_se_extrae_del_ultimo_bloque_delimitado(monkeypatch: Any) -> None:
+    monkeypatch.setattr(comun, "CONTRATO_RESULTADO", "resultado")
     salida = (
         f'orden: {PROYECTO}:7\n\nPienso en voz alta.\n```json\n{{"hechos": []}}\n```\n'
         '```json\n{"hechos": [{"tipo": "rasgo"}]}\n```'
@@ -55,12 +57,16 @@ def test_json_se_extrae_del_ultimo_bloque_delimitado() -> None:
     }
 
 
-def test_una_salida_sin_json_valido_se_envia_como_texto_para_que_el_backend_la_rechace() -> None:
+def test_una_salida_sin_json_valido_se_envia_como_texto_para_que_el_backend_la_rechace(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr(comun, "CONTRATO_RESULTADO", "resultado")
     cuerpo = comun.cuerpo_de_resultado(7, "planificador", "```json\n{roto\n```")
     assert cuerpo == {"orden": 7, "resultado": "```json\n{roto\n```"}
 
 
-def test_el_escritor_devuelve_titulo_y_texto() -> None:
+def test_el_escritor_devuelve_titulo_y_texto(monkeypatch: Any) -> None:
+    monkeypatch.setattr(comun, "CONTRATO_RESULTADO", "resultado")
     salida = f"orden: {PROYECTO}:9\n# La brújula\n\nPrimer párrafo.\n\nSegundo."
     assert comun.cuerpo_de_resultado(9, "escritor", salida) == {
         "orden": 9,

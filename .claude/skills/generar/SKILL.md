@@ -12,7 +12,7 @@ Lleva el proyecto `$ARGUMENTS` tan lejos como deje el backend, y deja a la perso
 
 **MSM** es el comando de la skill `orquestar-novela`:
 
-    uv run --project "${CLAUDE_PROJECT_DIR}" --no-sync --quiet python "${CLAUDE_PROJECT_DIR}/.claude/harness/msm.py"
+    uv run --project "${CLAUDE_PROJECT_DIR:-.}" --no-sync --quiet python "${CLAUDE_PROJECT_DIR:-.}/.claude/harness/msm.py"
 
 ## Pasos
 
@@ -28,7 +28,13 @@ Lleva el proyecto `$ARGUMENTS` tan lejos como deje el backend, y deja a la perso
 | `esperar_humano` · `aprobacion_plan` o `aprobacion_final` | La parada está activa y espera su decisión; esta skill aún no tiene la ruta de aprobación | — |
 | `detenida` | Enseña `MSM estado` y de qué fase viene: algún capítulo o la revisión agotó sus intentos | Si pide reintentar: `MSM reintentar <proyecto> --notas "<sus notas>"` y vuelve al paso 3 |
 | `publicada` | La novela está publicada; se lee en la web | — |
-| `error_ensamblado` | El prompt de un capítulo no cabe ni con la ficha sola (D-9): hay un dato mal formado | — |
+| `error` · `no_cabe` | El prompt de un capítulo no cabe ni con la ficha sola (D-9): hay un dato mal formado | — |
+| `error` · `inconsistencia` o `cronologia_invalida` | La ficha del capítulo choca con la biblia (B-9) o la cronología no se puede generar: enseña el `detalle` | — |
+| `error` · `contexto_incoherente` | El contexto guardado no pasa el validador: enseña el `detalle` | — |
+| `error` · `lean_no_disponible` | Falta Lean (`elan`/`lake`) en la máquina del backend: hay que instalarlo y volver a `/generar` | — |
+| `error` · `pdf_no_disponible` | Falta el Chromium de Playwright: `uv run playwright install chromium` y volver a `/generar` | — |
+| `error` · `revision_sin_capitulos` | El juez suspendió sin señalar capítulos: enseña el `detalle` | — |
+| `error` · `peticion_no_disponible` | No hay petición de cambio que interpretar | — |
 | Error de MSM | El JSON del error, tal cual | — |
 
 Las decisiones de la tabla son de la persona: confirma, aprueba o reintenta solo con lo que ella diga, nunca por defecto.

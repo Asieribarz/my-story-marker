@@ -102,10 +102,15 @@ def frases_literales(cuerpo: str, vista: Vista) -> Informe:
     return nombres.frases_literales(cuerpo, vista.frases)
 
 
+def marcadores(cuerpo: str, vista: Vista) -> Informe:
+    return nombres.marcadores(cuerpo)
+
+
 Verificador = Callable[[str, Vista], Informe]
 
 VERIFICADORES: tuple[Verificador, ...] = (
     guardarrail,
+    marcadores,
     frases_literales,
     longitud,
     metricas,

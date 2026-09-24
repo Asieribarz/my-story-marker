@@ -72,3 +72,26 @@ def test_el_primer_mensaje_de_usuario_admite_texto_o_bloques(tmp_path: Path) -> 
     bloques = {"type": "user", "message": {"content": [{"type": "text", "text": "orden: a:1"}]}}
     ruta = escribir(tmp_path / "t.jsonl", [{"type": "attachment"}, bloques])
     assert transcript.primer_mensaje_de_usuario(ruta) == "orden: a:1"
+
+
+def llamada(nombre: str, entrada: dict[str, Any]) -> dict[str, Any]:
+    bloque = {"type": "tool_use", "name": nombre, "input": entrada}
+    return {"type": "assistant", "message": {"id": "m", "content": [bloque]}}
+
+
+def test_los_textos_del_asistente_incluyen_textos_y_entregas_en_orden(tmp_path: Path) -> None:
+    texto = {
+        "type": "assistant",
+        "message": {"id": "t", "content": [{"type": "text", "text": "a"}]},
+    }
+    ruta = escribir(
+        tmp_path / "t.jsonl",
+        [
+            {"type": "user", "message": {"content": "orden: x"}},
+            llamada("mcp__entrada__leer_entrada", {"message": "no cuenta"}),
+            texto,
+            llamada("SubagentHandback", {"message": "b"}),
+            {"type": "assistant", "message": {"id": "n", "content": "c"}},
+        ],
+    )
+    assert transcript.textos_del_asistente(ruta) == ["a", "b", "c"]

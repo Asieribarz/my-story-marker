@@ -318,9 +318,21 @@ def _bibliotecario(contexto: ContextoManejo, resultado: object) -> Salida:
         return _bibliotecario_rechazado(
             contexto,
             numero,
-            {"errores": [f"biblia: falta {f}" for f in faltan], "faltan": list(faltan)},
+            {"errores": [_falta(f) for f in faltan], "faltan": list(faltan)},
         )
     return Salida(Desenlace.aceptado(), {"registrado": salida.registrado})
+
+
+def _falta(pieza: str) -> str:
+    """El error que lee el reintento. El de `resumen_acto` explica B-17, que sin el porqué el
+    Bibliotecario descarta cuando el capítulo no cierra su acto."""
+    if pieza == "resumen_acto":
+        return (
+            "biblia: falta resumen_acto: el acto de este capítulo ya tenía resumen y, al "
+            "reescribir cualquiera de sus capítulos, hay que reescribir el resumen del acto "
+            "entero con escribir_resumen_acto (B-17), aunque este capítulo no lo cierre"
+        )
+    return f"biblia: falta {pieza}"
 
 
 def _bibliotecario_rechazado(

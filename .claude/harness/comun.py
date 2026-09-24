@@ -50,10 +50,10 @@ AGENTES = frozenset(
 # P-1, propuesta B-7 §4.1.3: estos devuelven Markdown; el resto, un bloque JSON.
 AGENTES_MARKDOWN = frozenset({"escritor", "editor-estilo", "revisor"})
 
-# P-1 y P-6 (decisiones-backend.md §4.1): el contrato final de `/resultado` es
-# `{orden, salida_cruda, metadatos?}` y llega con el bloque 2 del backend. Hasta entonces,
-# `resultado`: el cuerpo `{orden, resultado}` con la salida ya estructurada aquí.
-CONTRATO_RESULTADO = os.environ.get("MSM_CONTRATO_RESULTADO", "resultado")
+# P-1 y P-6 (decisiones-backend.md §4.1): el contrato de `/resultado` es
+# `{orden, salida_cruda, metadatos?}` desde el bloque 2 del backend, que ya no acepta otro.
+# `resultado` (`{orden, resultado}` con la salida estructurada aquí) queda solo para pruebas.
+CONTRATO_RESULTADO = os.environ.get("MSM_CONTRATO_RESULTADO", "salida_cruda")
 
 _IDENTIFICADOR = re.compile(r"[0-9a-f]{32}")
 # AJ-4: el sello es opaco, `<proyecto>:<orden>:<generación>`. Solo se lee el proyecto.

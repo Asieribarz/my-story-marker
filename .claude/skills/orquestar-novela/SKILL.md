@@ -13,22 +13,22 @@ Argumentos: `$ARGUMENTS`, con esta forma: `<proyecto> [tipo=sesion|worker] [hast
 
 Todas las llamadas al backend pasan por un único comando, al que aquí se llama **MSM**:
 
-    uv run --project "${CLAUDE_PROJECT_DIR}" --no-sync --quiet python "${CLAUDE_PROJECT_DIR}/.claude/harness/msm.py"
+    uv run --project "${CLAUDE_PROJECT_DIR:-.}" --no-sync --quiet python "${CLAUDE_PROJECT_DIR:-.}/.claude/harness/msm.py"
 
 Cada llamada imprime una línea JSON. Lánzalo tal cual, sin redirecciones ni tuberías.
 
 ## Pasos
 
 1. **Tomar el bloqueo**: `MSM bloqueo tomar <proyecto> --tipo <tipo>`. Si sale con un error `bloqueo_ajeno`, otro ejecutor está trabajando en el proyecto: para aquí y di quién lo tiene y hasta cuándo.
-2. **Pedir la orden**: `MSM siguiente <proyecto>`. Mira `decision`:
+2. **Pedir la orden**: `MSM siguiente <proyecto>`, con el tiempo máximo de Bash (`timeout: 600000`): antes del juez de manuscrito el backend corre Lean y puede tardar. Mira `decision`:
    - `orden` → paso 3.
-   - `esperar_humano`, `publicada`, `detenida` o `error_ensamblado` → paso 5.
+   - `esperar_humano`, `publicada`, `detenida` o `error` (con su `causa`) → paso 5.
 3. **Lanzar el subagente** con la herramienta Agent:
    - `subagent_type`: el `agente` de la orden;
    - `prompt`: el campo `prompt`, **copiado entero y sin tocar** (empieza por la línea `orden: …`, que el hook necesita para registrar);
    - `description`: `<agente> · orden <orden>`;
-   - `run_in_background`: `false`: espera a que termine.
-4. **Leer el acuse**: `MSM acuse <proyecto>`. El hook ya registró la salida del subagente en el backend; el acuse dice qué hizo el backend con ella (`desenlace`, `estado`, `estado_capitulo`). Resume en una línea: agente, capítulo si lo hay, desenlace y estado. Si `hasta` está puesto y el `estado` del acuse ya es ese, ve al paso 5. Si no, vuelve al paso 2.
+   - `run_in_background`: `false` si la herramienta lo admite. Si Agent lanza el subagente en segundo plano de todas formas, **espera a la notificación de que ha terminado** (`<task-notification>` con `completed`). El mensaje de entrega que llega antes (`SubagentHandback`) no es el final: el hook `SubagentStop` aún no ha corrido. No escribas al subagente mientras tanto.
+4. **Leer el acuse**: `MSM acuse <proyecto>`, con el tiempo máximo de Bash (`timeout: 600000`): espera al hook hasta 180 s si aún no ha dejado acuse. El hook ya registró la salida del subagente en el backend; el acuse dice qué hizo el backend con ella (`desenlace`, `estado`, `estado_capitulo`). Resume en una línea: agente, capítulo si lo hay, desenlace y estado. Si `hasta` está puesto y el `estado` del acuse ya es ese, ve al paso 5. Si no, vuelve al paso 2.
 5. **Soltar el bloqueo**: `MSM bloqueo soltar <proyecto>`, y devuelve a quien te llamó la última decisión (o el acuse de `hasta`) tal como llegó.
 
 Has terminado cuando el paso 2 da una decisión que no es `orden`, o se alcanza `hasta`, o un comando MSM sale con error, y en los tres casos el bloqueo está suelto.
@@ -37,6 +37,7 @@ Has terminado cuando el paso 2 da una decisión que no es `orden`, o se alcanza 
 
 - **MSM sale con código distinto de 0**: el JSON dice por qué. Suelta el bloqueo y devuelve el error tal cual; no lo arregles por tu cuenta.
 - **Código 5**: el backend no está arrancado. Se arranca con `uv run uvicorn backend.app:app`, y lo hace la persona.
+- **`acuse` dice que el hook no dejó acuse** tras su espera: el subagente no terminó o no llevaba el `prompt` de `siguiente`. Es un error de MSM: suelta el bloqueo y devuélvelo.
 - **El subagente devuelve algo raro, o nada**: da igual. El hook lo registró y el backend lo juzga. Sigue en el paso 4.
 - **Un intento fallido** (`desenlace` distinto de `aceptada`): vuelve al paso 2. Si toca reintentar, la orden siguiente lo dirá, con el informe del intento anterior dentro del prompt.
 

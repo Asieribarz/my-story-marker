@@ -100,6 +100,7 @@ def test_el_editor_verifica_y_acepta(proyecto: Proyecto) -> None:
     informes = _informes(proyecto)
     assert set(informes) == {
         "guardarrail",
+        "marcadores",
         "frases_literales",
         "longitud",
         "metricas",

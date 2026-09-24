@@ -20,7 +20,7 @@
   "enabledPlugins": {
     "langfuse-observability@langfuse-observability": false
   },
-  "enabledMcpjsonServers": ["playwright"],
+  "enabledMcpjsonServers": ["lectura", "playwright"],
   "hooks": {
     "PreToolUse": [
       {

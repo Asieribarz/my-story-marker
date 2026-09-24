@@ -64,7 +64,8 @@ def test_registra_toda_salida_aunque_la_orden_diga_skill(
 
     [peticion] = backend.peticiones
     assert peticion["token"] == "tok"
-    assert peticion["cuerpo"] == {"orden": 3, "resultado": {"hechos": []}}
+    assert peticion["cuerpo"]["orden"] == f"{PROYECTO}:3"
+    assert peticion["cuerpo"]["salida_cruda"] == salida
     assert comun.leer_acuse(PROYECTO, 3)["registrado"] is True  # type: ignore[index]
     [uso] = [json.loads(x) for x in (estado_temporal / "uso.jsonl").read_text("utf-8").splitlines()]
     assert uso["agente"] == "extractor-hechos" and uso["tokens"]["output_tokens"] == 50
@@ -81,6 +82,30 @@ def test_msm_acuse_ensena_lo_que_registro_el_hook(
     subagente.procesar(evento(ruta, "escritor", f"orden: {PROYECTO}:4\n# T\n\nTexto."))
     assert msm.main(["acuse", PROYECTO]) == 0
     assert json.loads(capsys.readouterr().out)["desenlace"] == "aceptada"
+
+
+def test_msm_acuse_espera_a_que_el_hook_termine(
+    tmp_path: Path, backend: BackendFalso, capsys: Any, monkeypatch: Any
+) -> None:
+    orden = {"id": 6, "agente": "escritor", "intento": 1, "registro": "hook_validacion"}
+    preparar(backend, orden)
+    ruta = transcript(tmp_path, comun.prompt_para_subagente(PROYECTO, orden))
+    esperas: list[float] = []
+
+    def dormir(segundos: float) -> None:  # el hook termina durante la primera espera
+        esperas.append(segundos)
+        subagente.procesar(evento(ruta, "escritor", f"orden: {PROYECTO}:6\n# T\n\nTexto."))
+
+    monkeypatch.setattr(msm.time, "sleep", dormir)
+    assert msm.main(["acuse", PROYECTO]) == 0
+    assert esperas == [msm.ESPERA_ENTRE_LECTURAS]
+    assert json.loads(capsys.readouterr().out)["desenlace"] == "aceptada"
+
+
+def test_msm_acuse_sin_hook_se_rinde_al_agotar_la_espera(capsys: Any) -> None:
+    comun.guardar_orden(PROYECTO, {"id": 7, "agente": "escritor", "intento": 1})
+    assert msm.main(["acuse", PROYECTO, "--espera", "0"]) == 4
+    assert "no dejó acuse" in capsys.readouterr().out
 
 
 def test_sin_backend_el_acuse_lleva_el_error_y_msm_lo_dice(
@@ -126,3 +151,28 @@ def test_no_registra_bajo_la_orden_de_otro_agente(tmp_path: Path, backend: Backe
     ruta = transcript(tmp_path, comun.prompt_para_subagente(PROYECTO, orden))
     assert subagente.procesar(evento(ruta, "revisor", "x")) == "agente distinto del de la orden"
     assert backend.peticiones == []
+
+
+def test_la_entrega_por_subagent_handback_manda_sobre_el_ultimo_mensaje(
+    tmp_path: Path, backend: BackendFalso, estado_temporal: Path
+) -> None:
+    orden = {"id": 3, "agente": "extractor-hechos", "intento": 1, "registro": "skill"}
+    preparar(backend, orden)
+    ruta = transcript(tmp_path, comun.prompt_para_subagente(PROYECTO, orden))
+    entregada = f'orden: {PROYECTO}:3\n```json\n{{"hechos": []}}\n```'
+    bloque = {"type": "tool_use", "name": "SubagentHandback", "input": {"message": entregada}}
+    with ruta.open("a", encoding="utf-8") as fichero:
+        fichero.write("\n" + json.dumps({"type": "assistant", "message": {"content": [bloque]}}))
+
+    subagente.procesar(evento(ruta, "extractor-hechos", "Entregado correctamente."))
+
+    [peticion] = backend.peticiones
+    assert peticion["cuerpo"]["salida_cruda"] == entregada
+
+
+def test_vale_la_salida_que_trae_la_cabecera_de_orden() -> None:
+    entrega = f'orden: {PROYECTO}:3\n```json\n{{"hechos": []}}\n```'
+    assert subagente.elegir_salida("Entregado.", [entrega, "Resumen.", "Entregado."]) == entrega
+    assert subagente.elegir_salida(entrega, ["Entregado en el mensaje final."]) == entrega
+    assert subagente.elegir_salida("Resumen.", ["Otro resumen."]) == "Resumen."
+    assert subagente.elegir_salida("", ["Solo el texto."]) == "Solo el texto."

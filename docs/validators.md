@@ -153,6 +153,7 @@ Aquí el objeto verificado es **nuestro código**, no el manuscrito. Lo que se c
 | Ninguna salida de subagente mal formada se persiste, y cada una cuenta como intento | Por agente, salidas válidas y mal formadas (`capitulo/tests/test_manejadores.py`) | T | V-35 |
 | El guardarraíl detecta cada nivel —global, por público, por novela— y las variantes de acento y plural, y no dispara en los casos de control | Pruebas por nivel y por variante (`capitulo/tests/test_verificadores.py`, como V-7, V-15 y las frases literales de V-28) | T | V-26 |
 | Las frases literales se detectan en los capítulos que las usan | Pruebas con frases presentes y ausentes | T | V-28 |
+| Un marcador de anonimización en la prosa bloquea el capítulo, y los corchetes normales no | Una prueba que lo dispara y otra de control (`capitulo/tests/test_verificadores.py`, R-5) | T | — |
 | Los deterministas de un capítulo terminan en segundos | Prueba con capítulo de tamaño máximo y umbral de tiempo | T | V-7 |
 | La batería detecta un verificador roto y no solo lo ejecuta | Cobertura por regla (R-5): cada regla de cada verificador, una prueba que la dispara y otra de control que no | T | V-15 |
 | **Los deterministas detectan toda incoherencia real** | **Ninguno** — ver §5 | **U** | V-17 |

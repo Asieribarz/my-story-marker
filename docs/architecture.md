@@ -140,7 +140,7 @@ flowchart LR
 | **Exportador** | Genera título, sinopsis y palabras clave; el código genera la lectura web y el PDF de la versión. | Manuscrito vigente | Metadatos, lectura web, PDF | `haiku` + código |
 | **Intérprete de cambios** | Traduce la petición del lector («el perro se llama Nala») a un cambio sobre un hecho de la biblia, o a un hecho nuevo con el capítulo del fragmento como destino. Mismo patrón que el Extractor: una sola herramienta de solo lectura con identificador de un solo uso, que devuelve la petición, el fragmento y los hechos vigentes; salida en esquema cerrado; el texto del lector es **no confiable**. | Identificador de la petición | Cambio de hecho propuesto, pendiente de confirmación | `haiku` |
 
-**Qué lleva la entrada de cada orden.** La orden del Escritor trae `version`, `intento`, `rutas_prompt` (las partes del prompt, rutas absolutas) y `tokens_estimados`; las del Editor, el juez de capítulo, el Bibliotecario y el Revisor traen `version`, `intento_texto` y `etapa`, para leer el texto exacto con `leer_capitulo`; la del Planificador, `notas_plan`; las del juez de manuscrito, el Revisor y el Exportador, `manuscrito` (los punteros vigentes de los diez capítulos), y la del Revisor además `informe_gates` y las notas de `aprobacion_final`.
+**Qué lleva la entrada de cada orden.** La orden del Escritor trae `version`, `intento`, `rutas_prompt` (las partes del prompt, rutas absolutas) y `tokens_estimados`; las del Editor, el juez de capítulo, el Bibliotecario y el Revisor traen `version`, `intento_texto` y `etapa`, para leer el texto exacto con `leer_capitulo`; la del Planificador, `notas_plan`; la del Agente de Contexto, `brief` y `hechos_confirmados` en `intake` y `brief_normalizado` y `hechos_confirmados` en `contexto` (nunca el texto libre, M-28); las del juez de manuscrito, el Revisor y el Exportador, `manuscrito` (los punteros vigentes de los diez capítulos), y la del Revisor además `informe_gates` y las notas de `aprobacion_final`.
 
 El **Recuperador de contexto** de §5 no está en esta tabla a propósito: no es un agente. Es código del backend y no consume modelo. Su sitio es §6.3.
 
@@ -272,6 +272,7 @@ flowchart LR
   D --> D5["Continuidad dura · antes de escribir · presente excluido, tiempo de viaje imposible"]
   D --> D6["Guardarraíl de palabras prohibidas · global, por público, por novela"]
   D --> D7["Frases literales del comprador"]
+  D --> D9["Marcadores de anonimización en la prosa"]
   D --> D8["Cobertura de hechos obligatorios · gate"]
   V --> F["Formal · Lean 4"]
   F --> F1["Cronología · gate · lugar único, exclusión, nacimiento"]
@@ -296,6 +297,7 @@ flowchart LR
 | Contenido y líneas rojas | Cada capítulo | En la v1, solo el criterio `contenido` del juez de capítulo (B-15); el clasificador es de fase 2 | Alta (bloqueante con el clasificador) | Escritor regenera el capítulo |
 | Palabras prohibidas (§4.3) | Cada capítulo | Determinista contra las tres listas | Bloqueante | Escritor reescribe; consume el contador de intentos |
 | Frases literales | Cada capítulo cuya ficha usa un hecho `frase` | Determinista | Alta | Escritor regenera el pasaje |
+| Marcadores de anonimización | Cada capítulo: un `[NOMBRE_ANONIMIZADO]`, `[EMAIL_ELIMINADO]`… que el modelo dejó en lugar de un nombre | Determinista | Bloqueante | Escritor reescribe; consume el contador de intentos |
 | Cobertura de hechos | Gate de manuscrito | Determinista contra el uso de cada hecho | Bloqueante | Revisor dirigido |
 | Cronología formal (§4.2) | Gate de manuscrito | Formal · Lean 4 | Bloqueante | Revisor dirigido, con los eventos implicados |
 | Verificación de acto | Fin de acto | LLM-juez | Alta | Revisor dirigido |
@@ -663,7 +665,7 @@ Los agentes **no viven en `backend/`**: son configuración de Claude Code, versi
 
 **Dos hooks, en `.claude/settings.json`:**
 
-- **Registro de salidas** (`SubagentStop` de todos los subagentes de la novela, P-2). Es quien **registra** cada salida: envía `last_assistant_message` sin tocarlo a `POST /proyectos/{id}/resultado` como `{orden: sello, salida_cruda, metadatos?}`, y el backend extrae el Markdown o el bloque JSON, valida su esquema y, sobre los capítulos del Editor y el Revisor, ejecuta los verificadores deterministas y el guardarraíl. La skill solo lee el acuse; nunca hay dos vías para lo mismo, y así el orquestador no reteclea salidas largas. Garantiza que ningún borrador avanza sin verificar, se acuerde o no el orquestador. **No fuerza al subagente a seguir**: eso convertiría un reintento en una continuación dentro de la misma invocación, lo que §3.2 prohíbe. El reintento lo decide el backend y es una invocación nueva.
+- **Registro de salidas** (`SubagentStop` de todos los subagentes de la novela, P-2). Es quien **registra** cada salida: envía la salida sin tocarla —`last_assistant_message` si empieza por la cabecera `orden:`; si no, lo último que el subagente escribió en el transcript (texto o entrega de `SubagentHandback`) que empiece por ella; si nada, `last_assistant_message`— a `POST /proyectos/{id}/resultado` como `{orden: sello, salida_cruda, metadatos?}`, y el backend extrae el Markdown o el bloque JSON (en el Markdown, lo que venga tras la línea `<!-- fin del capítulo -->` se descarta: son notas del modelo, no prosa), valida su esquema y, sobre los capítulos del Editor y el Revisor, ejecuta los verificadores deterministas y el guardarraíl. La skill solo lee el acuse, que espera a que el hook termine; nunca hay dos vías para lo mismo, y así el orquestador no reteclea salidas largas. Garantiza que ningún borrador avanza sin verificar, se acuerde o no el orquestador. **No fuerza al subagente a seguir**: eso convertiría un reintento en una continuación dentro de la misma invocación, lo que §3.2 prohíbe. El reintento lo decide el backend y es una invocación nueva.
 - **Policy** (`PreToolUse`). Hace cumplir las reglas de §3.3 que no cubre la configuración: deniega las herramientas de escritura de la biblia a cualquier llamada cuyo `agent_type` no sea `bibliotecario`; deniega escribir con las herramientas de fichero en los datos del proyecto —la base, `capitulos/`, `export/`—, a los que solo se entra por la API o el MCP; y deniega leer con ellas el texto libre y las peticiones del lector. Cada decisión, permitida o denegada, queda en el audit log (`auditoria`, por `POST /proyectos/{id}/auditoria`).
 
 Se commitea todo lo anterior. `.claude/settings.local.json` no: son permisos personales.

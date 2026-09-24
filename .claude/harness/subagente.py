@@ -7,7 +7,8 @@ P-2 cerrada): la skill no registra nada. Solo actúa sobre subagentes de la nove
 
 Para cada uno:
 
-1. Guarda `last_assistant_message` en `.claude/estado/`, para diagnosticar sin reteclear.
+1. Toma la salida (ver `elegir_salida`) y la guarda en `.claude/estado/`, para diagnosticar
+   sin reteclear.
 2. Anota el uso leído del transcript y la versión de prompt, el SHA-256 del fichero del
    agente (E-1 b, c). Hasta que exista su contrato (P-6), en `uso.jsonl`.
 3. La registra en el backend y deja el acuse, con éxito o con el error, para que
@@ -34,6 +35,19 @@ import transcript  # noqa: E402
 def version_prompt(agente: str) -> str | None:
     ruta = comun.DIR_AGENTES / f"{agente}.md"
     return hashlib.sha256(ruta.read_bytes()).hexdigest() if ruta.exists() else None
+
+
+def elegir_salida(ultimo: str, textos: list[str]) -> str:
+    """La salida que se registra: el último mensaje si empieza por la cabecera `orden:` que
+    exige el formato de todos los agentes; si no, el último de `textos` que la traiga,
+    porque un subagente en segundo plano puede entregar antes y cerrar con un resumen. Si
+    ninguno la trae, el último mensaje, o el último texto si no hay último mensaje."""
+    if comun.leer_cabecera(ultimo) is not None:
+        return ultimo
+    for texto in reversed(textos):
+        if comun.leer_cabecera(texto) is not None:
+            return texto
+    return ultimo or (textos[-1] if textos else "")
 
 
 def registrar(
@@ -76,7 +90,8 @@ def procesar(entrada: dict[str, Any]) -> str:
             },
         )
         return "sin orden: el sello no es de una orden pedida aquí"
-    salida = str(entrada.get("last_assistant_message") or "")
+    textos = transcript.textos_del_asistente(ruta) if ruta.is_file() else []
+    salida = elegir_salida(str(entrada.get("last_assistant_message") or ""), textos)
     comun.guardar_salida(proyecto, orden, str(agente), salida)
 
     consumo = transcript.uso(ruta).como_dict() if ruta.is_file() else {}

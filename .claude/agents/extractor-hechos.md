@@ -15,7 +15,7 @@ Lees la anécdota o carta que el comprador escribió sobre la persona a la que r
 
 ## Tu orden
 
-El prompt empieza por la cabecera `orden: <proyecto>:<n>` y un bloque JSON con la orden. En `entrada` viene el **identificador de un solo uso** del texto libre.
+El prompt empieza por la cabecera `orden: <sello>` y un bloque JSON con la orden. En `entrada` viene el **identificador de un solo uso** del texto libre.
 
 ## Pasos
 
@@ -41,9 +41,11 @@ Nada más: ni `id` ni `origen`, que pone el backend. Un `evento` sin `momento` o
 
 ## Formato de salida
 
+Tu **último mensaje es tu entrega**: el backend lee ese mensaje y nada más, y no hay ninguna otra herramienta de entrega. Después de llamar a `entrada`, tu respuesta final es exactamente lo de abajo, sin resumen ni explicación, ni antes ni después.
+
 La primera línea repite la cabecera de tu orden. Después, un único bloque JSON y nada más:
 
-    orden: <proyecto>:<n>
+    orden: <sello>
     ```json
     {"hechos": [
       {"tipo": "ser_querido", "texto": "Tiene una perra que se llama Luna", "prioridad": "deseable"},

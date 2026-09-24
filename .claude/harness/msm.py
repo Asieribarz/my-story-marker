@@ -24,7 +24,8 @@ toma de un brief de evaluación solo `entrada.respuestas` y `entrada.texto_libre
 nunca su oráculo (`evaluacion`). `siguiente` renueva
 el bloqueo (o lo retoma si caducó), guarda la orden y devuelve en `prompt` el texto exacto
 para el subagente. `acuse` enseña lo que registró el hook `SubagentStop`, que es la única vía
-de registro: este script nunca envía a `/resultado`.
+de registro: este script nunca envía a `/resultado`. Espera al hook hasta `--espera` segundos,
+porque el subagente puede entregar (`SubagentHandback`) antes de que el hook termine.
 """
 
 from __future__ import annotations
@@ -32,6 +33,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -124,7 +126,10 @@ def _renovar_o_retomar(proyecto: str) -> str:
 
 def siguiente(args: argparse.Namespace) -> Any:
     token = _renovar_o_retomar(args.proyecto)
-    decision = comun.peticion("POST", f"/proyectos/{args.proyecto}/siguiente", token=token)
+    # La orden del juez de manuscrito corre antes los gates de Lean (hasta 2 × 600 s, M-27).
+    decision = comun.peticion(
+        "POST", f"/proyectos/{args.proyecto}/siguiente", token=token, espera=1500.0
+    )
     if decision.get("decision") != "orden":
         return decision
     orden = decision["orden"]
@@ -139,13 +144,22 @@ def siguiente(args: argparse.Namespace) -> Any:
     }
 
 
+# El hook `SubagentStop` tiene 180 s de tope (settings.json); `acuse` espera lo mismo.
+ESPERA_POR_DEFECTO = 180.0
+ESPERA_ENTRE_LECTURAS = 1.0
+
+
 def acuse(args: argparse.Namespace) -> Any:
     """Lo que registró el hook para la orden. La skill no registra nada (P-2)."""
     orden = comun.leer_orden(args.proyecto, args.orden)
     if orden is None:
         raise Salida(4, {"error": "no hay orden guardada: pide antes `siguiente`"})
     numero = int(orden["id"])
+    limite = time.monotonic() + max(0.0, args.espera)
     guardado = comun.leer_acuse(args.proyecto, numero)
+    while guardado is None and time.monotonic() < limite:
+        time.sleep(ESPERA_ENTRE_LECTURAS)
+        guardado = comun.leer_acuse(args.proyecto, numero)
     if guardado is None:
         raise Salida(
             4,
@@ -268,6 +282,7 @@ def _analizador() -> argparse.ArgumentParser:
     p = sub.add_parser("acuse")
     p.add_argument("proyecto")
     p.add_argument("--orden", type=int)
+    p.add_argument("--espera", type=float, default=ESPERA_POR_DEFECTO)
     p.set_defaults(funcion=acuse)
 
     p = sub.add_parser("brief")

@@ -17,6 +17,16 @@ def test_el_markdown_llega_sin_la_linea_del_sello() -> None:
     assert (extraida.valor, extraida.sello) == (MARKDOWN, SELLO)
 
 
+def test_lo_que_sigue_al_fin_del_capitulo_se_descarta() -> None:
+    salida = f"orden: {SELLO}\n{MARKDOWN}\n\n<!-- fin del capítulo -->\n\nHe hecho una pasada."
+    assert extraer(Agente.EDITOR_ESTILO, salida).valor == MARKDOWN
+
+
+def test_sin_fin_del_capitulo_el_texto_llega_entero() -> None:
+    salida = f"{MARKDOWN}\n\n---\nNota final."
+    assert extraer(Agente.ESCRITOR, salida).valor == salida
+
+
 def test_el_sello_repetido_es_opcional() -> None:
     extraida = extraer(Agente.REVISOR, MARKDOWN)
     assert (extraida.valor, extraida.sello) == (MARKDOWN, None)

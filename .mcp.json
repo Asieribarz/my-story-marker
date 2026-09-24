@@ -1,5 +1,9 @@
 {
   "mcpServers": {
+    "lectura": {
+      "type": "http",
+      "url": "http://127.0.0.1:8000/mcp/lectura/"
+    },
     "playwright": {
       "command": "npx",
       "args": ["-y", "@playwright/mcp@latest"]
