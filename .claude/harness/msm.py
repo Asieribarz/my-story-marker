@@ -8,16 +8,21 @@ respondió con error; 4 falta estado local (bloqueo, orden o salida); 5 no hay b
 
 Órdenes:
 
-    crear [--parada-plan] [--parada-final]
+    crear [--parada-plan] [--parada-final] [--etiqueta TEXTO] [--grupo novelas|evals]
+    proyectos
     estado <proyecto>
     bloqueo tomar|renovar|soltar <proyecto> [--tipo sesion|worker]
     siguiente <proyecto>
     acuse <proyecto> [--orden N]
     brief <proyecto> --respuestas FICHERO|- [--texto-libre FICHERO]
-    brief <proyecto> --desde-brief evals/briefs/eN-….json
+    brief <proyecto> --desde-brief evals/eN-<nombre>/input/brief.json
     hechos <proyecto>
     confirmar <proyecto> [--si 1,2] [--no 3]
     reintentar <proyecto> [--notas TEXTO]
+
+`<proyecto>` es el identificador entero o un prefijo único de al menos 4 caracteres; se
+resuelve al entero antes de nada, así que el prompt, el estado local y el hook siempre ven el
+identificador completo. `proyectos` lista los proyectos con su etiqueta y su título.
 
 `brief` lee el texto libre del fichero y lo envía sin imprimirlo (E-3); con `--desde-brief`
 toma de un brief de evaluación solo `entrada.respuestas` y `entrada.texto_libre_fichero`, y
@@ -63,9 +68,58 @@ def _token(proyecto: str) -> str:
 
 
 def crear(args: argparse.Namespace) -> Any:
-    cuerpo = {"parada_plan": args.parada_plan, "parada_final": args.parada_final}
+    cuerpo: dict[str, Any] = {"parada_plan": args.parada_plan, "parada_final": args.parada_final}
+    if args.etiqueta:
+        cuerpo["etiqueta"] = args.etiqueta
+    cuerpo["grupo"] = args.grupo
     estado = comun.peticion("POST", "/proyectos", cuerpo)
-    return {"proyecto": estado["identificador"], "estado": estado["estado"]}
+    return {"proyecto": estado["identificador"], "estado": estado["estado"], "grupo": args.grupo}
+
+
+def proyectos(args: argparse.Namespace) -> Any:
+    """Los proyectos del backend, del más reciente al más antiguo, con su nombre legible."""
+    filas = comun.peticion("GET", "/proyectos")["proyectos"]
+    return {
+        "proyectos": [
+            {
+                k: fila.get(k)
+                for k in ("identificador", "grupo", "etiqueta", "titulo", "estado", "creado")
+            }
+            for fila in filas
+        ]
+    }
+
+
+# Un prefijo más corto casi siempre sería ambiguo, y leído en un log no dice qué proyecto es.
+PREFIJO_MINIMO = 4
+
+
+def resolver_proyecto(valor: str) -> str:
+    """El identificador entero a partir de él mismo o de un prefijo único de al menos
+    `PREFIJO_MINIMO` caracteres (`/generar 1a62`). Ambiguo o sin coincidencias, falla con la
+    lista de candidatos."""
+    if comun.es_identificador(valor):
+        return valor
+    if not (PREFIJO_MINIMO <= len(valor) < 32 and all(c in "0123456789abcdef" for c in valor)):
+        raise comun.ErrorHarness(
+            f"identificador de proyecto no válido: {valor!r} (el entero, o un prefijo de al "
+            f"menos {PREFIJO_MINIMO} caracteres hexadecimales en minúscula)"
+        )
+    filas = comun.peticion("GET", "/proyectos")["proyectos"]
+    candidatos = [f for f in filas if str(f["identificador"]).startswith(valor)]
+    if len(candidatos) == 1:
+        return str(candidatos[0]["identificador"])
+    raise Salida(
+        2,
+        {
+            "error": f"el prefijo {valor!r} "
+            + ("no es de ningún proyecto" if not candidatos else "es de varios proyectos"),
+            "candidatos": [
+                {k: f.get(k) for k in ("identificador", "etiqueta", "titulo", "estado")}
+                for f in candidatos
+            ],
+        },
+    )
 
 
 def estado(args: argparse.Namespace) -> Any:
@@ -266,7 +320,12 @@ def _analizador() -> argparse.ArgumentParser:
     p = sub.add_parser("crear")
     p.add_argument("--parada-plan", action="store_true")
     p.add_argument("--parada-final", action="store_true")
+    p.add_argument("--etiqueta")
+    p.add_argument("--grupo", choices=comun.GRUPOS, default="novelas")
     p.set_defaults(funcion=crear)
+
+    p = sub.add_parser("proyectos")
+    p.set_defaults(funcion=proyectos)
 
     for nombre, funcion in (("estado", estado), ("siguiente", siguiente), ("hechos", hechos)):
         p = sub.add_parser(nombre)
@@ -309,7 +368,7 @@ def main(argv: list[str] | None = None) -> int:
     args = _analizador().parse_args(argv)
     try:
         if getattr(args, "proyecto", None):
-            comun.validar_proyecto(args.proyecto)
+            args.proyecto = resolver_proyecto(args.proyecto)
         _imprimir(args.funcion(args))
         return 0
     except Salida as salida:

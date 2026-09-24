@@ -50,12 +50,15 @@ AGENTES = frozenset(
 # P-1, propuesta B-7 §4.1.3: estos devuelven Markdown; el resto, un bloque JSON.
 AGENTES_MARKDOWN = frozenset({"escritor", "editor-estilo", "revisor"})
 
-# P-1 y P-6 (decisiones-backend.md §4.1): el contrato de `/resultado` es
+# P-1 y P-6 (spec-backend-2.md §4.1): el contrato de `/resultado` es
 # `{orden, salida_cruda, metadatos?}` desde el bloque 2 del backend, que ya no acepta otro.
 # `resultado` (`{orden, resultado}` con la salida estructurada aquí) queda solo para pruebas.
 CONTRATO_RESULTADO = os.environ.get("MSM_CONTRATO_RESULTADO", "salida_cruda")
 
 _IDENTIFICADOR = re.compile(r"[0-9a-f]{32}")
+# Las carpetas de la raíz de proyectos: `<raíz>/<grupo>/<identificador>`, como
+# `GrupoProyecto` de `backend/shared/rutas.py` (lo comprueba `test_definiciones.py`).
+GRUPOS = ("novelas", "evals")
 # AJ-4: el sello es opaco, `<proyecto>:<orden>:<generación>`. Solo se lee el proyecto.
 _CABECERA = re.compile(r"^\s*orden:\s*(([0-9a-f]{32}):[^\s]+)\s*$")
 _BLOQUE_JSON = re.compile(r"```json[ \t]*\r?\n(.*?)\r?\n[ \t]*```", re.DOTALL)
@@ -91,8 +94,12 @@ def ahora() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
 
+def es_identificador(valor: str) -> bool:
+    return _IDENTIFICADOR.fullmatch(valor) is not None
+
+
 def validar_proyecto(proyecto: str) -> str:
-    if not _IDENTIFICADOR.fullmatch(proyecto):
+    if not es_identificador(proyecto):
         raise ErrorHarness(f"identificador de proyecto no válido: {proyecto!r}")
     return proyecto
 

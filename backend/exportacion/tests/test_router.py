@@ -1,4 +1,4 @@
-"""Rutas de `exportacion` (plan-frontend §5.1, decisiones-backend §4.3). Datos ficticios."""
+"""Rutas de `exportacion` (plan-frontend §5.1, spec-backend-2 §4.3). Datos ficticios."""
 
 from collections.abc import Iterator
 from pathlib import Path

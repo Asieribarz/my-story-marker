@@ -1,4 +1,4 @@
--- Esquema de la base de un proyecto: un fichero SQLite por proyecto (spec1.md §6, C-2).
+-- Esquema de la base de un proyecto: un fichero SQLite por proyecto (spec-backend-1.md §6, C-2).
 --
 -- Convenciones:
 --   · Todas las tablas son STRICT: SQLite sin STRICT acepta "hola" en una columna INTEGER.
@@ -9,7 +9,7 @@
 --   · Rutas de fichero relativas al directorio del proyecto, con barras de POSIX (RNF-08).
 --     Texto de capítulo, prompts y exportaciones son ficheros, no blobs (C-4).
 --   · Cada paso del plan afina las columnas de sus tablas; no hay migraciones en la v1
---     (spec1.md §2.5).
+--     (spec-backend-1.md §2.5).
 --   · Biblia con historia por capítulo (B-2): la fila de estado vale desde su `capitulo`,
 --     0 es el estado inicial de la planificación, y toda lectura es «a fecha N−1». El SQL
 --     de estas tablas vive en capitulo/biblia.py y, para la siembra, en
@@ -24,6 +24,9 @@ BEGIN;
 CREATE TABLE proyecto (
   id                 INTEGER PRIMARY KEY CHECK (id = 1),
   identificador      TEXT    NOT NULL,
+  -- Nombre legible que pone quien crea el proyecto; el identificador sigue siendo opaco.
+  -- Puede llevar datos de persona: se muestra en el panel, nunca en rutas ni en logs.
+  etiqueta           TEXT    CHECK (etiqueta IS NULL OR length(etiqueta) BETWEEN 1 AND 60),
   version_ontologia  TEXT,
   estado             TEXT    NOT NULL DEFAULT 'intake' CHECK (estado IN (
                        'intake', 'contexto', 'planificacion', 'aprobacion_plan', 'escaleta',

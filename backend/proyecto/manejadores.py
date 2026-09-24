@@ -38,6 +38,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from backend.contexto import conservacion
 from backend.contexto.persistencia import guardar_contexto
 from backend.contexto.validacion import puede_salir_de_contexto, validar
 from backend.intake.entrada import IdentificadorEmitido, emitir_texto_libre, entregable, retirar
@@ -330,28 +331,49 @@ def _extractor_de_hechos(contexto: ContextoManejo, resultado: object) -> Salida:
 # ─── agente-contexto ─────────────────────────────────────────────────────────
 
 
+def _lo_que_dio_el_comprador(
+    conexion: sqlite3.Connection,
+) -> tuple[dict[str, Any], list[dict[str, Any]]] | None:
+    """B-20: las respuestas guardadas y los hechos confirmados; `None` si no hay brief."""
+    fila = conexion.execute("SELECT respuestas FROM brief WHERE id = 1").fetchone()
+    if fila is None:
+        return None
+    confirmados = [{"tipo": h["tipo"], "texto": h["texto"]} for h in hechos_confirmados(conexion)]
+    return json.loads(fila["respuestas"]), confirmados
+
+
 @manejador(Agente.AGENTE_CONTEXTO)
 def _agente_de_contexto(contexto: ContextoManejo, resultado: object) -> Salida:
     """En `intake` normaliza el brief (RF-11); en `contexto` instancia la ontología.
 
-    El contexto se valida con el `hoy` del instante inyectado. Con un hallazgo bloqueante
-    no se persiste (RF-22): es un fallo de contenido y el informe va al intento siguiente.
-    Sin contexto persistido, la transición a `planificacion` no se deriva (V-20).
+    En los dos pasos, lo que fijó el comprador tiene que salir intacto (B-20): un cambio es
+    un fallo de contenido, con el informe para el intento siguiente, y no se persiste nada.
+    El contexto se valida además con el `hoy` del instante inyectado. Con un hallazgo
+    bloqueante no se persiste (RF-22). Sin contexto persistido, la transición a
+    `planificacion` no se deriva (V-20).
     """
+    dado = _lo_que_dio_el_comprador(contexto.conexion)
     if contexto.orden.estado is EstadoProyecto.INTAKE:
         if not isinstance(resultado, dict) or not resultado:
             return Salida(Desenlace.forma(), {"errores": ["(raíz): un objeto no vacío"]})
+        cambios = () if dado is None else conservacion.en_la_normalizacion(*dado, resultado)
+        if cambios:
+            return Salida(
+                Desenlace.contenido(),
+                {"hallazgos": [h.model_dump(mode="json") for h in cambios]},
+            )
         descartes = guardar_normalizado(contexto.conexion, resultado, contexto.momento)
         return Salida(
             Desenlace.aceptado(),
             {"descartes": [{"tipo": d.tipo, "campo": d.campo} for d in descartes]},
         )
     informe = validar(resultado, contexto.ahora.astimezone(UTC).date())
-    if not puede_salir_de_contexto(informe):
+    cambios = () if dado is None else conservacion.en_el_contexto(*dado, resultado)
+    if cambios or not puede_salir_de_contexto(informe):
         return Salida(
             Desenlace.contenido(),
             {
-                "hallazgos": [h.model_dump(mode="json") for h in informe.hallazgos],
+                "hallazgos": [h.model_dump(mode="json") for h in (*informe.hallazgos, *cambios)],
                 "rellenados": list(informe.rellenados),
             },
         )

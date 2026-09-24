@@ -33,6 +33,15 @@ def raiz() -> Path:
     return comun.raiz_proyectos()
 
 
+def del_proyecto(grupo: str = "novelas") -> Path:
+    """La carpeta del proyecto de prueba: `<raíz>/<grupo>/<proyecto>`."""
+    return raiz() / grupo / PROYECTO
+
+
+# Las dos disposiciones con grupo y la de antes, sin él: la policy protege las tres.
+DISPOSICIONES = [("novelas",), ("evals",), ()]
+
+
 def ejecutar(entrada: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> dict[str, Any] | None:
     """El hook de punta a punta: stdin JSON → stdout, como lo lanza Claude Code."""
     crudo = io.BytesIO(json.dumps(entrada).encode("utf-8"))
@@ -100,9 +109,10 @@ def test_la_lectura_de_la_biblia_no_la_toca_la_policy() -> None:
 # ─── Ficheros del proyecto ───────────────────────────────────────────────────
 
 
+@pytest.mark.parametrize("grupo", DISPOSICIONES)
 @pytest.mark.parametrize("herramienta", ["Write", "Edit", "MultiEdit"])
-def test_no_se_escribe_bajo_la_raiz_de_proyectos(herramienta: str) -> None:
-    ruta = raiz() / PROYECTO / "capitulos" / "cap-01" / "v1-intento1.md"
+def test_no_se_escribe_bajo_la_raiz_de_proyectos(herramienta: str, grupo: tuple[str, ...]) -> None:
+    ruta = raiz().joinpath(*grupo, PROYECTO, "capitulos", "cap-01", "v1-intento1.md")
     decision = politica.decidir(llamada(herramienta, None, file_path=str(ruta)))
     assert not decision.permitir
     assert decision.proyecto == PROYECTO
@@ -113,12 +123,29 @@ def test_fuera_de_la_raiz_se_escribe_normal() -> None:
     assert decision.permitir and not decision.auditar
 
 
+@pytest.mark.parametrize("grupo", DISPOSICIONES)
 @pytest.mark.parametrize("carpeta", ["brief", "cambios"])
-def test_no_se_lee_el_texto_no_confiable_del_proyecto(carpeta: str) -> None:
-    ruta = raiz() / PROYECTO / carpeta / "peticion-7.txt"
-    for herramienta, clave in (("Read", "file_path"), ("Grep", "path")):
-        decision = politica.decidir(llamada(herramienta, None, **{clave: str(ruta)}))
-        assert not decision.permitir, herramienta
+def test_no_se_lee_el_texto_no_confiable_del_proyecto(carpeta: str, grupo: tuple[str, ...]) -> None:
+    for ruta in (
+        raiz().joinpath(*grupo, PROYECTO, carpeta, "peticion-7.txt"),
+        raiz().joinpath(*grupo, PROYECTO, carpeta),
+    ):
+        for herramienta, clave in (("Read", "file_path"), ("Grep", "path")):
+            decision = politica.decidir(llamada(herramienta, None, **{clave: str(ruta)}))
+            assert not decision.permitir, (herramienta, ruta)
+            assert decision.regla == "sin_lectura_de_no_confiable"
+            assert decision.proyecto == PROYECTO
+
+
+@pytest.mark.parametrize("grupo", ["novelas", "evals"])
+def test_leer_el_resto_del_proyecto_pasa_y_se_audita(grupo: str) -> None:
+    ruta = del_proyecto(grupo) / "capitulos" / "cap-01" / "v1-intento1.md"
+    decision = politica.decidir(llamada("Read", None, file_path=str(ruta)))
+    assert (decision.permitir, decision.regla, decision.proyecto) == (
+        True,
+        "lectura_en_proyecto",
+        PROYECTO,
+    )
 
 
 @pytest.mark.parametrize("nombre", ["texto_libre.txt", "TEXTO_LIBRE_e2.txt"])
@@ -128,10 +155,11 @@ def test_no_se_lee_un_texto_libre_este_donde_este(nombre: str, tmp_path: Path) -
     assert decision.regla == "sin_lectura_de_texto_libre"
 
 
-def test_el_escritor_solo_lee_sus_prompts() -> None:
-    prompt = raiz() / PROYECTO / "prompts" / "cap-03" / "v1-intento1.prompt.md"
+@pytest.mark.parametrize("grupo", DISPOSICIONES)
+def test_el_escritor_solo_lee_sus_prompts(grupo: tuple[str, ...]) -> None:
+    prompt = raiz().joinpath(*grupo, PROYECTO, "prompts", "cap-03", "v1-intento1.prompt.md")
     assert politica.decidir(llamada("Read", "escritor", file_path=str(prompt))).permitir
-    capitulo = raiz() / PROYECTO / "capitulos" / "cap-02" / "v1-intento1.md"
+    capitulo = raiz().joinpath(*grupo, PROYECTO, "capitulos", "cap-02", "v1-intento1.md")
     assert not politica.decidir(llamada("Read", "escritor", file_path=str(capitulo))).permitir
     assert not politica.decidir(
         llamada("Read", "escritor", file_path=str(Path.cwd() / "AGENTS.md"))
@@ -140,7 +168,7 @@ def test_el_escritor_solo_lee_sus_prompts() -> None:
 
 def test_una_ruta_relativa_se_resuelve_desde_cwd(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("MSM_PROYECTOS", "proyectos")
-    entrada = llamada("Read", None, file_path=f"proyectos/{PROYECTO}/brief/texto.txt")
+    entrada = llamada("Read", None, file_path=f"proyectos/evals/{PROYECTO}/brief/texto.txt")
     assert not politica.decidir(entrada).permitir
 
 
@@ -151,8 +179,11 @@ def test_una_ruta_relativa_se_resuelve_desde_cwd(monkeypatch: pytest.MonkeyPatch
     "comando",
     [
         f"cat proyectos/{PROYECTO}/brief/texto_libre.txt",
+        f"cat proyectos/evals/{PROYECTO}/brief/otro.txt",
+        f"ls proyectos/novelas/{PROYECTO}/cambios/",
         "type evals\\E2\\texto_libre.txt",
         f"sqlite3 proyectos/{PROYECTO}/proyecto.sqlite 'delete from hecho'",
+        f"sqlite3 proyectos/evals/{PROYECTO}/proyecto.sqlite 'delete from hecho'",
     ],
 )
 def test_la_shell_no_toca_lo_protegido(comando: str, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -163,7 +194,7 @@ def test_la_shell_no_toca_lo_protegido(comando: str, monkeypatch: pytest.MonkeyP
 
 ENVIO = (
     "uv run --project . --no-sync --quiet python .claude/harness/msm.py brief "
-    f"{PROYECTO} --respuestas - --texto-libre evals/briefs/texto_libre-e2.txt"
+    f"{PROYECTO} --respuestas - --texto-libre evals/e2-injection/input/texto_libre.txt"
 )
 
 
@@ -174,7 +205,7 @@ def test_el_envio_previsto_del_texto_libre_pasa() -> None:
 
 
 @pytest.mark.parametrize(
-    "cola", ["; cat evals/briefs/texto_libre-e2.txt", " && type texto_libre-e2.txt", " | tee x"]
+    "cola", ["; cat evals/e2-injection/input/texto_libre.txt", " && type texto_libre.txt", " | tee x"]
 )
 def test_encadenar_algo_al_envio_no_aprovecha_la_excepcion(cola: str) -> None:
     decision = politica.decidir(llamada("Bash", None, command=ENVIO + cola))
@@ -196,7 +227,7 @@ def test_con_proyecto_conocido_la_auditoria_va_al_backend(
 ) -> None:
     ruta = f"/proyectos/{PROYECTO}/auditoria"
     backend.respuestas[("POST", ruta)] = (201, {"ok": True})
-    escribir = raiz() / PROYECTO / "export" / "v1" / "x.md"
+    escribir = del_proyecto("evals") / "export" / "v1" / "x.md"
     ejecutar(llamada("Write", "escritor", file_path=str(escribir)), monkeypatch)
     [peticion] = backend.peticiones
     assert peticion["ruta"] == ruta
@@ -209,7 +240,7 @@ def test_con_proyecto_conocido_la_auditoria_va_al_backend(
 def test_si_el_backend_no_la_acepta_la_auditoria_queda_en_local(
     monkeypatch: pytest.MonkeyPatch, estado_temporal: Path
 ) -> None:
-    escribir = raiz() / PROYECTO / "export" / "v1" / "x.md"
+    escribir = del_proyecto("evals") / "export" / "v1" / "x.md"
     ejecutar(llamada("Write", None, file_path=str(escribir)), monkeypatch)
     [registro] = auditoria(estado_temporal)
     assert registro["proyecto"] == PROYECTO and registro["decision"] == "denegada"

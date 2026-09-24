@@ -1,4 +1,4 @@
-"""Rutas de `exportacion` (spec1.md §5.1, plan-frontend §5.1): las versiones publicadas.
+"""Rutas de `exportacion` (spec-backend-1.md §5.1, plan-frontend §5.1): las versiones publicadas.
 
 Solo lectura. Publicar no tiene ruta propia: se publica al registrar el resultado del
 Exportador (TC-4), y el manuscrito lo escribe la publicación y lo sirve

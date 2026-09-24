@@ -75,6 +75,7 @@ from backend.proyecto.tests.apoyo import (
     MOMENTO,
     NORMALIZADO,
     TEXTO_LIBRE,
+    contexto_con_el_hecho,
     despues,
     estado,
     forzar,
@@ -87,7 +88,7 @@ from backend.proyecto.tests.apoyo import (
 from backend.proyecto.tests.generadores import desenlaces, desenlaces_del_recorrido
 from backend.proyecto.transiciones import ORIGENES_DE_DETENIDA, Causa
 from backend.shared.db import transaccion
-from backend.shared.rutas import IdentificadorInvalido
+from backend.shared.rutas import GrupoProyecto, IdentificadorInvalido
 from backend.shared.tipos import Agente as A
 from backend.shared.tipos import DesenlaceOrden, TipoEjecutor
 from backend.shared.tipos import EstadoCapitulo as C
@@ -154,7 +155,7 @@ def test_no_se_borra_un_proyecto_con_el_bloqueo_vigente(tmp_path: Path) -> None:
 
 def _intacto(raiz: Path, identificador: str) -> None:
     """El proyecto sigue en su sitio, entero, y solo él: ni a medias ni apartado."""
-    assert sorted(p.name for p in raiz.iterdir()) == [identificador]
+    assert sorted(p.name for p in (raiz / GrupoProyecto.NOVELAS).iterdir()) == [identificador]
     with abrir_proyecto(identificador, raiz) as proyecto:
         assert leer_estado(proyecto, AHORA).estado is E.INTAKE
         assert proyecto.disposicion.texto_libre.read_text(encoding="utf-8") == TEXTO_LIBRE
@@ -193,7 +194,7 @@ def test_con_otra_conexion_abierta_no_se_borra_nada(tmp_path: Path) -> None:
     _intacto(tmp_path, identificador)
     with abrir_proyecto(identificador, tmp_path) as sin_otras:
         borrar_proyecto(sin_otras, AHORA)
-    assert list(tmp_path.iterdir()) == []
+    assert list((tmp_path / GrupoProyecto.NOVELAS).iterdir()) == []
 
 
 def test_si_otro_toma_el_bloqueo_mientras_se_aparta_el_proyecto_vuelve_a_su_sitio(
@@ -249,7 +250,7 @@ def test_intake_y_contexto_de_punta_a_punta(proyecto: Proyecto, token: str) -> N
 
     instanciar = _orden(emitir_siguiente_orden(proyecto, token, AHORA))
     assert (instanciar.agente, instanciar.estado) == (A.AGENTE_CONTEXTO, E.CONTEXTO)
-    registro = registrar(proyecto, instanciar.id, referencia(), token, AHORA)
+    registro = registrar(proyecto, instanciar.id, contexto_con_el_hecho(), token, AHORA)
     assert registro.estado is E.PLANIFICACION
     assert conexion.execute("SELECT count(*) FROM contexto").fetchone()[0] == 1
 

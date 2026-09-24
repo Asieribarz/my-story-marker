@@ -4,7 +4,7 @@ import { Cargando, ErrorCarga } from './Estados.jsx'
 import Fragmento from './Fragmento.jsx'
 import { capituloEnLetra } from './modelo.js'
 import { escribirRuta } from './ruta.js'
-import { useCarga } from './useCarga.js'
+import { useCarga } from '../shared/useCarga.js'
 
 /**
  * Un capítulo de una versión. Quien lo pinta le pone `key` por capítulo, así que cada

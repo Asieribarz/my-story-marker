@@ -1,6 +1,6 @@
 """RF-90 a RF-98: publicar la versión de novela N+1 y leer las publicadas.
 
-Publicación atómica (decisiones-backend §2.1, supuestos menores): todo se escribe en un
+Publicación atómica (spec-backend-2 §2.1, supuestos menores): todo se escribe en un
 directorio temporal junto a `export/`, se renombra entero a `export/vN` y solo después se
 escriben las filas y los punteros. Si algo falla antes del renombrado, el temporal se
 borra; si fallan las filas, se borra `export/vN`. Una versión publicada es la que tiene

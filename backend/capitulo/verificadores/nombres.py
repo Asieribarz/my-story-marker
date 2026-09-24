@@ -10,12 +10,12 @@
   cual. Solo se unifican Unicode, espacios y comillas o apóstrofos tipográficos (B-11).
 """
 
-import re
 import unicodedata
 
 from backend.capitulo import segmentacion as seg
 from backend.capitulo.biblia import Termino
 from backend.capitulo.verificadores.lexico import normalizar
+from backend.contexto.conservacion import MARCADOR
 from backend.shared.tipos import Hallazgo, Informe, Severidad
 
 CONECTORES = frozenset({"de", "del", "la", "las", "los", "el", "y"})
@@ -84,9 +84,6 @@ def grafia(cuerpo: str, glosario: tuple[Termino, ...]) -> Informe:
     return Informe(verificador="nombres", hallazgos=tuple(hallazgos))
 
 
-_MARCADOR = re.compile(r"\[[A-ZÁÉÍÓÚÑ_ ]*(?:ANONIMIZAD|OCULT|ELIMINAD)[A-ZÁÉÍÓÚÑ_ ]*\]")
-
-
 def marcadores(cuerpo: str) -> Informe:
     """Un marcador de anonimización (`[NOMBRE_ANONIMIZADO]`, `[EMAIL_ELIMINADO]`…) en la
     prosa es bloqueante: el modelo tapó un nombre que la novela necesita, y se publicaría."""
@@ -100,7 +97,7 @@ def marcadores(cuerpo: str) -> Informe:
             esperado="el nombre de la ficha o del glosario, escrito tal cual",
         )
         for parrafo in seg.parrafos(cuerpo)
-        for m in _MARCADOR.finditer(parrafo.texto)
+        for m in MARCADOR.finditer(parrafo.texto)
     )
     return Informe(verificador="marcadores", hallazgos=hallazgos)
 

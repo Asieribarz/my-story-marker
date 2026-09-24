@@ -1,4 +1,4 @@
-"""Rutas de `planificacion` (spec1.md §5.1): el plan completo para la aprobación.
+"""Rutas de `planificacion` (spec-backend-1.md §5.1): el plan completo para la aprobación.
 
 Solo lectura. El plan entra como resultado de la orden del planificador
 (`POST /proyectos/{id}/resultado`): no hay `PUT`, una sola vía por cosa. La decisión del

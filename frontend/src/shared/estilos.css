@@ -1,24 +1,34 @@
 /*
- * Tokens y base del documento (specs/plan-frontend.md §2, diseño visual): un libro de
- * regalo encuadernado en tela. Una sola familia serif del sistema, sin fuentes externas.
+ * Tokens y base del documento. La paleta sale del logo (public/logo.png): el naranja es el
+ * acento —pestaña activa, botones, la cinta de «cambiado», las barras de las métricas— y el
+ * marino, la tinta y la cubierta. El naranja puro no llega al contraste AA sobre blanco, así
+ * que el texto de enlace usa `--naranja-texto`. La novela se lee en serif del sistema; la
+ * interfaz, en la sans del sistema. Sin fuentes externas.
  */
 
 :root {
   color-scheme: light dark;
 
-  --papel: #fafaf7;
-  --tinta: #22262a;
-  --tinta-suave: #5c656e;
-  --filete: #dcdfdb;
-  --enlace: #1f4f66;
-  --tela: #1e3a46;
-  --oro: #c9a45c;
-  --cinta: #a3263a;
+  --naranja: #ff7a33;
+  --naranja-texto: #b94a12;
+  --naranja-suave: #fff1e8;
+  --marino: #22333f;
+
+  --papel: #fdfbf8;
+  --superficie: #ffffff;
+  --tinta: #22333f;
+  --tinta-suave: #5b6772;
+  --filete: #e6e1da;
+  --enlace: var(--naranja-texto);
+  --tela: var(--marino);
+  --oro: var(--naranja);
+  --cinta: var(--naranja);
 
   /* Sitka trae tamaños ópticos en Windows; Iowan Old Style y Charter, en macOS. */
   --serif: 'Sitka Text', 'Iowan Old Style', Charter, 'Palatino Linotype', Georgia, serif;
   --serif-titulo: 'Sitka Banner', 'Sitka Display', 'Iowan Old Style', Charter, 'Palatino Linotype', Georgia, serif;
   --serif-pequena: 'Sitka Small', 'Iowan Old Style', Charter, 'Palatino Linotype', Georgia, serif;
+  --sans: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
 
   /* Unos 65 caracteres por línea. */
   --medida: 34em;
@@ -27,14 +37,16 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --papel: #15181b;
-    --tinta: #e2e0da;
-    --tinta-suave: #a1a8ae;
-    --filete: #2d3337;
-    --enlace: #8fc3d9;
-    --tela: #10242d;
-    --oro: #d4b36e;
-    --cinta: #d25a6c;
+    --naranja-texto: #ff9a5e;
+    --naranja-suave: #3a2418;
+
+    --papel: #141b21;
+    --superficie: #1b242c;
+    --tinta: #e8e4de;
+    --tinta-suave: #a3adb5;
+    --filete: #2a3540;
+    --tela: #22333f;
+    --oro: #ff8a47;
   }
 }
 
@@ -73,7 +85,7 @@ a:hover {
 }
 
 :focus-visible {
-  outline: 2px solid var(--enlace);
+  outline: 2px solid var(--naranja);
   outline-offset: 3px;
   border-radius: 2px;
 }

@@ -1,4 +1,4 @@
-"""El worker de regeneración (RF-124, TC-8, TC-9 simplificado por R-4, TC-10).
+"""El worker de la cola (RF-124, TC-8, TC-9 simplificado por R-4, TC-10).
 
 Un hilo del `lifespan` de la aplicación con `subprocess` síncrono. Procesa **un trabajo cada
 vez**: el más antiguo en cola de todos los proyectos de la raíz. Por cada uno lanza
@@ -10,11 +10,19 @@ con el id hexadecimal del proyecto y el número del trabajo como únicos datos, 
 (RNF-10). El worker no llama a ningún modelo; `claude` toma el bloqueo como `worker` y lleva
 el proyecto hasta la próxima parada con la skill `orquestar-novela`.
 
+Hay dos clases de trabajo, y las distingue `trabajo.cambio`: con un cambio, es una
+**regeneración** que encolan pedir y confirmar el cambio; sin cambio, es una **generación**
+que encola el comprador desde la web (`POST /proyectos/{id}/generacion`). La línea de
+`claude -p` es la misma: `/regenerar` solo lleva el proyecto hasta su próxima parada. Cambian
+la parada que se espera (`en_parada`) y el tiempo máximo: una novela entera tarda horas.
+
 R-4, **una sola ejecución**: si el proceso sale con error, se cuelga más de `tiempo_maximo`
 (se mata) o muere, o termina sin dejar el proyecto en una parada, el trabajo queda
 `fallido` con su causa y el proyecto vuelve a `publicada` con causa `worker_fallido`: el
 cambio queda fallido y se deshace (AJ-6, `efectos.py`). Se vuelve a encolar a mano, pidiendo
-otra vez el cambio. Sin comando `claude`, el trabajo falla con `claude_no_disponible`.
+otra vez el cambio. Una generación que falla deja el proyecto donde estaba —la posición en
+el grafo nunca se pierde (§3.2)— y suelta el bloqueo del worker: se vuelve a lanzar desde la
+web y reanuda. Sin comando `claude`, el trabajo falla con `claude_no_disponible`.
 
 - Con el bloqueo del proyecto tomado —una sesión con `/generar`, o el `claude` de un trabajo
   anterior que sigue vivo— no se lanza: el trabajo espera en cola.
@@ -42,21 +50,23 @@ from pathlib import Path
 from typing import Any
 
 from backend.proyecto.abierto import Proyecto, abrir_proyecto, instante
-from backend.proyecto.bloqueo import bloqueo_vigente
+from backend.proyecto.bloqueo import bloqueo_vigente, soltar_bloqueo_del_worker
 from backend.proyecto.errores import ProyectoInexistente
 from backend.proyecto.persistencia import abandonar_por_worker
 from backend.shared.db import transaccion
-from backend.shared.rutas import IdentificadorInvalido, raiz_de_proyectos
+from backend.shared.rutas import IdentificadorInvalido, identificadores_en, raiz_de_proyectos
 from backend.shared.tipos import EstadoCambio, EstadoProyecto, EstadoTrabajo
 
 VARIABLE_ACTIVO = "MSM_WORKER"
 TIEMPO_MAXIMO_S = 2 * 60 * 60
+# E1 tardó unas tres horas de brief a publicación: el doble de margen.
+TIEMPO_MAXIMO_GENERACION_S = 6 * 60 * 60
 INTERVALO_S = 5.0
 # El directorio del repositorio: `claude` tiene que ver `.claude/` (agentes, skills, hooks).
 DIRECTORIO_DE_TRABAJO = Path(__file__).resolve().parents[2]
 _IDENTIFICADOR = re.compile(r"[0-9a-f]{32}")
 # Variables que el proceso hijo no hereda: el modelo sale de la suscripción, nunca de una
-# clave de API (decisiones-backend §1, «Presupuesto»).
+# clave de API (spec-backend-2 §1, «Presupuesto»).
 _VARIABLES_PROHIBIDAS = ("ANTHROPIC_API_KEY",)
 
 registro = logging.getLogger(__name__)
@@ -89,6 +99,7 @@ class ConfigWorker:
 
     comando: Sequence[str] | None = None
     tiempo_maximo: float = TIEMPO_MAXIMO_S
+    tiempo_maximo_generacion: float = TIEMPO_MAXIMO_GENERACION_S
     intervalo: float = INTERVALO_S
     raiz: Path | None = None
     reloj: Callable[[], datetime] = field(default=_reloj)
@@ -130,9 +141,7 @@ def _entorno() -> dict[str, str]:
 
 
 def _proyectos(raiz: Path) -> list[str]:
-    if not raiz.is_dir():
-        return []
-    return sorted(d.name for d in raiz.iterdir() if _IDENTIFICADOR.fullmatch(d.name) and d.is_dir())
+    return identificadores_en(raiz)
 
 
 def _abrir(identificador: str, raiz: Path) -> Proyecto | None:
@@ -189,9 +198,19 @@ def _marcar_en_curso(proyecto: Proyecto, trabajo: int, ahora: datetime) -> bool:
         return cursor.rowcount == 1
 
 
-def en_parada(proyecto: Proyecto) -> bool:
-    """Si el proyecto ha llegado a la próxima parada de su trabajo: `publicada`, una parada
-    humana o el cambio ya propuesto, esperando su confirmación."""
+def es_generacion(proyecto: Proyecto, trabajo: int) -> bool:
+    """Un trabajo sin cambio es una generación; con cambio, una regeneración."""
+    fila = proyecto.conexion.execute(
+        "SELECT cambio FROM trabajo WHERE id = ?", (trabajo,)
+    ).fetchone()
+    return fila is not None and fila["cambio"] is None
+
+
+def en_parada(proyecto: Proyecto, generacion: bool = False) -> bool:
+    """Si el proyecto ha llegado a la próxima parada de su trabajo: `publicada`, `detenida`,
+    una parada humana o el cambio ya propuesto, esperando su confirmación. En una generación,
+    también `aprobacion_plan` y el `intake` que espera al comprador: sin brief, o con hechos
+    extraídos pendientes de confirmar."""
     conexion = proyecto.conexion
     estado = EstadoProyecto(
         conexion.execute("SELECT estado FROM proyecto WHERE id = 1").fetchone()["estado"]
@@ -200,6 +219,16 @@ def en_parada(proyecto: Proyecto) -> bool:
         return True
     if estado is EstadoProyecto.DETENIDA:
         return True
+    if generacion:
+        if estado is EstadoProyecto.APROBACION_PLAN:
+            return True
+        if estado is EstadoProyecto.INTAKE:
+            fila = conexion.execute(
+                "SELECT NOT EXISTS (SELECT 1 FROM brief) "
+                "OR EXISTS (SELECT 1 FROM hecho_propuesto WHERE estado = 'pendiente') AS espera"
+            ).fetchone()
+            return bool(fila["espera"])
+        return False
     if estado is EstadoProyecto.CAMBIO_SOLICITADO:
         fila = conexion.execute(
             "SELECT 1 FROM cambio_lector WHERE estado = ?", (EstadoCambio.PROPUESTO.value,)
@@ -215,9 +244,12 @@ def _cerrar(
     causa: CausaFallo | None,
     codigo: int | None,
     aviso: bool = False,
+    generacion: bool = False,
 ) -> None:
-    """Cierra el trabajo. Si falló, el proyecto vuelve a `publicada` en la misma
-    transacción (R-4), con el cambio fallido y deshecho (AJ-6). Con `aviso`, el proceso
+    """Cierra el trabajo. Si una regeneración falló, el proyecto vuelve a `publicada` en la
+    misma transacción (R-4), con el cambio fallido y deshecho (AJ-6); si falló una
+    generación, el proyecto se queda donde está y solo se suelta el bloqueo del worker, cuyo
+    proceso ya no existe. Con `aviso`, el proceso
     falló pero el proyecto ya estaba en su parada: el trabajo queda hecho, con la causa en
     `detalle.aviso`, y no se abandona nada."""
     detalle: dict[str, Any] = {"codigo_salida": codigo}
@@ -231,7 +263,9 @@ def _cerrar(
             "UPDATE trabajo SET estado = ?, terminado = ?, detalle = ? WHERE id = ?",
             (estado.value, instante(ahora), json.dumps(detalle), trabajo),
         )
-        if causa is not None:
+        if causa is not None and generacion:
+            soltar_bloqueo_del_worker(conexion)
+        elif causa is not None:
             abandonar_por_worker(proyecto, ahora)
 
 
@@ -304,24 +338,26 @@ def procesar_uno(config: ConfigWorker) -> Resultado | None:
     with proyecto:
         if not _marcar_en_curso(proyecto, trabajo, config.reloj()):
             return None
+        generacion = es_generacion(proyecto, trabajo)
+    tiempo_maximo = config.tiempo_maximo_generacion if generacion else config.tiempo_maximo
     comando = tuple(config.comando) if config.comando is not None else comando_por_defecto()
     if comando is None:
         causa: CausaFallo | None = CausaFallo.CLAUDE_NO_DISPONIBLE
         codigo: int | None = None
     else:
         registro.info("trabajo %s del proyecto %s: lanzando claude -p", trabajo, identificador)
-        causa, codigo = _ejecutar(argumentos(comando, identificador, trabajo), config.tiempo_maximo)
+        causa, codigo = _ejecutar(argumentos(comando, identificador, trabajo), tiempo_maximo)
     proyecto = _abrir(identificador, raiz)
     if proyecto is None:  # borrado mientras corría: no hay nada que cerrar
         return Resultado(identificador, trabajo, EstadoTrabajo.FALLIDO, causa)
     with proyecto:
         # R-4: lo que decide es dónde quedó el proyecto. En su parada —el cambio ya
         # propuesto, por ejemplo— un código de salida distinto de 0 no deshace nada.
-        parada = en_parada(proyecto)
+        parada = en_parada(proyecto, generacion)
         if causa is None and not parada:
             causa = CausaFallo.SIN_PARADA
         aviso = causa is not None and parada
-        _cerrar(proyecto, trabajo, config.reloj(), causa, codigo, aviso)
+        _cerrar(proyecto, trabajo, config.reloj(), causa, codigo, aviso, generacion)
     estado = EstadoTrabajo.HECHO if causa is None or aviso else EstadoTrabajo.FALLIDO
     if causa is not None:
         registro.warning("trabajo %s del proyecto %s: %s", trabajo, identificador, causa.value)

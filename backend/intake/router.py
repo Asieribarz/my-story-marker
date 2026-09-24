@@ -1,4 +1,4 @@
-"""Rutas de `intake` (spec1.md §5.1): el brief del comprador y la confirmación de hechos.
+"""Rutas de `intake` (spec-backend-1.md §5.1): el brief del comprador y la confirmación de hechos.
 
 Son acciones del comprador, no del orquestador: no exigen el bloqueo (Q7) y solo caben en
 `intake`; fuera de esa fase dan `TransicionInvalida` y no escriben nada (RF-04). Ninguna

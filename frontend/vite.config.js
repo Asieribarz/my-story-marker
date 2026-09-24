@@ -4,11 +4,11 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react()],
   server: {
-    // Con FUENTE = 'api' (src/lectura/api.js), /api va al backend y no hace falta CORS.
-    // 8000 es el puerto por defecto de uvicorn.
+    // /api va al backend y no hace falta CORS. 8000 es el puerto por defecto de uvicorn;
+    // MSM_BACKEND lo cambia (por ejemplo, un segundo backend mientras otro genera).
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: process.env.MSM_BACKEND ?? 'http://127.0.0.1:8000',
         rewrite: (ruta) => ruta.replace(/^\/api/, ''),
       },
     },

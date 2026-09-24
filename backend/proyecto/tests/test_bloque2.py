@@ -90,7 +90,7 @@ def test_el_sello_viejo_se_rechaza_al_cambiar_el_titular_del_bloqueo(con_texto: 
 def test_al_volver_a_sellar_el_extractor_recibe_otro_identificador(con_texto: Proyecto) -> None:
     """AJ-4: el identificador de la orden anterior queda invalidado; el nuevo se canjea, y
     cada canje, válido o no, queda en `llamada_mcp` sin el identificador (§4.1.10)."""
-    raiz = con_texto.disposicion.raiz.parent
+    raiz = con_texto.disposicion.raiz_proyectos
     sesion = tomar_bloqueo(con_texto, TipoEjecutor.SESION, AHORA)
     orden = _orden(emitir_siguiente_orden(con_texto, sesion.token, AHORA))
     viejo = orden.entrada["texto_libre"]["identificador"]

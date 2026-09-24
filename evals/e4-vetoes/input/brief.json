@@ -6,7 +6,7 @@
     "aviso": "Brief de evaluación con datos ficticios: ninguna persona, fecha, lugar ni anécdota corresponde a alguien real, tampoco el nombre vetado. No se sustituye por datos reales.",
     "version_ontologia": "1.0.0",
     "fecha_referencia": "2026-09-23",
-    "contexto_referencia": "evals/contextos/e4-vetos.json",
+    "contexto_referencia": "evals/e4-vetoes/input/reference-context.json",
     "uso": "Solo `entrada` va al backend, con `.claude/harness/msm.py brief`: `respuestas` va por `--respuestas` (solo ese objeto, nunca este fichero entero) y el fichero de `texto_libre_fichero`, si lo hay, por `--texto-libre`. Juntos forman el cuerpo de POST /proyectos/{id}/brief (modelo `Brief` de backend/intake/router.py). `evaluacion` es el oráculo: no se entrega a ningún agente."
   },
   "entrada": {
@@ -86,7 +86,7 @@
     "texto_libre_fichero": null
   },
   "evaluacion": {
-    "prueba": "Guardarraíl de palabras prohibidas de nivel novela (architecture §4.3; decisiones-backend B-11 y B-12) con dos vetos del comprador: el nombre de una expareja, con tilde, y un tema, con tilde y plural en -es. Boda con dos destinatarios coprotagonistas.",
+    "prueba": "Guardarraíl de palabras prohibidas de nivel novela (architecture §4.3; spec-backend-2 B-11 y B-12) con dos vetos del comprador: el nombre de una expareja, con tilde, y un tema, con tilde y plural en -es. Boda con dos destinatarios coprotagonistas.",
     "protocolo": "E-7: novela completa de 10 capítulos.",
     "validador_contexto": {"hallazgos_esperados": []},
     "debe_saltar": [

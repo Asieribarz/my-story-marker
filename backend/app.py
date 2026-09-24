@@ -22,6 +22,7 @@ from fastmcp.utilities.lifespan import combine_lifespans
 from starlette.applications import Starlette
 
 from backend.cambio.router import router as router_cambio
+from backend.cambio.router import router_generacion
 from backend.cambio.worker import ConfigWorker, activo_por_entorno, lifespan_del_worker
 from backend.contexto.router import router as router_contexto
 from backend.escaleta.router import router as router_escaleta
@@ -44,6 +45,7 @@ ROUTERS: tuple[APIRouter, ...] = (
     router_exportacion,
     router_revision,
     router_cambio,
+    router_generacion,
 )
 
 Superficie = tuple[str, Callable[[], Starlette]]

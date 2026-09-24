@@ -80,8 +80,17 @@ def test_los_nombres_son_los_del_backend() -> None:
 
     del_backend = {a.value for a in Agente}
     if {"arquitecto", "personajes", "mundo", "estilo"} & del_backend:
-        pytest.skip("el backend aún no ha aplicado R-1 (decisiones-backend.md §0)")
+        pytest.skip("el backend aún no ha aplicado R-1 (spec-backend-2.md §0)")
     assert del_backend == set(MODELOS)
+
+
+def test_los_grupos_de_proyecto_son_los_del_backend() -> None:
+    """La policy protege `<raíz>/<grupo>/<proyecto>/`: si el backend añade un grupo que el
+    harness no conoce, sus rutas se leerían con el nivel equivocado."""
+    sys.path.insert(0, str(RAIZ))
+    from backend.shared.rutas import GrupoProyecto
+
+    assert tuple(g.value for g in GrupoProyecto) == comun.GRUPOS
 
 
 @pytest.mark.parametrize("nombre", sorted(MODELOS))

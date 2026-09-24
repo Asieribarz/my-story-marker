@@ -2,7 +2,7 @@
 
 > **Estado: en curso (2026-09-23).** Lo escribe la sesión formal, que es dueña de `formal/` y de este fichero. Cubre V-25 (TLA+ del grafo de estados, [architecture.md](../docs/architecture.md) §3.4) y el proyecto Lake de la cronología (§4.2, RF-111, RF-112, TC-1, TC-2).
 >
-> El modelo sigue las **decisiones** de [decisiones-backend.md](decisiones-backend.md), no solo el código escrito hoy: R-1 y AJ-1 a AJ-6. Lo que el modelo supone y el código aún no hace está en §4, y se alinea rama a rama cuando termine el bloque 2 del backend.
+> El modelo sigue las **decisiones** de [spec-backend-2.md](spec-backend-2.md), no solo el código escrito hoy: R-1 y AJ-1 a AJ-6. Lo que el modelo supone y el código aún no hace está en §4, y se alinea rama a rama cuando termine el bloque 2 del backend.
 
 ---
 
@@ -146,7 +146,7 @@ cd formal\tla
 
 ### 3.1 El fichero que genera el backend
 
-Es el contrato de [decisiones-backend.md](decisiones-backend.md) §4.2, con estos detalles fijados aquí:
+Es el contrato de [spec-backend-2.md](spec-backend-2.md) §4.2, con estos detalles fijados aquí:
 
 - **Codificación:** UTF-8 **sin BOM**, con saltos `\n`. Con BOM, Lean no lee el fichero (`expected token` en 1:0).
 - **Cabecera:** `import Cronologia` y `open Cronologia`.
@@ -208,7 +208,7 @@ La línea JSON es la única que empieza por `{`. Su forma es fija:
  "nacimiento":[{"personaje":1,"evento":2}]}
 ```
 
-(en una sola línea). Las listas salen en el orden de `novela.eventos`, así que la misma novela da la misma línea. Con los ids de eventos, el backend saca los capítulos que van al Revisor (`evento.capitulo`, decisiones-backend §3.7).
+(en una sola línea). Las listas salen en el orden de `novela.eventos`, así que la misma novela da la misma línea. Con los ids de eventos, el backend saca los capítulos que van al Revisor (`evento.capitulo`, spec-backend-2 §3.7).
 
 ### 3.4 Pruebas y prueba de tamaño
 

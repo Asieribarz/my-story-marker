@@ -47,7 +47,7 @@ Min(S) == CHOOSE x \in S : \A y \in S : x <= y
 Afectables == {S \in SUBSET Caps : S # {} /\ Cardinality(S) <= MaxAfectados}
 
 -------------------------------------------------------------------------------
-(* Vocabulario: shared/tipos.py y R-1 de specs/decisiones-backend.md.        *)
+(* Vocabulario: shared/tipos.py y R-1 de specs/spec-backend-2.md.        *)
 
 Estados == {"intake", "contexto", "planificacion", "aprobacion_plan", "escaleta",
             "capitulos", "verificacion_manuscrito", "revision", "aprobacion_final",
@@ -280,7 +280,7 @@ EnBucle(b) ==
          [] k.estado = "verificado" -> Lanza("juez-capitulo", c, sig)
          [] k.estado = "aprobado" -> Lanza("bibliotecario", c, sig)
 
-\* decisiones-backend §3.7 (no está en el código): por capítulo, Revisor y después
+\* spec-backend-2 §3.7 (no está en el código): por capítulo, Revisor y después
 \* Bibliotecario; los deterministas van con el registro del Revisor.
 EnRevision(b) ==
     LET c == Min(b.rev.pend) IN
@@ -435,7 +435,7 @@ DesenlaceCapitulo(b, o, res) ==
                  THEN [b EXCEPT !.intentosPaso = b.intentosPaso + 1]
                  ELSE [a EXCEPT !.cap[c].estado = "revision_humana", !.vig[c] = SinVersion]
 
-\* decisiones-backend §3.7 (no está en el código).
+\* spec-backend-2 §3.7 (no está en el código).
 DesenlaceRevision(b, o, res) ==
     LET c == o.capitulo
         a == [b EXCEPT !.intentosPaso = 0]

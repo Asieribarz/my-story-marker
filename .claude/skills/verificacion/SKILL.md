@@ -72,6 +72,6 @@ Las pruebas basadas en propiedades y las evals no tienen una referencia fundacio
 
 ## Lo que esta skill no decide
 
-`docs/validators.md` registra lo que ya está repartido, y `specs/spec1.md` §9 los criterios de aceptación del backend v1. Esta skill ayuda a elegir método para una afirmación **nueva**; no autoriza a introducir una herramienta de verificación en el proyecto. Eso es una dependencia, y va por `docs/architecture.md` §7 como cualquier otra — hoy, con D-7 de `specs/spec1.md` §10 todavía abierto, no hay marco de pruebas ni comprobador de tipos elegidos, así que ningún documento debe nombrar una biblioteca.
+`docs/validators.md` registra lo que ya está repartido, y `specs/spec-backend-1.md` §9 los criterios de aceptación del backend v1. Esta skill ayuda a elegir método para una afirmación **nueva**; no autoriza a introducir una herramienta de verificación en el proyecto. Eso es una dependencia, y va por `docs/architecture.md` §7 como cualquier otra — hoy, con D-7 de `specs/spec-backend-1.md` §10 todavía abierto, no hay marco de pruebas ni comprobador de tipos elegidos, así que ningún documento debe nombrar una biblioteca.
 
-Cuando la elección quede hecha, se escribe donde toca: el criterio en `specs/spec1.md` §9 si es un requisito del backend v1, y su fila por pieza en `docs/validators.md`. Ver `docs/validators.md` §8.
+Cuando la elección quede hecha, se escribe donde toca: el criterio en `specs/spec-backend-1.md` §9 si es un requisito del backend v1, y su fila por pieza en `docs/validators.md`. Ver `docs/validators.md` §8.

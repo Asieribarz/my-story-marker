@@ -2,7 +2,7 @@
 
 Una sola forma para los dos: cinco criterios de enum cerrado, cada uno una vez, con una
 puntuación entera de 1 a 5 y su justificación. El juez añade `capitulos`, los que señalan
-sus justificaciones (decisiones-backend §3 punto 7). El umbral lo aplica el backend, no el
+sus justificaciones (spec-backend-2 §3 punto 7). El umbral lo aplica el backend, no el
 juez: `aprueba`.
 """
 

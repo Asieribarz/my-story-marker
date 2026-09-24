@@ -108,3 +108,9 @@ class CambioRespuesta(BaseModel):
     capitulos: list[int]
     version_nueva: int | None
     motivo: str | None
+
+
+class GeneracionRespuesta(BaseModel):
+    """El trabajo de generación encolado, o el que ya esperaba (TC-8)."""
+
+    trabajo: int

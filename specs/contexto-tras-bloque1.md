@@ -9,7 +9,7 @@
 ## 1. Reglas para trabajar aquí
 
 - `AGENTS.md` y `CLAUDE.md` se cargan solos y mandan. No hagas commit ni push si la persona no lo pide.
-- **[decisiones-backend.md](decisiones-backend.md) manda sobre `docs/`** hasta que el código aplique sus decisiones. Lo que hay en él:
+- **[spec-backend-2.md](spec-backend-2.md) manda sobre `docs/`** hasta que el código aplique sus decisiones. Lo que hay en él:
   - §0: recortes;
   - §1: B-n;
   - §2: TC-n;
@@ -18,7 +18,7 @@
   - §4: contratos con las otras sesiones;
   - §4.4: documentos pendientes;
   - §4.5: avisos pendientes.
-- **Decisiones del backend: sin ronda de preguntas.** La persona pidió que se tomen con tu recomendación. Di qué has decidido y apúntalo en `decisiones-backend.md`. Sí pregunta por lo que queda fuera del backend: commits, instalaciones y cambios que afecten a otras sesiones o a la ontología.
+- **Decisiones del backend: sin ronda de preguntas.** La persona pidió que se tomen con tu recomendación. Di qué has decidido y apúntalo en `spec-backend-2.md`. Sí pregunta por lo que queda fuera del backend: commits, instalaciones y cambios que afecten a otras sesiones o a la ontología.
 - **Presupuesto.** Todo el uso de modelo sale de la suscripción: nunca `ANTHROPIC_API_KEY`, ni un SDK de proveedor, ni `claude -p --bare`. La cuota por horas se agota: usa workflows con pocos agentes y un solo revisor, y no releas documentos largos si no hace falta.
 - Mapa visual del proyecto, para la persona: https://claude.ai/artifact/P81cJNz85ToNgJHymsE9ed
 
@@ -40,7 +40,7 @@ Un generador de novelas de aventura personalizadas para regalo. Parte de la entr
 | Backend · bloque 2 · **planificación y escaleta** | **A medias, sin commitear.** Parado a las 17:50 con unas 35 acciones hechas | `backend/planificacion/`, `backend/escaleta/` |
 | Backend · bloque 2 · Recuperador, verificadores y MCP | Sin empezar | §5.1 |
 | Backend · bloque 3: pasos 8a a 10 | Decidido, sin empezar | §5.2 |
-| Agentes: `.claude/` y `.mcp.json` | Los 12 agentes, el harness y 78 pruebas. Tiene una fuga de seguridad sin arreglar | [pendientes-sesiones.md](pendientes-sesiones.md), sección de agentes |
+| Agentes: `.claude/` y `.mcp.json` | Los 12 agentes, el harness y 78 pruebas. Tiene una fuga de seguridad sin arreglar | [plan-multisesion.md](plan-multisesion.md), sección de agentes |
 | Frontend: lectura | Hecha contra un fixture, con 43 pruebas | `frontend/`, [plan-frontend.md](plan-frontend.md) |
 | Frontend: cambio | Diseñado; espera a las rutas del paso 9a | plan-frontend §7 |
 | Briefs de evaluación | Los cinco hechos. E3 necesita `excluye`, que ya existe con la base: repásalo con `comprobar.py` | `evals/` |
@@ -98,7 +98,7 @@ Para reutilizarlo:
 | Recuperador | ⬜ | RF-50 a 59b: estimador, estructurada, similitud vacía, `ensamblado.preparar_prompt` en partes de 20.000 tokens como mucho; V-3a, V-4, V-5 y V-23 | B-8, §4.1.4, D-9 |
 | Verificadores | ⬜ | RF-60 a 62, 70 a 73a, 76 a 79, 72a y 77a: segmentación, longitud, INFLESZ, lista negra, guardarraíl con sus listas, grafía, frases literales, modelos de salida y MANEJADORES de `capitulo/`; V-7, V-15 por regla, V-26, V-28 y V-35 | B-11, B-12, B-14, B-15, R-2, R-3 |
 | MCP | ⬜ | RF-100 a 106: `/mcp/lectura` y `/mcp/escritura` con el sello, RF-106 y `llamada_mcp`, montadas en `app.py`; V-19 y V-13 (lado del backend) | §4.1.6, AJ-4, B-16, B-17 |
-| Revisión, corrección y documentos | ⬜ | La batería completa, integración y la pasada de §4.4 de decisiones-backend | — |
+| Revisión, corrección y documentos | ⬜ | La batería completa, integración y la pasada de §4.4 de spec-backend-2 | — |
 
 **Orden recomendado:**
 1. Terminar el cerebro y la planificación, y dejar la batería en verde.
@@ -122,7 +122,7 @@ El workflow admite a la vez tantos agentes como núcleos menos 2: en una máquin
 
 ### 5.3 Documentos y avisos
 
-- Pasada breve con **todo lo de §4.4 de decisiones-backend**, mejor al cerrar el bloque 2.
+- Pasada breve con **todo lo de §4.4 de spec-backend-2**, mejor al cerrar el bloque 2.
 - Los **avisos de §4.5**, a medida que llegue cada cosa.
 
 ## 6. Cómo construir rápido
@@ -153,12 +153,12 @@ Lecciones medidas en los bloques 1 y 2:
 - **Commitear** el trabajo del bloque 2 a medias antes de llevar el repositorio a la otra máquina, y el push si hace falta.
 - Si el enunciado exige Langfuse.
 - Limpiar las reglas `allow` de `.claude/settings.json` que dejaron otras sesiones con sus rutas.
-- Reabrir la sesión de agentes para la fuga de la policy ([pendientes-sesiones.md](pendientes-sesiones.md)).
+- Reabrir la sesión de agentes para la fuga de la policy ([plan-multisesion.md](plan-multisesion.md)).
 - Mañana: la revisión humana de E1 con la rúbrica, y la presentación con su vídeo.
 
 ## 9. Otras sesiones
 
-Cada una tiene su lista en [pendientes-sesiones.md](pendientes-sesiones.md). Al reabrir una, dile: «lee specs/pendientes-sesiones.md, tu sección, y specs/decisiones-backend.md».
+Cada una tiene su lista en [plan-multisesion.md](plan-multisesion.md). Al reabrir una, dile: «lee specs/plan-multisesion.md, tu sección, y specs/spec-backend-2.md».
 
 - **Agentes (`.claude/`), lo urgente:**
   - la policy deja que Grep lea `brief/` y `cambios/` si se le da como ruta la carpeta del proyecto;
@@ -391,8 +391,8 @@ Lecturas para MCP (§4.1.6), todas -> dict | None:
 - docs/definitions.md §9: B-18, el campo excluye {fuente, tipo: muerte|partida} de los hechos evento, con las reglas exclusion_en_evento y exclusion_con_fuente.
 - docs/architecture.md §6 (modelo de datos): la historia por capítulo con el capítulo 0 (B-2); las tablas nuevas personaje_estado, personaje_sabe, localizacion_estado, objeto, presagio_estado, ficha_capitulo_hito y gate_resultado; informe único por versión y verificador; evento con dos escalas de tiempo; resumen por versión.
 - docs/architecture.md §3 y §3.1: los 12 agentes y una sola orden en planificacion (R-1, AJ-1). §8: cada rebanada expone MANEJADORES en <rebanada>/manejadores.py y proyecto/manejadores.py los agrega.
-- specs/spec1.md §6: la tabla del modelo de datos con las tablas nuevas. §5.3: los ficheros borrador, prompt.parte-N y verificacion/pasada-k.
+- specs/spec-backend-1.md §6: la tabla del modelo de datos con las tablas nuevas. §5.3: los ficheros borrador, prompt.parte-N y verificacion/pasada-k.
 - docs/validators.md: V-22 (la propiedad «a fecha N−1» de capitulo/tests/test_biblia.py como base) y V-11 con las dos reglas nuevas de B-18.
-- specs/decisiones-backend.md: apuntar las decisiones_sobre_la_marcha, según R-6.
+- specs/spec-backend-2.md: apuntar las decisiones_sobre_la_marcha, según R-6.
 - docs/domain-knowledge.md: revisar si el árbol de la dimensión 9 debe mostrar la hoja excluye del hecho evento.
 - AGENTS.md: no aplica, no hay dependencias nuevas.

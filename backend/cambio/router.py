@@ -1,4 +1,5 @@
-"""Rutas de `cambio` (spec1.md §5.1, TC-12): pedir un cambio, su estado y la confirmación.
+"""Rutas de `cambio` (spec-backend-1.md §5.1, TC-12): pedir un cambio, su estado y la
+confirmación; y encolar la generación, el otro trabajo del worker (TC-8).
 
 Son acciones del lector y del comprador, no del orquestador: no exigen el bloqueo (Q7). El
 trabajo lo hace el worker, que encolan pedir y confirmar (TC-8). La petición del lector se
@@ -11,7 +12,13 @@ from fastapi import APIRouter
 from fastapi import Path as EnRuta
 
 from backend.cambio.consultas import Peticion, decidir_cambio, leer_cambio, pedir_cambio
-from backend.cambio.modelos import CambioRespuesta, ConfirmacionCambio, PeticionCambio
+from backend.cambio.generacion import encolar_generacion
+from backend.cambio.modelos import (
+    CambioRespuesta,
+    ConfirmacionCambio,
+    GeneracionRespuesta,
+    PeticionCambio,
+)
 from backend.proyecto.dependencias import Ahora, ProyectoAbierto, RutaJsonEstricto
 from backend.proyecto.errores import CodigoError
 from backend.proyecto.errores_http import documentar
@@ -71,3 +78,18 @@ def confirmar(
     la regeneración; rechazar vuelve a `publicada` sin tocar nada."""
     decidir_cambio(proyecto, cambio, cuerpo.decision == "confirmado", ahora)
     return _respuesta(proyecto, cambio)
+
+
+router_generacion = APIRouter(
+    prefix="/proyectos/{id}/generacion",
+    tags=["cambio"],
+    responses=documentar(C.PROYECTO_INEXISTENTE, C.VALIDACION),
+    route_class=RutaJsonEstricto,
+)
+
+
+@router_generacion.post("", status_code=202, responses=documentar(C.TRANSICION_INVALIDA))
+def generar(proyecto: ProyectoAbierto, ahora: Ahora) -> GeneracionRespuesta:
+    """Encola la generación para que el worker la lance con `claude -p`. Con un trabajo ya en
+    cola o en curso, devuelve ese. En una parada humana o durante un cambio, 409."""
+    return GeneracionRespuesta(trabajo=encolar_generacion(proyecto, ahora))

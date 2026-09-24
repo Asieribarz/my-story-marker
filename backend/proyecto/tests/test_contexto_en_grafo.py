@@ -7,6 +7,7 @@ RF-07a): el tercer fallo seguido lo deja en `detenida` desde `contexto`, y nunca
 «Reintentar», la acción humana, lo devuelve a `contexto` con el contador a cero.
 """
 
+import copy
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,7 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from backend.contexto.tests.referencia import referencia
+from backend.intake.persistencia import guardar_brief
 from backend.proyecto.abierto import Proyecto
 from backend.proyecto.bloqueo import tomar_bloqueo
 from backend.proyecto.maquina import TOPE, Detenida, Entrada, TipoDesenlace
@@ -118,3 +120,58 @@ def test_ninguna_secuencia_de_contextos_invalidos_sale_de_contexto(
         registrar(proyecto, emision.id, referencia(), token, AHORA)
         assert estado(proyecto.conexion) is E.PLANIFICACION
         assert _contextos_guardados(proyecto) == 1
+
+
+# ─── B-20: lo que fijó el comprador sale intacto ─────────────────────────────
+
+
+def _guardar_brief_de_la_referencia(proyecto: Proyecto) -> dict[str, Any]:
+    novela = referencia()["novela"]
+    personalizacion = {k: v for k, v in novela["personalizacion"].items() if k != "texto_libre"}
+    respuestas = {"personalizacion": personalizacion, "preferencias": {"tono": novela["tono"]}}
+    guardar_brief(proyecto.conexion, proyecto.disposicion, respuestas, None, "2026-09-23T00:00:00Z")
+    return respuestas
+
+
+def test_un_contexto_que_cambia_el_brief_no_sale_de_contexto(
+    proyecto: Proyecto, token: str
+) -> None:
+    _guardar_brief_de_la_referencia(proyecto)
+    forzar(proyecto, E.CONTEXTO)
+    orden = emitir_siguiente_orden(proyecto, token, AHORA)
+    assert isinstance(orden, OrdenEmitida)
+    anonimizado = _con(
+        lambda n: n["personalizacion"]["destinatario"].update(nombre="[NOMBRE_ANONIMIZADO]")
+    )
+    registro = registrar(proyecto, orden.id, anonimizado, token, AHORA)
+    assert (registro.tipo, registro.estado) == (TipoDesenlace.FALLO_CONTENIDO, E.CONTEXTO)
+    assert {h["regla"] for h in registro.detalle["hallazgos"]} == {"B-20 · conservacion_del_brief"}
+    assert _contextos_guardados(proyecto) == 0
+
+    # Control: el mismo brief con el contexto fiel sale a planificar.
+    segunda = emitir_siguiente_orden(proyecto, token, AHORA)
+    assert isinstance(segunda, OrdenEmitida)
+    registrar(proyecto, segunda.id, referencia(), token, AHORA)
+    assert estado(proyecto.conexion) is E.PLANIFICACION
+
+
+def test_una_normalizacion_que_cambia_el_brief_no_se_guarda(proyecto: Proyecto, token: str) -> None:
+    respuestas = _guardar_brief_de_la_referencia(proyecto)
+    orden = emitir_siguiente_orden(proyecto, token, AHORA)
+    assert isinstance(orden, OrdenEmitida)
+    assert (orden.agente, orden.estado) == (Agente.AGENTE_CONTEXTO, E.INTAKE)
+    normalizado = {**copy.deepcopy(respuestas), "notas": [], "faltan": []}
+    normalizado["personalizacion"]["edad_lector"] += 1
+    registro = registrar(proyecto, orden.id, normalizado, token, AHORA)
+    assert registro.tipo is TipoDesenlace.FALLO_CONTENIDO
+    assert [h["localizacion"] for h in registro.detalle["hallazgos"]] == [
+        "personalizacion.edad_lector"
+    ]
+    fila = proyecto.conexion.execute("SELECT normalizado FROM brief WHERE id = 1").fetchone()
+    assert fila["normalizado"] is None
+
+    # Control: la normalización fiel se guarda.
+    segunda = emitir_siguiente_orden(proyecto, token, AHORA)
+    assert isinstance(segunda, OrdenEmitida)
+    fiel = {**copy.deepcopy(respuestas), "notas": [], "faltan": []}
+    assert registrar(proyecto, segunda.id, fiel, token, AHORA).tipo is TipoDesenlace.ACEPTADO

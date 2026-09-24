@@ -1,8 +1,10 @@
 import { useEffect } from 'react'
 
-import { ErrorApi } from './api.js'
+import { Cargando, ErrorCarga } from '../shared/Estados.jsx'
 import { escribirRuta } from './ruta.js'
 import { navegar } from './useRuta.js'
+
+export { Cargando, ErrorCarga }
 
 /** Una página sin novela: dirección inválida, versión o capítulo que no existen. */
 export function Aviso({ titulo, children }) {
@@ -11,23 +13,6 @@ export function Aviso({ titulo, children }) {
       <h1>{titulo}</h1>
       <p>{children}</p>
     </main>
-  )
-}
-
-/** Solo se ve si la carga tarda: el retraso está en el CSS. */
-export function Cargando() {
-  return <p className="cargando">Cargando…</p>
-}
-
-export function ErrorCarga({ error, reintentar }) {
-  const detalle = error instanceof ErrorApi ? error.detalle : 'Algo ha fallado al cargar la novela.'
-  return (
-    <div className="estado" role="alert">
-      <p>{detalle}</p>
-      <button type="button" onClick={reintentar}>
-        Reintentar
-      </button>
-    </div>
   )
 }
 

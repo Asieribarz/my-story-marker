@@ -1,16 +1,16 @@
 # plan-backend-v1.md — Plan de implementación del backend v1
 
-> **Estado: propuesta.** Traduce [specs/spec1.md](spec1.md) en un orden de trabajo ejecutable. No añade requisitos: cada paso cita los RF/RNF que cierra y el criterio de §9 que lo comprueba. Si este documento y la spec discrepan, manda la spec; si la spec y `docs/` discrepan, manda `docs/`.
+> **Estado: propuesta.** Traduce [specs/spec-backend-1.md](spec-backend-1.md) en un orden de trabajo ejecutable. No añade requisitos: cada paso cita los RF/RNF que cierra y el criterio de §9 que lo comprueba. Si este documento y la spec discrepan, manda la spec; si la spec y `docs/` discrepan, manda `docs/`.
 >
 > Este plan **no es código acordado**. AGENTS.md regla 2 sigue aplicando: lo que aquí aparece como premisa y no esté confirmado, se confirma antes de escribirlo.
 >
-> **Avance (2026-09-24).** Construidos los pasos 0 a 10 con los recortes y ajustes de [decisiones-backend.md](decisiones-backend.md) (R-1 a R-6, AJ-1 a AJ-6, M-1 a M-20): planificación con un solo agente, Recuperador con partes de 20.000 tokens y respaldo del estimador, verificadores deterministas y guardarraíl, escritura MCP con sello, gates por pasada, publicación en `export/vN/` con PDF, cambio del lector y worker. Queda: el **paso S** con agentes reales; ejecutar **Lean y TLC de verdad** (sin `elan` ni Java en esta máquina, esas pruebas se saltan); y la **prueba manual de `claude -p`** con un `/regenerar` mínimo (TC-10).
+> **Avance (2026-09-24).** Construidos los pasos 0 a 10 con los recortes y ajustes de [spec-backend-2.md](spec-backend-2.md) (R-1 a R-6, AJ-1 a AJ-6, M-1 a M-20): planificación con un solo agente, Recuperador con partes de 20.000 tokens y respaldo del estimador, verificadores deterministas y guardarraíl, escritura MCP con sello, gates por pasada, publicación en `export/vN/` con PDF, cambio del lector y worker. Queda: el **paso S** con agentes reales; ejecutar **Lean y TLC de verdad** (sin `elan` ni Java en esta máquina, esas pruebas se saltan); y la **prueba manual de `claude -p`** con un `/regenerar` mínimo (TC-10).
 
 ---
 
 ## 1. Premisas — decisiones que este plan da por tomadas
 
-Todas están **cerradas** en [spec1.md](spec1.md) §10 y en la tabla de `architecture.md` §7. Ninguna decisión abierta bloquea el paso 0.
+Todas están **cerradas** en [spec-backend-1.md](spec-backend-1.md) §10 y en la tabla de `architecture.md` §7. Ninguna decisión abierta bloquea el paso 0.
 
 | # | Decisión | Qué se hace |
 |---|---|---|
@@ -39,12 +39,12 @@ Siguen abiertas, y no bloquean el arranque:
 
 ## 2. Lo que este plan deja fuera
 
-Además de todo lo que [spec1.md](spec1.md) §1.2 ya excluye:
+Además de todo lo que [spec-backend-1.md](spec-backend-1.md) §1.2 ya excluye:
 
 | Pieza | Motivo |
 |---|---|
 | Definiciones de subagente, skill, hooks, `.claude/settings.json` y `.mcp.json` | Son configuración de Claude Code, no backend, y tienen **su propio plan** (`specs/plan-agentes.md`), que se desarrolla en paralelo en otra sesión y es dueña de `.claude/` y `.mcp.json`. Este plan no escribe en ellos: el paso S **consume** lo que ese plan entregue —la skill mínima, el hook de validación y los cuatro agentes—. Consecuencia: V-13 queda partido; este plan cubre su lado del backend —superficies separadas y RF-106—, y el análisis de las definiciones y la prueba del hook de policy van con el plan de agentes. |
-| Índice semántico y recuperación por similitud real | `architecture.md` §11 lo pone en la **fase 2** y [spec1.md](spec1.md) §1.2 lo excluye de la v1. La v1 implementa el caso vacío de RF-57, que no es un punto de extensión pendiente sino el contrato cumplido: `capitulo/similitud.py` existe, con su firma, y devuelve la lista vacía. Nada del tramo B depende de que devuelva algo — el bloque de pasajes es el primero en caer al recortar (§6.3) —, así que adelantarlo solo añadiría dependencias y un modelo de 220 MB a cambio de nada. D-1 se resuelve cuando toque, detrás de esa interfaz. |
+| Índice semántico y recuperación por similitud real | `architecture.md` §11 lo pone en la **fase 2** y [spec-backend-1.md](spec-backend-1.md) §1.2 lo excluye de la v1. La v1 implementa el caso vacío de RF-57, que no es un punto de extensión pendiente sino el contrato cumplido: `capitulo/similitud.py` existe, con su firma, y devuelve la lista vacía. Nada del tramo B depende de que devuelva algo — el bloque de pasajes es el primero en caer al recortar (§6.3) —, así que adelantarlo solo añadiría dependencias y un modelo de 220 MB a cambio de nada. D-1 se resuelve cuando toque, detrás de esa interfaz. |
 | Frontend | La lectura web, la entrevista y la petición de cambios consumen la API REST del paso 10. Merecen plan propio. |
 | Especificación TLA+ y proyecto Lean | Viven en `formal/tla/` y `formal/lean/`, fuera de `backend/`, y se desarrollan en paralelo en sesiones propias; V-25 va con TLA+. TLA+ modela la tabla de transiciones y la función de siguiente orden del paso 3, con el bloqueo; si el código cambia, cambia la especificación. El proyecto Lean fija el formato del fichero de hechos que el paso 8a genera. TLC necesita Java y Lean necesita elan, que hoy no están instalados en la máquina de desarrollo. |
 
@@ -75,7 +75,7 @@ flowchart LR
   PS --> P8a
 ```
 
-El orden dentro de cada tramo es el de [spec1.md](spec1.md) §12 y no se reordena: es un orden de dependencias, no un calendario. Este plan antepone el 0, que es andamiaje y no requisitos, y añade el **S**, que no es backend sino la primera vez que todo trabaja junto. El paso 8a abre el tramo C porque los gates actúan sobre la novela entera, no sobre el bucle de capítulo.
+El orden dentro de cada tramo es el de [spec-backend-1.md](spec-backend-1.md) §12 y no se reordena: es un orden de dependencias, no un calendario. Este plan antepone el 0, que es andamiaje y no requisitos, y añade el **S**, que no es backend sino la primera vez que todo trabaja junto. El paso 8a abre el tramo C porque los gates actúan sobre la novela entera, no sobre el bucle de capítulo.
 
 **Se para entre tramos.** Cada parada revisa qué documentos de `docs/` quedaron desfasados y los actualiza en el mismo cambio (AGENTS.md regla 3).
 
@@ -105,7 +105,7 @@ V-8 (portabilidad Windows/Linux, RNF-08) no es un paso: es una regla que se apli
 
 | | |
 |---|---|
-| **Produce** | `shared/db.py` (fábrica de conexión con los pragmas en un único sitio: `journal_mode=WAL`, `foreign_keys=ON`, `busy_timeout`), `shared/esquema.sql` (las tablas de [spec1.md](spec1.md) §6), `shared/tipos.py` (estados del proyecto y del capítulo, severidad, hallazgo, informe), `shared/rutas.py` (disposición del directorio de proyecto de §5.3). |
+| **Produce** | `shared/db.py` (fábrica de conexión con los pragmas en un único sitio: `journal_mode=WAL`, `foreign_keys=ON`, `busy_timeout`), `shared/esquema.sql` (las tablas de [spec-backend-1.md](spec-backend-1.md) §6), `shared/tipos.py` (estados del proyecto y del capítulo, severidad, hallazgo, informe), `shared/rutas.py` (disposición del directorio de proyecto de §5.3). |
 | **Cierra** | La mitad de RF-01; C-2, C-4 por construcción |
 | **Verifica** | Prueba de que una conexión recién abierta tiene los tres pragmas puestos. Es barata y evita el fallo que `architecture.md` §8 describe: un `foreign_keys` olvidado no da error, solo filas huérfanas. |
 
@@ -130,7 +130,7 @@ Ninguna la expresa JSON Schema sin extensiones. Se implementaron como **funcione
 
 Las rutas de `intake/` y `contexto/` (§5.1) llegan con la aplicación FastAPI del paso 3: sin ella no hay proyecto sobre el que montarlas. V-20 queda igual partido: el paso 2 entrega la guarda `puede_salir_de_contexto` con sus pruebas, y el paso 3 la conecta a la transición. RF-12 (preguntas pendientes, prioridad S) queda sin hacer.
 
-La versión de ontología se fija como constante y se persiste con cada contexto validado (RF-28). No hay migraciones en la v1 ([spec1.md](spec1.md) §2.5).
+La versión de ontología se fija como constante y se persiste con cada contexto validado (RF-28). No hay migraciones en la v1 ([spec-backend-1.md](spec-backend-1.md) §2.5).
 
 ### Paso 3 · grafo de estados
 
@@ -221,7 +221,7 @@ Consecuencia de dejarlo fuera: **V-3b no se ejercita en la v1**. No es un agujer
 
 | | |
 |---|---|
-| **Produce** | Los verificadores de [spec1.md](spec1.md) §4.6.3, todos con la misma firma: entran capítulo y contexto, sale informe. Incluye el guardarraíl de tres niveles, con sus listas en SQLite y su normalización, y el **esquema de salida por agente** (RF-77a) con los modelos de los agentes que ya existan; cada paso que añade un agente añade su modelo. |
+| **Produce** | Los verificadores de [spec-backend-1.md](spec-backend-1.md) §4.6.3, todos con la misma firma: entran capítulo y contexto, sale informe. Incluye el guardarraíl de tres niveles, con sus listas en SQLite y su normalización, y el **esquema de salida por agente** (RF-77a) con los modelos de los agentes que ya existan; cada paso que añade un agente añade su modelo. |
 | **Cierra** | RF-60 a RF-62, RF-70 a RF-79, RF-72a, RF-73a, RF-77a. Con sus rutas: verificar e informes de capítulo |
 | **Verifica** | V-12 (biblia y capítulo construidos para infringir cada regla de continuidad dura, **más casos de control que no deben disparar**), V-7 (capítulo de tamaño máximo por debajo del umbral de tiempo), V-26 (guardarraíl: un caso por nivel y uno de variante), V-28 (frases literales), V-35 (esquema de salida por agente), V-15 (mutación sobre los verificadores) |
 
@@ -306,7 +306,7 @@ El worker lanza un proceso y espera; no importa ningún cliente de proveedor, as
 
 ### Paso 10 · API REST
 
-Va al final por la razón que da [spec1.md](spec1.md) §12: es la superficie más fácil de cambiar y la única sin consumidor hasta que exista el frontend. Las rutas que la sesión necesita ya llegaron con sus pasos; este paso completa el resto de §5.1.
+Va al final por la razón que da [spec-backend-1.md](spec-backend-1.md) §12: es la superficie más fácil de cambiar y la única sin consumidor hasta que exista el frontend. Las rutas que la sesión necesita ya llegaron con sus pasos; este paso completa el resto de §5.1.
 
 Lo único que merece diseño aquí es el **modelo de error**. La spec pide distinguir tres cosas que son tres cosas distintas y que un `422` genérico confunde:
 
@@ -326,10 +326,10 @@ AGENTS.md regla 3: cada cambio termina actualizando `docs/` y diciendo explícit
 
 | Cuándo | Documento | Qué |
 |---|---|---|
-| Paso 6 | `spec1.md` §10 | D-9, si se decide |
-| Paso 9 | `architecture.md` §7 + `AGENTS.md` + `spec1.md` §10 | D-8, el mecanismo de PDF |
+| Paso 6 | `spec-backend-1.md` §10 | D-9, si se decide |
+| Paso 9 | `architecture.md` §7 + `AGENTS.md` + `spec-backend-1.md` §10 | D-8, el mecanismo de PDF |
 
-Las herramientas del paso 0 —`uv`, `pytest`, `Hypothesis`, `mypy`, `ruff`; `cosmic-ray` salió con R-5— y D-4, D-6 y D-7 **ya están** en `architecture.md` §7, `AGENTS.md` y `spec1.md` §10.
+Las herramientas del paso 0 —`uv`, `pytest`, `Hypothesis`, `mypy`, `ruff`; `cosmic-ray` salió con R-5— y D-4, D-6 y D-7 **ya están** en `architecture.md` §7, `AGENTS.md` y `spec-backend-1.md` §10.
 
 `architecture.md` §7 (superficies MCP separadas) y §8 (la carpeta `proyecto/`) **ya están actualizados**: eran las premisas P-2 y P-3 y se ratificaron antes de empezar, no durante los pasos 3 y 5.
 
@@ -339,7 +339,7 @@ Las herramientas del paso 0 —`uv`, `pytest`, `Hypothesis`, `mypy`, `ruff`; `co
 
 ## 8. Riesgos declarados
 
-Los dos de [spec1.md](spec1.md) §9 marcados **U** siguen en pie: V-17 (que los deterministas detecten toda incoherencia) y V-18 (que la sesión ejecute la orden que recibe). V-16 ya no es **U**: lo sostienen el juez con rúbrica y la revisión humana. Este plan añade tres:
+Los dos de [spec-backend-1.md](spec-backend-1.md) §9 marcados **U** siguen en pie: V-17 (que los deterministas detecten toda incoherencia) y V-18 (que la sesión ejecute la orden que recibe). V-16 ya no es **U**: lo sostienen el juez con rúbrica y la revisión humana. Este plan añade tres:
 
 | Riesgo | Mitigación |
 |---|---|

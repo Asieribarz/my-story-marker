@@ -1,4 +1,4 @@
-"""Verificadores deterministas de capítulo (spec1 §4.6.3, architecture §4).
+"""Verificadores deterministas de capítulo (spec-backend-1 §4.6.3, architecture §4).
 
 Todos tienen la misma firma, `(cuerpo, vista) -> Informe` (resolución 15 de §3): el cuerpo
 es el Markdown del capítulo sin el título, y la vista reúne contexto, ficha, guía, biblia a

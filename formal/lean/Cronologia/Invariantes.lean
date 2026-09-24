@@ -7,7 +7,7 @@ Cada invariante es una función que devuelve la lista de sus violaciones, y la c
 es que esa lista está vacía. Todo es recursión estructural sobre listas finitas, para que
 `decide` pueda reducirlo.
 
-Solo se compara cuando el orden es seguro (`decisiones-backend.md` §4.2): una fecha parcial
+Solo se compara cuando el orden es seguro (`spec-backend-2.md` §4.2): una fecha parcial
 es un intervalo, y dos intervalos que se solapan no están ni antes ni después.
 -/
 

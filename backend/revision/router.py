@@ -1,4 +1,4 @@
-"""Rutas de `revision`: la revisión humana del manuscrito (RF-114, decisiones-backend §3.5).
+"""Rutas de `revision`: la revisión humana del manuscrito (RF-114, spec-backend-2 §3.5).
 
 `POST /proyectos/{id}/manuscrito/juez` queda solo para la revisión humana: el juez de
 manuscrito registra por `/resultado`. Una revisión humana usa la misma rúbrica y el mismo

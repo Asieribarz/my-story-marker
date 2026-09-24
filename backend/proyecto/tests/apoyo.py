@@ -10,6 +10,7 @@ import sqlite3
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from backend.contexto.tests.referencia import referencia
 from backend.proyecto.abierto import Proyecto
 from backend.proyecto.extraccion import AGENTES_MARKDOWN
 from backend.proyecto.persistencia import Registro, registrar_resultado
@@ -19,13 +20,28 @@ from backend.shared.tipos import Agente, EstadoCapitulo, EstadoProyecto
 AHORA = datetime(2026, 9, 23, 10, 0, tzinfo=UTC)
 MOMENTO = "2026-09-23T10:00:00Z"
 BRIEF: dict[str, Any] = {"destinatario": {"nombre": "Aitana", "edad": 9}, "ocasion": "cumpleanos"}
-NORMALIZADO: dict[str, Any] = {"destinatario": {"nombre": "Aitana", "edad": 9}, "tono": "ligero"}
 TEXTO_LIBRE = "Le encantan los mapas y su perra se llama Nala."
 HECHO: dict[str, Any] = {
     "tipo": "objeto",
     "texto": "Una brújula del abuelo",
     "prioridad": "obligatorio",
 }
+# El brief normalizado lleva el hecho confirmado, como pide el Agente de Contexto (B-20). Sin
+# hechos confirmados, un hecho de más no incumple nada.
+NORMALIZADO: dict[str, Any] = {
+    "destinatario": {"nombre": "Aitana", "edad": 9},
+    "tono": "ligero",
+    "personalizacion": {"hechos": [{"id": "h1", **HECHO, "origen": "texto_libre"}]},
+}
+
+
+def contexto_con_el_hecho() -> dict[str, Any]:
+    """La instancia de referencia con `HECHO` confirmado dentro, como la devolvería un Agente
+    de Contexto fiel (B-20) tras confirmar el comprador el hecho de su texto libre."""
+    datos = referencia()
+    hecho = {"id": "h9", **HECHO, "prioridad": "deseable", "origen": "texto_libre"}
+    datos["novela"]["personalizacion"]["hechos"].append(hecho)
+    return datos
 
 
 def despues(minutos: int) -> datetime:

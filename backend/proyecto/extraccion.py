@@ -1,4 +1,4 @@
-"""Extracción de la salida cruda de un subagente (decisiones-backend §4.1, puntos 3 y 7).
+"""Extracción de la salida cruda de un subagente (spec-backend-2 §4.1, puntos 3 y 7).
 
 El hook de `SubagentStop` envía `last_assistant_message` sin tocarlo, y aquí, en un solo
 sitio, se saca lo que el manejador del agente valida después (RF-77a):

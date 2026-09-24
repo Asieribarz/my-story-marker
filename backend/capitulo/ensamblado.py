@@ -1,5 +1,5 @@
 """Ensamblado del prompt del Escritor (RF-51 a RF-54, RF-58, RF-59a, RF-59b, D-9, B-8, B-9,
-decisiones-backend §4.1.4).
+spec-backend-2 §4.1.4).
 
 `preparar_prompt` comprueba la continuidad antes de escribir (B-9), pide los bloques a la
 recuperación estructurada y a la de similitud, recorta por unidades completas en orden de

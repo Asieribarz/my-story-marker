@@ -1,8 +1,8 @@
-# plan-frontend.md — Lectura web y cambio del lector
+# plan-frontend.md — Lectura web, cambio del lector, métricas y nueva novela
 
-> **Estado: decidido (2026-09-23); `lectura/` construida contra el fixture, `cambio/` diseñada.** Cubre las funcionalidades `lectura/` y `cambio/` de [docs/architecture.md](../docs/architecture.md) §8 y las rutas de [spec1.md](spec1.md) §5.1 que consumen. Las decisiones F-1 a F-7 se cerraron con `grilling` y la persona aceptó todas las recomendaciones. Es el plan que [plan-entrega.md](plan-entrega.md) §5 pide para H5 y H6.
+> **Estado (2026-09-24): construido contra la API real.** Las tres ventanas —Leer (`lectura/` y `cambio/`), Métricas (`metricas/`) y Nueva novela (`nueva/`)— se decidieron el 2026-09-24 con `grilling` (§2, F-8 a F-12). Antes: decidido el 2026-09-23, con `lectura/` construida contra el fixture y `cambio/` diseñada. Cubre las funcionalidades `lectura/`, `cambio/`, `metricas/` y `nueva/` de [docs/architecture.md](../docs/architecture.md) §8 y las rutas de [spec-backend-1.md](spec-backend-1.md) §5.1 que consumen. Las decisiones F-1 a F-7 se cerraron con `grilling` y la persona aceptó todas las recomendaciones. Es el plan que [plan-entrega.md](plan-entrega.md) §5 pide para H5 y H6.
 >
-> La forma de `lectura.json` (§5) la propuso el frontend y **la sesión de backend la adoptó tal cual** en [decisiones-backend.md](decisiones-backend.md) §4.3 (TC-7), junto con `GET /versiones` y los estados de `GET /cambios/{c}` (§7). Cambiarla exige avisar a esa sesión antes; en el frontend, solo cambia `frontend/src/lectura/api.js`.
+> La forma de `lectura.json` (§5) la propuso el frontend y **la sesión de backend la adoptó tal cual** en [spec-backend-2.md](spec-backend-2.md) §4.3 (TC-7), junto con `GET /versiones` y los estados de `GET /cambios/{c}` (§7). Cambiarla exige avisar a esa sesión antes; en el frontend, solo cambia `frontend/src/lectura/api.js`.
 
 ---
 
@@ -11,8 +11,10 @@
 | Funcionalidad | Qué hace | Estado |
 |---|---|---|
 | `lectura/` | Portada con dedicatoria, índice navegable, capítulos, ficha de personajes y lugares con enlaces a los capítulos donde aparece cada uno, selector de versión y marca de capítulos cambiados | Construida contra un fixture ficticio |
-| `cambio/` | Seleccionar un fragmento, pedir el cambio y confirmarlo | Diseñada (§7). **En espera** hasta que existan las rutas de cambio del paso 9a del backend: sin ellas no se puede probar (F-7) |
-| `entrevista/` | — | **Fuera**: E-3 lleva la entrevista a Claude Code ([plan-entrega.md](plan-entrega.md) §2) |
+| `cambio/` | Seleccionar un fragmento, pedir el cambio, ver la propuesta, confirmarla y seguir la regeneración | Construida contra la API (§7), dentro de la ventana Leer |
+| `metricas/` | Métricas de creación del proyecto elegido (F-11) | Construida contra `GET /proyectos/{id}/metricas` |
+| `nueva/` | Brief de una novela nueva y seguimiento del proyecto con sus decisiones humanas (F-10) | Construida contra las rutas de `proyecto/` e `intake/` |
+| `entrevista/` | — | **Fuera como conversación**: la entrevista conversada sigue siendo `/entrevista` (E-3). `nueva/` es el formulario equivalente |
 
 ---
 
@@ -27,8 +29,13 @@
 | **F-5** | **«Cambiado» significa cambiado respecto a la versión anterior**, que es la definición de RF-96 y la de la página de novedades del PDF (RF-98) | No hace falta guardar en el navegador qué ha leído cada lector |
 | **F-6** | **El HTML de los capítulos se filtra en el navegador** con una lista blanca propia, y lo filtrado se pinta como elementos de React: **no se usa `dangerouslySetInnerHTML`** | TC-7 ya escapa todo lo que queda fuera del subconjunto, pero el texto sale de un modelo que recibió datos no confiables (texto libre, peticiones del lector). Es la segunda barrera, y convertir a elementos de React es más estricto que filtrar una cadena |
 | **F-7** | **`cambio/` sin fixture propio**, contra el backend real cuando exista la rebanada `cambio/` del paso 9a | Su valor está en el ida y vuelta con el Intérprete y la cola; simularlo sería construir dos veces |
+| **F-8** | **Tres ventanas con una cabecera común**: el logo, las pestañas Leer · Métricas · Nueva novela y un selector de proyecto que conserva la ventana al cambiar | Lo pidió la persona. El selector necesita `GET /proyectos`, que el backend añade en `proyecto/panel.py` |
+| **F-9** | **La edición vive en la lectura**, como un panel por encima de la versión: sobrevive a cambiar de capítulo o de versión, y a recargar (el cambio en curso se recuerda en `sessionStorage`). Solo se ofrece en la versión vigente | Pedir un cambio sobre una versión vieja siempre acaba `obsoleto` (RF-123) |
+| **F-10** | **La web no lanza la generación.** «Nueva novela» crea el proyecto y envía el brief; el seguimiento enseña `/generar <proyecto>` para copiarlo, y cubre las decisiones humanas: hechos, plan, manuscrito final y reintentar | Generar es una sesión de Claude Code (architecture.md §8). Una ruta que encolase la generación para el worker queda como siguiente paso: toca la cola, que hoy solo regenera (TC-8) |
+| **F-11** | **Métricas en tokens y tiempo, sin dinero**, en cifras destacadas y tablas con una barra de una sola serie; el valor siempre va escrito | El gasto es de suscripción. Una tabla de precios para un «equivalente en API» podría estar mal y no la mantiene nadie |
+| **F-12** | **La lectura usa la API real** (`FUENTE = 'api'`); el fixture queda para las pruebas del contrato | Las ventanas nuevas no tienen fixture (F-7) |
 
-**Diseño visual**, decidido por la sesión: libro de regalo encuadernado. La portada es la tela de la cubierta con el título dorado; las páginas, blanco frío con tinta azul-negra; los capítulos cambiados llevan una **cinta de marcapáginas** carmesí en el índice y en su cabecera. Una sola familia serif del sistema (Sitka en Windows, Iowan Old Style o Charter en macOS, Georgia como reserva), **sin fuentes externas**: la lectura no hace ninguna petición fuera del backend. Modo oscuro por `prefers-color-scheme`.
+**Diseño visual**, revisado el 2026-09-24: la paleta sale del logo (`public/logo.png`). El naranja (`#ff7a33`) es el acento —pestaña activa, botones, cinta de «cambiado», barras— y el marino (`#22333f`), la tinta y la cubierta; el texto de enlace usa un naranja más oscuro (`#b94a12`) porque el puro no llega a AA sobre blanco. La interfaz va en la sans del sistema; la novela sigue en serif. En oscuro, el logo va sobre una pastilla clara. Lo que sigue es el diseño de partida, que se conserva salvo los colores: libro de regalo encuadernado. La portada es la tela de la cubierta con el título dorado; las páginas, blanco frío con tinta azul-negra; los capítulos cambiados llevan una **cinta de marcapáginas** carmesí en el índice y en su cabecera. Una sola familia serif del sistema (Sitka en Windows, Iowan Old Style o Charter en macOS, Georgia como reserva), **sin fuentes externas**: la lectura no hace ninguna petición fuera del backend. Modo oscuro por `prefers-color-scheme`.
 
 ---
 
@@ -39,16 +46,24 @@ frontend/
   package.json · package-lock.json · vite.config.js · jsconfig.json · index.html · .gitignore
   scripts/validar-lectura.js   · valida un lectura.json o versiones.json real contra el contrato
   src/
-    main.jsx                   · monta <Lectura /> en StrictMode
+    main.jsx                   · monta <App /> en StrictMode
+    App.jsx                    · cabecera y ventana según la dirección (F-8)
     shared/
       estilos.css              · tokens de color y tipografía, base del documento
+      interfaz.css             · cabecera, pestañas, botones, formularios, tablas y tarjetas
+      api.js                   · cliente HTTP común y modelo de error de TC-11
+      navegacion.js · useHash.js · las tres ventanas detrás de # (§4)
+      proyectos.js · Cabecera.jsx · lista de proyectos, nombres de estado, logo y selector
+      useCarga.js · Estados.jsx · carga cancelable, «Cargando…» y errores
+    cambio/                    · api.js, seleccion.js, PanelCambio.jsx, cambio.css (§7)
+    metricas/                  · api.js, formato.js, Metricas.jsx, metricas.css
+    nueva/                     · api.js, brief.js, Formulario.jsx, Seguimiento.jsx, useSondeo.js, Nueva.jsx
     lectura/
       api.js                   · el único módulo cliente de la API de lectura (F-3)
       contrato.js              · tipos JSDoc y validador del contrato (§5)
       ruta.js · useRuta.js     · direcciones con # (§4)
       sanear.js · Fragmento.jsx · lista blanca del HTML de capítulo (F-6)
       modelo.js                · derivados: versión vigente, enumeraciones, árbol de lugares, fechas
-      useCarga.js              · petición atada a una clave, cancelada al cambiar o desmontar
       Lectura.jsx              · dirección → proyecto → versión → pantalla
       Barra.jsx · Portada.jsx · Capitulo.jsx · Fichas.jsx
       Cinta.jsx · EnlacesACapitulos.jsx · Estados.jsx
@@ -59,7 +74,7 @@ frontend/
 
 El fixture es una novela ficticia de diez capítulos breves con dos versiones: la v2 cambia los capítulos 3 y 7, como si el lector hubiera pedido otro color para un objeto. Cada fichero lo declara en su clave `_aviso`.
 
-`shared/` guarda solo los estilos base; la navegación vive en `lectura/` porque es su único consumidor, y se promueve cuando lo pida el tercer sitio ([architecture.md](../docs/architecture.md) §8). `cambio/` tendrá su propio `api.js`: el fixture solo existe para la lectura.
+Con cuatro funcionalidades, `shared/` recoge lo que ya piden tres sitios ([architecture.md](../docs/architecture.md) §8): el cliente HTTP, la carga, los estados, la navegación entre ventanas y la cabecera. Las direcciones internas de la lectura siguen en `lectura/`, su único consumidor. Cada funcionalidad tiene su `api.js`; el fixture solo existe para la lectura.
 
 ---
 
@@ -71,8 +86,11 @@ El fixture es una novela ficticia de diez capítulos breves con dos versiones: l
 | `#/<proyecto>/v<N>` | Portada, dedicatoria, novedades de la versión e índice |
 | `#/<proyecto>/v<N>/cap/<n>` | Capítulo `n` de la versión `N`, con anterior y siguiente |
 | `#/<proyecto>/v<N>/fichas` | Personajes y lugares, con enlaces a sus capítulos en la misma versión |
+| `#/` | La novela publicada más reciente; sin ninguna, un aviso que enlaza a «Nueva novela» |
+| `#/metricas` · `#/metricas/<proyecto>` | Métricas; sin proyecto, las del más reciente |
+| `#/nueva` · `#/nueva/<proyecto>` | El formulario de una novela nueva · el seguimiento de un proyecto |
 
-`<proyecto>` es el identificador opaco de 32 caracteres hexadecimales de [spec1.md](spec1.md) §5.3. Cambiar de versión en el selector conserva la pantalla: desde el capítulo 3 de la v1 se va al capítulo 3 de la v2. Leyendo una versión que no es la vigente, un aviso lo dice y enlaza a la vigente.
+`<proyecto>` es el identificador opaco de 32 caracteres hexadecimales de [spec-backend-1.md](spec-backend-1.md) §5.3. Cambiar de versión en el selector conserva la pantalla: desde el capítulo 3 de la v1 se va al capítulo 3 de la v2. Leyendo una versión que no es la vigente, un aviso lo dice y enlaza a la vigente.
 
 ```mermaid
 flowchart LR
@@ -85,13 +103,25 @@ flowchart LR
   C1 -. selector de versión .-> C2["Capítulo n · vM"]
 ```
 
+Las tres ventanas y el paso de una novela nueva a su lectura:
+
+```mermaid
+flowchart LR
+  N1["Nueva novela · formulario"] --> N2["Seguimiento · #/nueva/id"]
+  N2 --> N3["/generar en Claude Code"]
+  N3 --> N2
+  N2 --> L1["Leer · #/id"]
+  N2 --> M1["Métricas · #/metricas/id"]
+  L1 -. selector de proyecto .-> M1
+```
+
 ---
 
 ## 5. Contrato de lectura, adoptado por el backend
 
 ### 5.1 Rutas que consume
 
-| Ruta de [spec1.md](spec1.md) §5.1 | Respuesta | Función de `lectura/api.js` |
+| Ruta de [spec-backend-1.md](spec-backend-1.md) §5.1 | Respuesta | Función de `lectura/api.js` |
 |---|---|---|
 | `GET /proyectos/{id}/versiones` | `Versiones` (§5.3) | `obtenerVersiones` |
 | `GET /proyectos/{id}/versiones/{v}/lectura` | `Lectura` (§5.2); aquí `capitulos[].html` puede omitirse | `obtenerLectura` |
@@ -162,7 +192,7 @@ Estados vacíos y errores, en la voz de la interfaz: sin proyecto en la direcci�
 
 ---
 
-## 7. `cambio/` — diseño, pendiente de construir
+## 7. `cambio/` — construida
 
 ```mermaid
 flowchart LR
@@ -210,7 +240,8 @@ Con el marco de [docs/validators.md](../docs/validators.md) §1:
 ```
 cd frontend
 npm install
-npm run dev                  # http://localhost:5173/ — abre la novela del fixture
+npm run dev                  # http://localhost:5173/ — contra el backend de http://127.0.0.1:8000
+MSM_BACKEND=http://127.0.0.1:8001 npm run dev   # contra otro backend, p. ej. mientras el de 8000 genera
 npm test                     # node:test sobre contrato, rutas, filtro y modelo
 npm run build
 npm run validar-lectura -- ../proyectos/<id>/export/v1/lectura.json
@@ -222,6 +253,6 @@ npm run validar-lectura -- ../proyectos/<id>/export/v1/lectura.json
 
 | Sesión | Qué |
 |---|---|
-| Backend | **Hecho:** adoptó el contrato de §5 y los estados de §7 en [decisiones-backend.md](decisiones-backend.md) §4.3. El paso 9 pasará `npm run validar-lectura` sobre cada `lectura.json` que genere |
+| Backend | **Hecho:** adoptó el contrato de §5 y los estados de §7 en [spec-backend-2.md](spec-backend-2.md) §4.3. El paso 9 pasará `npm run validar-lectura` sobre cada `lectura.json` que genere |
 | Backend | Recoger la pila de F-1 en [architecture.md](../docs/architecture.md) §7 y en `AGENTS.md`, y los métodos de §8 en [validators.md](../docs/validators.md). Lo hace esa sesión al cerrar su bloque; esta no edita `docs/` ni `AGENTS.md` |
 | `.claude/` | `.mcp.json` con Playwright MCP, para la inspección de E-4 |

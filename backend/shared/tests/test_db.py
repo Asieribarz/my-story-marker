@@ -21,7 +21,7 @@ from backend.shared.tipos import (
     TipoTermino,
 )
 
-SPEC = Path(__file__).resolve().parents[3] / "specs" / "spec1.md"
+SPEC = Path(__file__).resolve().parents[3] / "specs" / "spec-backend-1.md"
 AHORA = "2026-09-23T10:00:00Z"
 
 

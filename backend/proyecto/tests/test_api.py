@@ -1,7 +1,7 @@
 """Paso 3 y bloque 2 · la API transversal con `TestClient`: el flujo de intake a
 planificación, la siguiente orden con su sello y el registro de la salida cruda (RF-03,
 RF-06, RF-08a, RF-77a, §4.1), el bloqueo (V-34, RF-09b), la auditoría de la policy
-(§4.1.9), el borrado (RF-09a) y el modelo de error de spec1.md §5.1.
+(§4.1.9), el borrado (RF-09a) y el modelo de error de spec-backend-1.md §5.1.
 
 Todos los datos de persona son ficticios.
 """
@@ -15,11 +15,17 @@ import pytest
 from fastapi.routing import APIRoute
 
 from backend.app import ROUTERS
-from backend.contexto.tests.referencia import referencia
 from backend.proyecto.dependencias import CABECERA_BLOQUEO, RutaJsonEstricto
 from backend.proyecto.errores import CodigoError
 from backend.proyecto.errores_http import ESTADO_HTTP
-from backend.proyecto.tests.apoyo import BRIEF, HECHO, NORMALIZADO, TEXTO_LIBRE, transiciones
+from backend.proyecto.tests.apoyo import (
+    BRIEF,
+    HECHO,
+    NORMALIZADO,
+    TEXTO_LIBRE,
+    contexto_con_el_hecho,
+    transiciones,
+)
 from backend.proyecto.tests.cliente_api import (
     ClienteApi,
     Respuesta,
@@ -80,7 +86,7 @@ def test_de_intake_a_planificacion_con_texto_libre_y_hechos(api: ClienteApi) -> 
 
     instanciar = api.orden(proyecto, token)
     assert (instanciar["agente"], instanciar["estado"]) == ("agente-contexto", "contexto")
-    registro = api.aceptado(proyecto, token, instanciar["id"], referencia())
+    registro = api.aceptado(proyecto, token, instanciar["id"], contexto_con_el_hecho())
     assert registro["estado"] == "planificacion"
 
     leido = api.estado(proyecto)
@@ -261,12 +267,12 @@ def test_borrar_se_deniega_con_el_bloqueo_vigente_y_borra_sin_el(api: ClienteApi
     api.enviar_brief(proyecto, BRIEF, TEXTO_LIBRE)
     token = api.tomar(proyecto)
     assert error(api.http.delete(f"/proyectos/{proyecto}")) == (423, "bloqueo_ajeno", "RF-09b")
-    assert (api.raiz / proyecto).is_dir()
+    assert (api.raiz / "novelas" / proyecto).is_dir()
 
     api.http.delete(f"/proyectos/{proyecto}/bloqueo", headers=con_token(token))
     borrado = api.http.delete(f"/proyectos/{proyecto}")
     assert borrado.status_code == 204, borrado.text
-    assert not (api.raiz / proyecto).exists()
+    assert not (api.raiz / "novelas" / proyecto).exists()
     ausente = api.http.get(f"/proyectos/{proyecto}/estado")
     assert error(ausente) == (404, "proyecto_inexistente", "RF-02")
 
@@ -285,6 +291,8 @@ def test_la_aplicacion_publica_las_rutas_de_cada_rebanada(api: ClienteApi) -> No
     p = "/proyectos/{id}"
     assert rutas == {
         ("POST", "/proyectos"),
+        ("GET", "/proyectos"),
+        ("GET", f"{p}/metricas"),
         ("GET", f"{p}/estado"),
         ("POST", f"{p}/siguiente"),
         ("POST", f"{p}/resultado"),
@@ -309,12 +317,13 @@ def test_la_aplicacion_publica_las_rutas_de_cada_rebanada(api: ClienteApi) -> No
         ("POST", f"{p}/manuscrito/juez"),
         ("GET", f"{p}/manuscrito/juez"),
         ("POST", f"{p}/cambios"),
+        ("POST", f"{p}/generacion"),
         ("GET", f"{p}/cambios/{{cambio}}"),
         ("POST", f"{p}/cambios/{{cambio}}/confirmacion"),
     }
 
 
-# ─── El modelo de error (spec1.md §5.1, TC-11) ───────────────────────────────
+# ─── El modelo de error (spec-backend-1.md §5.1, TC-11) ───────────────────────────────
 
 
 def test_cada_codigo_del_catalogo_tiene_su_estado_http() -> None:
@@ -368,7 +377,7 @@ def test_borrar_con_la_base_abierta_por_otra_peticion_no_borra_nada(api: Cliente
         assert abierto.disposicion.texto_libre.read_text(encoding="utf-8") == TEXTO_LIBRE
     assert api.estado(proyecto)["estado"] == "intake"
     assert api.http.delete(f"/proyectos/{proyecto}").status_code == 204
-    assert not (api.raiz / proyecto).exists()
+    assert not (api.raiz / "novelas" / proyecto).exists()
 
 
 # ─── Cuerpos que no son JSON estricto ────────────────────────────────────────

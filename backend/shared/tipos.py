@@ -1,6 +1,6 @@
 """Tipos comunes a varias rebanadas: estados, agentes, severidad, hallazgo e informe.
 
-Los valores de los enumerados son los de architecture.md §3.1 y §6 y spec1.md §4.6.3.
+Los valores de los enumerados son los de architecture.md §3.1 y §6 y spec-backend-1.md §4.6.3.
 `shared/esquema.sql` repite las mismas listas en sus CHECK; una prueba comprueba que
 coinciden.
 """
@@ -134,7 +134,7 @@ class DesenlaceOrden(StrEnum):
 
 
 class EstadoCambio(StrEnum):
-    """RF-120 a RF-123, decisiones-backend §4.3: el ciclo de un cambio del lector, con los
+    """RF-120 a RF-123, spec-backend-2 §4.3: el ciclo de un cambio del lector, con los
     nombres que enseña `GET /cambios/{c}`. `cambio_lector.estado` repite la lista."""
 
     INTERPRETANDO = "interpretando"

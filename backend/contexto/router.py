@@ -1,4 +1,4 @@
-"""Rutas de `contexto` (spec1.md §5.1): validar un objeto de contexto sin guardarlo.
+"""Rutas de `contexto` (spec-backend-1.md §5.1): validar un objeto de contexto sin guardarlo.
 
 No hay ruta para guardar el contexto: entra solo como resultado de la orden del Agente de
 Contexto (`POST /proyectos/{id}/resultado`), que es donde el grafo decide si sale de

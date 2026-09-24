@@ -1,4 +1,4 @@
-"""Rutas de `escaleta` (spec1.md §5.1): las fichas de capítulo.
+"""Rutas de `escaleta` (spec-backend-1.md §5.1): las fichas de capítulo.
 
 Solo lectura. La escaleta entra como resultado de la orden del escaletista
 (`POST /proyectos/{id}/resultado`), que es donde se valida (RF-41 a RF-43): no hay `PUT`.

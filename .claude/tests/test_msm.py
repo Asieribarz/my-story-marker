@@ -115,3 +115,59 @@ def test_sin_estado_local_lo_dice(argv: list[str], capsys: Any) -> None:
 def test_un_proyecto_mal_formado_no_llega_al_backend(capsys: Any) -> None:
     codigo, _ = correr(["estado", "../../etc"], capsys)
     assert codigo == 2
+
+
+OTRO = "0123ffffffffffffffffffffffffffff"
+ESTADO = {"identificador": PROYECTO, "estado": "intake", "capitulos": [], "bloqueo": None}
+
+
+def _con_lista(backend: BackendFalso, *identificadores: str) -> None:
+    filas = [{"identificador": i, "etiqueta": None, "titulo": None} for i in identificadores]
+    backend.respuestas[("GET", "/proyectos")] = (200, {"proyectos": filas})
+    backend.respuestas[("GET", f"/proyectos/{PROYECTO}/estado")] = (200, ESTADO)
+
+
+def test_un_prefijo_unico_se_resuelve_al_identificador_entero(
+    backend: BackendFalso, capsys: Any
+) -> None:
+    _con_lista(backend, PROYECTO, OTRO)
+    codigo, salida = correr(["estado", "01234"], capsys)
+    assert (codigo, salida["proyecto"]) == (0, PROYECTO)
+    assert backend.peticiones[-1]["ruta"] == f"/proyectos/{PROYECTO}/estado"
+
+
+def test_el_identificador_entero_no_consulta_la_lista(backend: BackendFalso, capsys: Any) -> None:
+    _con_lista(backend, PROYECTO)
+    assert correr(["estado", PROYECTO], capsys)[0] == 0
+    assert [p["ruta"] for p in backend.peticiones] == [f"/proyectos/{PROYECTO}/estado"]
+
+
+@pytest.mark.parametrize(("prefijo", "candidatos"), [("0123", 2), ("fedc", 0)])
+def test_un_prefijo_ambiguo_o_sin_proyecto_falla_con_los_candidatos(
+    backend: BackendFalso, capsys: Any, prefijo: str, candidatos: int
+) -> None:
+    _con_lista(backend, PROYECTO, OTRO)
+    codigo, salida = correr(["estado", prefijo], capsys)
+    assert (codigo, len(salida["candidatos"])) == (2, candidatos)
+    assert not any(p["ruta"].endswith("/estado") for p in backend.peticiones)
+
+
+@pytest.mark.parametrize("prefijo", ["012", "0123ABCD"])
+def test_un_prefijo_corto_o_en_mayusculas_no_llega_al_backend(
+    backend: BackendFalso, capsys: Any, prefijo: str
+) -> None:
+    assert correr(["estado", prefijo], capsys)[0] == 2
+    assert backend.peticiones == []
+
+
+def test_crear_con_etiqueta_la_envia(backend: BackendFalso, capsys: Any) -> None:
+    backend.respuestas[("POST", "/proyectos")] = (201, ESTADO)
+    assert correr(["crear", "--etiqueta", "e1-reference", "--grupo", "evals"], capsys)[0] == 0
+    cuerpo = backend.peticiones[0]["cuerpo"]
+    assert (cuerpo["etiqueta"], cuerpo["grupo"]) == ("e1-reference", "evals")
+
+
+def test_crear_sin_grupo_es_una_novela(backend: BackendFalso, capsys: Any) -> None:
+    backend.respuestas[("POST", "/proyectos")] = (201, ESTADO)
+    assert correr(["crear"], capsys)[0] == 0
+    assert backend.peticiones[0]["cuerpo"]["grupo"] == "novelas"

@@ -6,7 +6,14 @@
     },
     "playwright": {
       "command": "npx",
-      "args": ["-y", "@playwright/mcp@latest"]
+      "args": ["-y", "@playwright/mcp@latest", "--browser", "msedge"]
+    },
+    "langfuse": {
+      "type": "http",
+      "url": "${LANGFUSE_BASE_URL:-https://cloud.langfuse.com}/api/public/mcp",
+      "headers": {
+        "Authorization": "Basic ${LANGFUSE_MCP_AUTH:-sin-configurar}"
+      }
     }
   }
 }

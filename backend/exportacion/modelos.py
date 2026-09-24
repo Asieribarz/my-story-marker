@@ -1,7 +1,7 @@
 """Modelos de `exportacion`: la salida del Exportador, `lectura.json` y `GET /versiones`.
 
 `Lectura` es la forma exacta de specs/plan-frontend.md §5.2, adoptada tal cual por
-decisiones-backend §4.3; `Versiones`, la de §5.3.
+spec-backend-2 §4.3; `Versiones`, la de §5.3.
 """
 
 from typing import Annotated

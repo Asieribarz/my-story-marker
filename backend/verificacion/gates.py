@@ -32,7 +32,7 @@ from backend.verificacion.cronologia import (
     leer_informe,
 )
 
-# decisiones-backend §2.1: `formal/lean` se localiza desde el propio código.
+# spec-backend-2 §2.1: `formal/lean` se localiza desde el propio código.
 PROYECTO_LEAN = Path(__file__).resolve().parents[2] / "formal" / "lean"
 TIEMPO_MAXIMO_S = 600
 NOMBRE_LEAN = "cronologia.lean"

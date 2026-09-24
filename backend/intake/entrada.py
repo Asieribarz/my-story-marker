@@ -23,7 +23,7 @@ canjea una sola vez por la superficie `/mcp/entrada`.
   canjearlo y no gasta un intento (RNF-01).
 - **Invalidación**: volver a enviar el brief retira los identificadores del texto libre que
   nadie ha canjeado: el texto al que apuntaban ya no es el del brief (RF-14).
-- **Registro** (RF-105, decisiones-backend §4.1.10): cada canje con un proyecto que existe,
+- **Registro** (RF-105, spec-backend-2 §4.1.10): cada canje con un proyecto que existe,
   válido o no, queda en `llamada_mcp` de ese proyecto, sin el texto ni el secreto: el agente
   inferido de la orden vigente (§3, punto 10), el recurso y por qué no sirvió. Es la prueba
   del red team de E2 para un identificador ajeno, usado o caducado. El motivo no llega al

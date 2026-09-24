@@ -1,4 +1,4 @@
-"""Superficie `/mcp/lectura` (RF-100, RF-101, RF-103, decisiones-backend §4.1.6): herramientas
+"""Superficie `/mcp/lectura` (RF-100, RF-101, RF-103, spec-backend-2 §4.1.6): herramientas
 tipadas de solo lectura sobre la biblia y lo que la rodea. Nunca SQL libre.
 
 La declara `.mcp.json` y la usan todos los agentes de la novela salvo el Escritor, el

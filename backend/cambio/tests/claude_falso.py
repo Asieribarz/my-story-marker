@@ -5,6 +5,8 @@ El comportamiento lo elige `MSM_CLAUDE_FALSO`: `exito` deja el cambio propuesto,
 1; `bloqueo` sale con 1 como `claude` cuando no puede tomar el bloqueo; `cuelgue` no acaba;
 `caida` muere con 137; `propone_y_falla` deja el cambio propuesto y sale con 1;
 `nieto_colgado` lanza un nieto que escribe `MSM_CLAUDE_FALSO_MARCA` a los 4 s y se cuelga.
+Para la generación: `genera` deja el proyecto en `publicada`, y `extrae` propone un hecho del
+texto libre pendiente de confirmar, como el Extractor antes de su parada.
 Cada lanzamiento añade su línea de argumentos, y si ve la clave de API, a
 `MSM_CLAUDE_FALSO_REGISTRO`.
 """
@@ -32,7 +34,8 @@ if modo == "nieto_colgado":
     sys.exit(0)
 if modo in ("exito", "propone_y_falla"):
     proyecto = argumentos[argumentos.index("-p") + 1].split()[1]
-    base = Path(os.environ["MSM_PROYECTOS"]) / proyecto / "proyecto.sqlite"
+    # `<raíz>/<grupo>/<proyecto>`: el grupo no viaja en la línea de `claude -p`.
+    base = next(Path(os.environ["MSM_PROYECTOS"]).glob(f"*/{proyecto}/proyecto.sqlite"))
     conexion = sqlite3.connect(base)
     with conexion:
         conexion.execute(
@@ -40,6 +43,20 @@ if modo in ("exito", "propone_y_falla"):
         )
     conexion.close()
     sys.exit(0 if modo == "exito" else 1)
+if modo in ("genera", "extrae"):
+    proyecto = argumentos[argumentos.index("-p") + 1].split()[1]
+    base = next(Path(os.environ["MSM_PROYECTOS"]).glob(f"*/{proyecto}/proyecto.sqlite"))
+    conexion = sqlite3.connect(base)
+    with conexion:
+        if modo == "genera":
+            conexion.execute("UPDATE proyecto SET estado = 'publicada'")
+        else:
+            conexion.execute(
+                "INSERT INTO hecho_propuesto (tipo, texto, prioridad, creado) "
+                "VALUES ('objeto', 'una brújula', 'deseable', '2026-09-23T09:00:00Z')"
+            )
+    conexion.close()
+    sys.exit(0)
 if modo == "sin_parada":
     sys.exit(0)
 if modo in ("error", "bloqueo"):

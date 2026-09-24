@@ -1,6 +1,6 @@
 """Hook `SubagentStop`: registro de salidas y captura de uso (specs/plan-agentes.md §5.3).
 
-Es la única vía de registro de cualquier salida de subagente (decisiones-backend.md §4.1.5,
+Es la única vía de registro de cualquier salida de subagente (spec-backend-2.md §4.1.5,
 P-2 cerrada): la skill no registra nada. Solo actúa sobre subagentes de la novela:
 `agent_type` de la lista de agentes y un prompt que empieza por la cabecera
 `orden: <proyecto>:<n>` (A-4). A los demás —los de las sesiones de desarrollo— no los toca.

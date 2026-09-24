@@ -323,7 +323,7 @@ def test_lean_corre_sin_bloquear_la_escritura_y_el_juez_recibe_el_manuscrito(
     libre: list[bool] = []
 
     def lean(_lake: str, _fichero: Path) -> EjecucionLean:
-        with abrir_proyecto(IDENTIFICADOR, disposicion.raiz.parent) as otro:
+        with abrir_proyecto(IDENTIFICADOR, disposicion.raiz_proyectos) as otro:
             otro.conexion.execute("PRAGMA busy_timeout = 0")
             try:
                 otro.conexion.execute("BEGIN IMMEDIATE")

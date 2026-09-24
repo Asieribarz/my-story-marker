@@ -1,4 +1,4 @@
-# spec1.md — SRS del backend, versión 1
+# spec-backend-1.md — SRS del backend, versión 1
 
 > **Estado: propuesta.** Este documento recoge los requisitos del backend de `my-story-marker` para su primera versión, correspondiente a la **Fase 1 · Entrega** de [docs/architecture.md](../docs/architecture.md) §11. No es una decisión tomada: todo lo marcado como *abierto* en §10 debe resolverse antes de implementar la parte que depende de ello.
 >
@@ -179,7 +179,7 @@ Cada requisito tiene identificador estable, enunciado, y la sección de `docs/` 
 
 | ID | Requisito | Prio | Origen |
 |---|---|---|---|
-| RF-01 | Crear un proyecto genera su fichero SQLite, su directorio en disco y su fila de estado inicial en `intake`. | M | §6, §3.1 |
+| RF-01 | Crear un proyecto genera su fichero SQLite, su directorio en disco y su fila de estado inicial en `intake`. Se le puede dar una etiqueta legible, que no entra en ninguna ruta. | M | §6, §3.1 |
 | RF-02 | El estado del proyecto se lee y se escribe como fila en SQLite; el backend no mantiene estado en memoria entre peticiones. | M | §3.1 |
 | RF-03 | La posición en el grafo se persiste **antes** de que se lance el siguiente paso: la orden queda registrada como vigente antes de devolverse a la sesión. La transición la escribe el backend al registrar el resultado de esa orden; la sesión no escribe transiciones. | M | §3.2 |
 | RF-04 | Las transiciones permitidas son exactamente las de la tabla de §3.1; una transición no contemplada se rechaza con error y no modifica la fila. | M | §3.1 |
@@ -386,6 +386,8 @@ Cada rebanada aporta su router. Rutas indicativas, agrupadas por rebanada; la fo
 | Método y ruta | Rebanada | Para qué |
 |---|---|---|
 | `POST /proyectos` | transversal | Crear proyecto (RF-01) |
+| `GET /proyectos` | transversal | Lista de proyectos para el selector de la web: identificador, etiqueta, estado, creación, versiones y título de la última versión |
+| `GET /proyectos/{id}/metricas` | transversal | Métricas de creación, solo lectura: tiempo total y por fase, intentos y reintentos, tokens y tiempo de agente por agente y capítulo, hallazgos por verificador, última nota del juez y cambios del lector |
 | `GET /proyectos/{id}/estado` | transversal | Estado actual y reanudación (RF-02) |
 | `POST /proyectos/{id}/siguiente` | transversal | Siguiente orden, con su `sello` `<proyecto>:<orden>:<generación>` (AJ-4); idempotente mientras la orden siga vigente (RF-08, RF-08a) |
 | `POST /proyectos/{id}/bloqueo` · `DELETE …/bloqueo` | transversal | Tomar, renovar y soltar el bloqueo (RF-09b) |
@@ -409,7 +411,7 @@ Cada rebanada aporta su router. Rutas indicativas, agrupadas por rebanada; la fo
 | `GET /proyectos/{id}/cambios/{c}` | `cambio` | Estado del cambio: `interpretando`, `propuesto`, `obsoleto`, `rechazado`, `regenerando`, `fallido`, `publicado` |
 | `POST /proyectos/{id}/cambios/{c}/confirmacion` | `cambio` | Confirmar o rechazar el cambio propuesto (RF-122) |
 
-Retiradas (decisiones-backend §3, puntos 5 y 6): `POST /capitulos/{n}/versiones` —toda salida entra por `/resultado`—, `POST /publicar` —se publica al registrar el resultado del Exportador— y `POST /exportar` —el Markdown se escribe al publicar—. Las rutas de capítulo para el Recuperador y los deterministas (`/capitulos/{n}/prompt`, `/verificar`, `/informes`) y `POST /manuscrito/verificar` no existen: el ensamblado y los gates los ejecuta el backend al calcular la siguiente orden, y el prompt y los informes se leen por `/mcp/lectura`.
+Retiradas (spec-backend-2 §3, puntos 5 y 6): `POST /capitulos/{n}/versiones` —toda salida entra por `/resultado`—, `POST /publicar` —se publica al registrar el resultado del Exportador— y `POST /exportar` —el Markdown se escribe al publicar—. Las rutas de capítulo para el Recuperador y los deterministas (`/capitulos/{n}/prompt`, `/verificar`, `/informes`) y `POST /manuscrito/verificar` no existen: el ensamblado y los gates los ejecuta el backend al calcular la siguiente orden, y el prompt y los informes se leen por `/mcp/lectura`.
 
 **Errores:** respuesta con código, requisito infringido cuando aplique, y detalle accionable. Una transición inválida (RF-04) y una escritura no autorizada en biblia (RF-65) se distinguen de un error de validación de entrada. El catálogo de códigos es un `StrEnum` único (TC-11); entre ellos, `herramienta_no_disponible` (503: falta Lean o Chromium dentro de un manejador; no registra ni gasta intento) y `cambio_inexistente` (404).
 
@@ -437,7 +439,7 @@ Las URLs llevan barra final (`http://127.0.0.1:8000/mcp/lectura/`, `…/mcp/escr
 
 Los nombres los fija `shared/rutas.py`, único sitio donde se construyen rutas de datos (V-24). `brief/` y `cambios/` guardan el texto libre y las peticiones del lector, ambos no confiables. La regla firme es que texto de capítulo, prompt de auditoría y exportación son ficheros, no blobs (C-4).
 
-Cada directorio de proyecto se llama como el identificador opaco del proyecto y cuelga de la raíz que fija la variable de entorno `MSM_PROYECTOS` —por defecto, `proyectos/` en la raíz del repositorio, ignorado por Git—. La base no guarda la ruta de su directorio: es el que la contiene, y guardarla solo serviría para que quedara desfasada al mover el proyecto.
+Cada directorio de proyecto se llama como el identificador opaco del proyecto y cuelga de uno de los dos grupos de la raíz que fija la variable de entorno `MSM_PROYECTOS` —por defecto, `proyectos/` en la raíz del repositorio, ignorado por Git—: `novelas/` o `evals/`, así que la ruta es `proyectos/<grupo>/<identificador>/`. El grupo se elige al crear el proyecto: `evals` para un brief de evaluación, `novelas` para todo lo demás. Después no cambia: mover la carpeta con la base abierta falla en Windows. Al abrir un proyecto por su identificador se busca en los dos grupos; una carpeta directamente en la raíz, de antes de los grupos, no se ve. La base no guarda la ruta de su directorio: es el que la contiene, y guardarla solo serviría para que quedara desfasada al mover el proyecto.
 
 ---
 
@@ -447,7 +449,7 @@ Un fichero SQLite por proyecto, en WAL. Entidades derivadas de [docs/architectur
 
 | Tabla | Contenido | Requisitos |
 |---|---|---|
-| `proyecto` | Identidad, versión de ontología, estado actual, paradas activas, ciclos de revisión, bloqueo con su titular y caducidad | RF-01, RF-02, RF-05, RF-09b, RF-64a |
+| `proyecto` | Identidad, etiqueta legible opcional, versión de ontología, estado actual, paradas activas, ciclos de revisión, bloqueo con su titular y caducidad | RF-01, RF-02, RF-05, RF-09b, RF-64a |
 | `version_novela` | Número, cambio que la originó, fecha | RF-94 |
 | `version_novela_capitulo` | Versión de novela → versión de capítulo | RF-94, RF-96 |
 | `cambio_lector` | Versión, capítulo y párrafos del fragmento, ruta de la petición (el texto no va a la base), hecho, valores anterior y nuevo o hecho nuevo, estado y motivo | RF-120 a RF-123 |
@@ -588,7 +590,7 @@ Ninguna de estas se resuelve en este documento. Están enumeradas porque hay req
 |---|---|---|---|
 | D-1 | Mecanismo de búsqueda dentro de SQLite: con embeddings locales o con FTS5 ([docs/architecture.md](../docs/architecture.md) §6). Es decisión de fase 2 | Implementación de la recuperación por similitud (RF-50b, RF-57, RF-59). Su contrato ya está definido en §6.3 de la arquitectura, así que la decisión se enchufa detrás de una interfaz estrecha y no arrastra al resto del Recuperador | No — el mecanismo devuelve vacío |
 | D-2 | ~~Cola de trabajos~~ — **resuelta**: tabla en SQLite y worker que lanza `claude -p`, un trabajo cada vez ([docs/architecture.md](../docs/architecture.md) §7) | RF-124 | — |
-| D-3 | Observabilidad y trazas | RF-105, V-18 | No |
+| D-3 | Observabilidad y trazas · **cerrada 2026-09-24**: Langfuse Cloud, solo metadatos, enviado por el backend (architecture §7) | RF-105, V-18 | No |
 | D-4 | ~~Validación de la ontología~~ — **resuelta**: Pydantic v2 como fuente única; el JSON Schema se genera desde los modelos, no se mantiene a mano | RF-20 | — |
 | D-5 | ~~Contador de tokens del Recuperador~~ — **resuelta**: estimador conservador `tiktoken` `o200k_base` × 1,35, en la tabla de §7 de la arquitectura | RF-52, RF-52a a RF-52c | — |
 | D-6 | ~~Legibilidad en español~~ — **resuelta**: índice de perspicuidad de Szigriszt-Pazos con la escala INFLESZ, en código propio. Umbral mínimo por público: infantil 65, juvenil 55, adulto 40 | RF-71 | — |
@@ -598,7 +600,7 @@ Ninguna de estas se resuelve en este documento. Están enumeradas porque hay req
 | D-11 | ~~Cómo llega el texto no confiable al Extractor y al Intérprete~~ — **resuelta**: superficie `/mcp/entrada` declarada solo en esos dos agentes, con una herramienta de solo lectura que canjea un identificador opaco de un solo uso (RF-14, RF-120) | RF-14, RF-120 | — |
 | D-9 | Qué hace el Recuperador cuando, recortadas ya todas las unidades recortables, el ensamblado sigue sin caber: solo queda la ficha del capítulo y aun así rebasa el tope | RF-53, RF-53a | No — es un caso patológico, no el camino normal |
 
-Ninguna decisión abierta bloquea ya la primera línea: **D-2, D-4, D-5, D-6, D-7, D-8 y D-11 están cerradas**. **D-3** (observabilidad) bloquea solo la integración de trazas.
+Ninguna decisión abierta bloquea ya la primera línea: **D-2, D-4, D-5, D-6, D-7, D-8 y D-11 están cerradas**. **D-3** (observabilidad) se cerró el 2026-09-24 con Langfuse (plan-entrega E-1).
 
 **D-9** merece una nota, porque es un hueco abierto a propósito y no un olvido. El recorte por unidades completas (RF-53a) es finito: acaba, en el peor caso, con la ficha sola. Llegar ahí no significa que el capítulo sea denso, significa que hay un dato mal formado —una guía de estilo de 60k, una ficha con veinte personajes en escena, un resumen de acto que nunca se destiló—. Hasta que la decisión se tome, el código **no puede inventarse una salida**: ni truncar, ni subir el tope, ni enviar el prompt igualmente. Que falle de forma ruidosa es el comportamiento correcto mientras tanto.
 

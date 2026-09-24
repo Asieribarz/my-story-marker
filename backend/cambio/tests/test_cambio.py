@@ -29,6 +29,7 @@ from backend.proyecto.persistencia import (
 from backend.proyecto.tests.apoyo import AHORA, MOMENTO, salida_cruda, volcado
 from backend.proyecto.tests.cliente_api import ClienteApi, con_token, error
 from backend.shared.db import transaccion
+from backend.shared.rutas import DisposicionProyecto
 from backend.shared.tipos import Agente, EstadoCambio, EstadoTrabajo, Gate
 
 PERRA_ANTES = "Su perra se llama Nala, una galga blanca"
@@ -187,7 +188,7 @@ def test_una_peticion_sobre_una_version_que_no_es_la_vigente_queda_obsoleta(
         "version_obsoleta",
     )
     assert api.estado(proyecto)["estado"] == "publicada"
-    assert list((api.raiz / proyecto / "cambios").iterdir()) == []
+    assert list(DisposicionProyecto.de(proyecto, api.raiz).cambios.iterdir()) == []
     with abrir(api.raiz, proyecto) as abierto:
         assert _trabajos(abierto.conexion) == []
 

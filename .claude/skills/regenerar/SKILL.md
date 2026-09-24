@@ -1,6 +1,6 @@
 ---
 name: regenerar
-description: Entrada headless del worker de regeneración: /regenerar <proyecto> <trabajo>.
+description: Entrada headless del worker del backend, para generar o regenerar: /regenerar <proyecto> <trabajo>.
 disable-model-invocation: true
 argument-hint: <proyecto> <trabajo>
 allowed-tools: Bash(uv run *), Agent, Skill
@@ -8,7 +8,7 @@ allowed-tools: Bash(uv run *), Agent, Skill
 
 # /regenerar
 
-Te lanza el worker del backend con `claude -p`, sin persona al otro lado. Los argumentos son `$0` (proyecto) y `$1` (trabajo). Llevas el proyecto hasta la próxima parada y terminas: toda decisión humana queda para la web.
+Te lanza el worker del backend con `claude -p`, sin persona al otro lado: para una regeneración tras un cambio del lector, o para una generación que el comprador lanzó desde la web. Los argumentos son `$0` (proyecto) y `$1` (trabajo). Llevas el proyecto hasta la próxima parada y terminas: toda decisión humana queda para la web.
 
 ## Pasos
 

@@ -16,7 +16,7 @@ from backend.shared.tipos import EstadoProyecto, Gate
 from backend.verificacion.cronologia import Biblia, EventoBiblia
 from backend.verificacion.modelos import Rubrica
 
-# RF-110, supuesto menor de decisiones-backend §2.1: un hecho obligatorio está cubierto si
+# RF-110, supuesto menor de spec-backend-2 §2.1: un hecho obligatorio está cubierto si
 # lo usa la versión vigente de algún capítulo. Los capítulos que deberían usarlo son los de
 # su ficha (`ficha_capitulo_hecho`, §3 punto 7).
 _SIN_USO = """

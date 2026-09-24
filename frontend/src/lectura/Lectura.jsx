@@ -10,23 +10,25 @@ import Fichas from './Fichas.jsx'
 import { fechaLegible, versionVigente } from './modelo.js'
 import Portada from './Portada.jsx'
 import { escribirRuta } from './ruta.js'
-import { useCarga } from './useCarga.js'
-import { useRuta } from './useRuta.js'
+import PanelCambio from '../cambio/PanelCambio.jsx'
+import { useCarga } from '../shared/useCarga.js'
+import { navegar, useRuta } from './useRuta.js'
 
 /**
  * La funcionalidad de lectura entera: lee la dirección (plan-frontend.md §4), carga las
- * versiones del proyecto y la lectura de la versión pedida, y pinta su pantalla.
+ * versiones del proyecto y la lectura de la versión pedida, y pinta su pantalla. Sin
+ * proyecto en la dirección abre `porDefecto`, la novela publicada más reciente.
  */
-export default function Lectura() {
+export default function Lectura({ porDefecto = null }) {
   const ruta = useRuta()
 
   if (ruta.pantalla === 'sin_proyecto') {
-    const proyecto = proyectoPorDefecto()
+    const proyecto = porDefecto ?? proyectoPorDefecto()
     return proyecto ? (
       <Redirigir a={{ pantalla: 'vigente', proyecto }} />
     ) : (
-      <Aviso titulo="Abre el enlace de tu novela">
-        Esta dirección no dice qué novela abrir. Usa el enlace que recibiste con ella.
+      <Aviso titulo="Aún no hay ninguna novela publicada">
+        Elige una en el selector de arriba o <a href="#/nueva">crea una nueva</a>.
       </Aviso>
     )
   }
@@ -42,11 +44,36 @@ export default function Lectura() {
 
 function Proyecto({ ruta }) {
   const carga = useCarga(`versiones:${ruta.proyecto}`, (senal) => obtenerVersiones(ruta.proyecto, senal))
+  const versiones = carga.dato?.versiones ?? []
+  const vigente = versiones.length > 0 ? versionVigente(carga.dato) : null
 
+  // Publicada la versión nueva de un cambio: se vuelven a pedir las versiones y se abre.
+  const alPublicar = (version) => {
+    carga.reintentar()
+    navegar({ pantalla: 'portada', proyecto: ruta.proyecto, version })
+  }
+
+  return (
+    <>
+      <Contenido ruta={ruta} carga={carga} />
+      <PanelCambio ruta={ruta} vigente={vigente} alPublicar={alPublicar} />
+    </>
+  )
+}
+
+function Contenido({ ruta, carga }) {
   if (carga.error) return <ErrorCarga error={carga.error} reintentar={carga.reintentar} />
   if (!carga.dato) return <Cargando />
 
   const versiones = carga.dato
+  if (versiones.versiones.length === 0) {
+    return (
+      <Aviso titulo="Esta novela aún no está publicada">
+        Sigue su creación en <a href={`#/nueva/${ruta.proyecto}`}>el seguimiento</a> o mira{' '}
+        <a href={`#/metricas/${ruta.proyecto}`}>sus métricas</a>.
+      </Aviso>
+    )
+  }
   const vigente = versionVigente(versiones)
   if (ruta.pantalla === 'vigente') {
     return <Redirigir a={{ pantalla: 'portada', proyecto: ruta.proyecto, version: vigente }} />

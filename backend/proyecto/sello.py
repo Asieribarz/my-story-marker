@@ -1,4 +1,4 @@
-"""El sello de la orden (AJ-4, decisiones-backend §4.1.2 y §4.1.7).
+"""El sello de la orden (AJ-4, spec-backend-2 §4.1.2 y §4.1.7).
 
 `<proyecto>:<orden>:<generación>`, opaco salvo el primer segmento, que es el proyecto. La
 generación es `proyecto.generacion_bloqueo`, que suma 1 cada vez que alguien toma el bloqueo

@@ -1,7 +1,7 @@
 /-!
 # Los tipos del fichero de cronología
 
-Es el contrato con el backend (`specs/decisiones-backend.md` §4.2, `specs/plan-formal.md`
+Es el contrato con el backend (`specs/spec-backend-2.md` §4.2, `specs/plan-formal.md`
 §3.1): por cada novela, el backend escribe un `.lean` que importa `Cronologia` y define
 `novela : Novela`. Todo son ids numéricos, con su correspondencia en un JSON aparte, y
 listas ordenadas por id. No hay ningún texto libre.

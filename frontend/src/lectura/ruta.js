@@ -17,7 +17,7 @@
  *   | { pantalla: 'capitulo', proyecto: string, version: number, capitulo: number }} Ruta
  */
 
-/** El identificador opaco de spec1.md §5.3. */
+/** El identificador opaco de spec-backend-1.md §5.3. */
 const PROYECTO = /^[0-9a-f]{32}$/
 const VERSION = /^v([1-9]\d{0,5})$/
 const NUMERO = /^[1-9]\d{0,5}$/

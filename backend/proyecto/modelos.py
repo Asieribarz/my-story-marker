@@ -1,4 +1,4 @@
-"""Cuerpos de las rutas de `proyecto/` (spec1.md §5.1): lo que entra y lo que sale.
+"""Cuerpos de las rutas de `proyecto/` (spec-backend-1.md §5.1): lo que entra y lo que sale.
 
 Los de salida se construyen desde los tipos del núcleo (`EstadoLeido`, `OrdenEmitida`,
 `Registro`, `Bloqueo`) con `from_attributes`: la API no recalcula nada, solo lo expone. El
@@ -8,7 +8,7 @@ bloqueo se enseña sin su token salvo a quien lo acaba de tomar o renovar.
 from datetime import datetime
 from typing import Annotated, Any, Literal, assert_never
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from backend.proyecto.maquina import (
     Detenida,
@@ -21,11 +21,13 @@ from backend.proyecto.maquina import (
 )
 from backend.proyecto.orden import OrdenEmitida
 from backend.proyecto.persistencia import Emision
+from backend.shared.rutas import GrupoProyecto
 from backend.shared.tipos import (
     Agente,
     DesenlaceOrden,
     EstadoCapitulo,
     EstadoProyecto,
+    EstadoTrabajo,
     TipoEjecutor,
 )
 
@@ -41,10 +43,23 @@ class _Entrada(BaseModel):
 
 
 class NuevoProyecto(_Entrada):
-    """RF-01, RF-05: las paradas se eligen al crear y están inactivas por defecto."""
+    """RF-01, RF-05: las paradas se eligen al crear y están inactivas por defecto. La
+    etiqueta es el nombre del proyecto en el panel hasta que tenga título; opcional y sin
+    caracteres de control. El grupo es la carpeta en que queda: `evals` para un brief de
+    evaluación, `novelas` para el resto."""
 
     parada_plan: bool = False
     parada_final: bool = False
+    grupo: GrupoProyecto = GrupoProyecto.NOVELAS
+    etiqueta: (
+        Annotated[
+            str,
+            StringConstraints(
+                strip_whitespace=True, min_length=1, max_length=60, pattern=r"^[^\x00-\x1f\x7f]*$"
+            ),
+        ]
+        | None
+    ) = None
 
 
 class PeticionBloqueo(_Entrada):
@@ -154,6 +169,14 @@ class BloqueoRespuesta(_Salida):
     caduca: datetime
 
 
+class TrabajoRespuesta(_Salida):
+    id: int
+    generacion: bool
+    estado: EstadoTrabajo
+    causa: str | None
+    creado: str
+
+
 class EstadoRespuesta(_Salida):
     """RF-02: el estado para la reanudación y el panel. El bloqueo, sin su token."""
 
@@ -168,6 +191,7 @@ class EstadoRespuesta(_Salida):
     orden_vigente: OrdenRespuesta | None
     bloqueo: BloqueoVisibleRespuesta | None
     creado: str
+    trabajo: TrabajoRespuesta | None
 
 
 class RegistroRespuesta(_Salida):

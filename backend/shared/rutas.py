@@ -1,4 +1,6 @@
-"""Disposición del directorio de un proyecto (spec1.md §5.3).
+"""Disposición del directorio de un proyecto (spec-backend-1.md §5.3).
+
+La forma es `<raíz>/<grupo>/<identificador>`.
 
 Único sitio de backend/ donde se construyen rutas de datos (V-24). Toda ruta sale de un
 identificador de proyecto validado, así que ningún código puede apuntar a un proyecto
@@ -9,10 +11,16 @@ import os
 import re
 import uuid
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 
 VARIABLE_RAIZ = "MSM_PROYECTOS"
 RAIZ_POR_DEFECTO = Path(__file__).resolve().parents[2] / "proyectos"
+
+# E-1: de dónde lee observabilidad/ las claves de Langfuse y las definiciones de agente
+# que sube como versiones de prompt. Ninguna de las dos es dato de un proyecto.
+FICHERO_ENV = Path(__file__).resolve().parents[2] / ".env"
+DIR_AGENTES = Path(__file__).resolve().parents[2] / ".claude" / "agents"
 _IDENTIFICADOR = re.compile(r"[0-9a-f]{32}")
 _CAMBIO = re.compile(r"[0-9]{1,9}")
 
@@ -42,6 +50,34 @@ def nuevo_identificador() -> str:
     return uuid.uuid4().hex
 
 
+class GrupoProyecto(StrEnum):
+    """La carpeta de la raíz en que vive un proyecto: `proyectos/<grupo>/<identificador>`. Se
+    elige al crear y no cambia: las novelas de un comprador y las ejecuciones de un brief de
+    evaluación (`evals/eN-*`) quedan separadas en disco."""
+
+    NOVELAS = "novelas"
+    EVALS = "evals"
+
+
+def identificadores_en(raiz_proyectos: Path | None = None) -> list[str]:
+    """Los proyectos de la raíz, de los dos grupos: carpetas con identificador válido y con su
+    base. Lo que no lo es —una carpeta a medio borrar, un fichero suelto— no se lista."""
+    base = raiz_proyectos if raiz_proyectos is not None else raiz_de_proyectos()
+    return sorted(
+        hijo.name
+        for grupo in GrupoProyecto
+        if (base / grupo).is_dir()
+        for hijo in (base / grupo).iterdir()
+        if _IDENTIFICADOR.fullmatch(hijo.name) and (hijo / "proyecto.sqlite").is_file()
+    )
+
+
+def _base(identificador: str, raiz_proyectos: Path | None) -> Path:
+    if not _IDENTIFICADOR.fullmatch(identificador):
+        raise IdentificadorInvalido(f"identificador de proyecto no válido: {identificador!r}")
+    return raiz_proyectos if raiz_proyectos is not None else raiz_de_proyectos()
+
+
 def _clave_capitulo(numero: int, version: int, intento: int) -> tuple[str, str]:
     if not (1 <= numero <= 10 and version >= 1 and 1 <= intento <= 3):
         raise ValueError(f"capítulo {numero}, versión {version}, intento {intento} fuera de rango")
@@ -55,10 +91,29 @@ class DisposicionProyecto:
 
     @classmethod
     def de(cls, identificador: str, raiz_proyectos: Path | None = None) -> "DisposicionProyecto":
-        if not _IDENTIFICADOR.fullmatch(identificador):
-            raise IdentificadorInvalido(f"identificador de proyecto no válido: {identificador!r}")
-        base = raiz_proyectos if raiz_proyectos is not None else raiz_de_proyectos()
-        return cls(identificador, base / identificador)
+        """El proyecto existente con ese identificador, en el grupo en que esté. Si no está en
+        ninguno, la disposición de uno nuevo en `novelas/`: abrirlo da `ProyectoInexistente`."""
+        base = _base(identificador, raiz_proyectos)
+        for grupo in GrupoProyecto:
+            if (base / grupo / identificador).is_dir():
+                return cls(identificador, base / grupo / identificador)
+        return cls(identificador, base / GrupoProyecto.NOVELAS / identificador)
+
+    @classmethod
+    def nueva(
+        cls, identificador: str, grupo: GrupoProyecto, raiz_proyectos: Path | None = None
+    ) -> "DisposicionProyecto":
+        """La de un proyecto que se va a crear en `grupo`."""
+        return cls(identificador, _base(identificador, raiz_proyectos) / grupo / identificador)
+
+    @property
+    def grupo(self) -> GrupoProyecto:
+        return GrupoProyecto(self.raiz.parent.name)
+
+    @property
+    def raiz_proyectos(self) -> Path:
+        """La raíz de todos los proyectos, encima del grupo: lo que piden `de` y `nueva`."""
+        return self.raiz.parent.parent
 
     @property
     def base(self) -> Path:
@@ -138,7 +193,7 @@ class DisposicionProyecto:
         return self.export / f"v{numero}"
 
     def version_novela_temporal(self, numero: int) -> Path:
-        """Supuesto menor de decisiones-backend §2.1: la versión se escribe aquí y se renombra
+        """Supuesto menor de spec-backend-2 §2.1: la versión se escribe aquí y se renombra
         entera a `export/vN`. El nombre empieza por punto y no es `vN`: nada lo lee como
         publicada. Único en cada llamada, en el mismo sistema de ficheros que `export/`."""
         if numero < 1:

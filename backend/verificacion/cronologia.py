@@ -1,6 +1,6 @@
 """El fichero Lean de la cronología y la lectura de su informe (RF-111, RF-112, TC-1, TC-2).
 
-Contrato de decisiones-backend §4.2 y plan-formal §3: importa `Cronologia`, define
+Contrato de spec-backend-2 §4.2 y plan-formal §3: importa `Cronologia`, define
 `novela : Novela` con ids numéricos y listas ordenadas por id, un teorema por invariante
 con `by decide +kernel` y `#eval violaciones novela`. Sin texto libre: la correspondencia
 de ids va en un JSON aparte. Todo es función pura de las filas leídas, así que la misma

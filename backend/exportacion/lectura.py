@@ -1,6 +1,6 @@
 """TC-7: un único modelo de lectura escrito dos veces, y el manuscrito en Markdown.
 
-- `markdown_a_html`: el conversor propio del subconjunto cerrado de decisiones-backend §4.3.
+- `markdown_a_html`: el conversor propio del subconjunto cerrado de spec-backend-2 §4.3.
   Solo emite `p`, `em`, `strong`, `blockquote`, `hr` y `br`; todo lo demás llega escapado.
   Cada `<p>` lleva `data-p` desde 1: los párrafos son los de `capitulo/segmentacion.py`
   (B-14), así que `data-p` es el `p<n>` de los hallazgos y el `parrafo` del juez.

@@ -61,7 +61,7 @@ const DOCS = {
 const REGLAS = `
 Reglas de este trabajo (además de AGENTS.md y CLAUDE.md, que ya tienes):
 - Repositorio: ${REPO}, rama project-v2-avance. No hagas commit ni push. No toques .claude/, formal/, frontend/ ni evals/: puedes leerlos. evals/comprobar.py importa backend.contexto.modelos.Personalizacion, backend.contexto.validacion.validar, backend.intake.datos_excluidos.depurar y backend.intake.router.Brief: no los renombres.
-- Mandan specs/decisiones-backend.md (§0 recortes, §1 B-n, §2 TC-n, §2.1 AJ-n, §3 contradicciones resueltas, §4.1 a §4.3 contratos) y specs/contexto-tras-bloque1.md (§4 lo construido, §5.1 lo que toca, §6 lecciones). Las decisiones están cerradas. Si falta algo menor, decide lo más coherente y apúntalo en decisiones_sobre_la_marcha. Si algo contradice esos ficheros o docs/, no lo implementes: apúntalo en pendientes.
+- Mandan specs/spec-backend-2.md (§0 recortes, §1 B-n, §2 TC-n, §2.1 AJ-n, §3 contradicciones resueltas, §4.1 a §4.3 contratos) y specs/contexto-tras-bloque1.md (§4 lo construido, §5.1 lo que toca, §6 lecciones). Las decisiones están cerradas. Si falta algo menor, decide lo más coherente y apúntalo en decisiones_sobre_la_marcha. Si algo contradice esos ficheros o docs/, no lo implementes: apúntalo en pendientes.
 - VOLUMEN CONTENIDO: el tiempo del bloque 1 se fue en escribir de más. Código compacto, sin abstracciones especulativas. Pruebas solo para los criterios V-n de tu encargo, más un caso de control por regla. Sin baterías extra.
 - Mientras trabajas, ejecuta solo las pruebas de tu carpeta: uv run --frozen pytest -q -p no:cacheprovider backend/<tu carpeta>. Al final, uv run --frozen mypy, uv run --frozen ruff check y uv run --frozen ruff format --check. La batería completa (unos 95 s) la ejecuta el revisor.
 - Estilo del código existente: identificadores y docstrings en español que citan RF/V; conexiones solo con backend/shared/db.py y rutas solo con backend/shared/rutas.py (V-24); escrituras dentro de transaccion(); el tiempo entra como parámetro; tablas STRICT con CHECK de lista cerrada iguales a los enums de shared/tipos.py. Ficheros con saltos LF: si los escribes con un script, usa newline="\\n". Sin dependencias nuevas (uv add prohibido) y sin cosmic-ray.
@@ -79,7 +79,7 @@ Contratos entre las piezas de este bloque. Úsalos EXACTAMENTE así: los impleme
 const PROMPT_BASE = `Construye la BASE del bloque 2 del backend: el modelo de datos, su acceso y los contratos. Cuando termines, cinco agentes trabajarán a la vez sobre lo que dejes (cerebro, planificación y escaleta, Recuperador, verificadores y MCP), así que tu interfaz tiene que ser precisa.
 ${REGLAS}
 ${CONTRATOS}
-Lee specs/decisiones-backend.md y specs/contexto-tras-bloque1.md; docs/architecture.md §6 y §6.1 a §6.3; specs/spec1.md §4.4 a §4.6 y §6; y el código de backend/shared, backend/contexto y backend/proyecto.
+Lee specs/spec-backend-2.md y specs/contexto-tras-bloque1.md; docs/architecture.md §6 y §6.1 a §6.3; specs/spec-backend-1.md §4.4 a §4.6 y §6; y el código de backend/shared, backend/contexto y backend/proyecto.
 1. Esquema (backend/shared/esquema.sql y tipos.py):
    - B-2: historia por capítulo para el estado de personaje, lo que sabe y el estado de localización (columna capitulo desde la que vale; 0 = estado inicial). El glosario gana capitulo, referencia y tipo (B-10). Tabla objeto (id, nombre, alias). inventario admite el capítulo 0.
    - personaje y localizacion ganan nombre, alias y descripcion donde B-4 lo pide. ficha_capitulo se amplía según B-5, con ficha_capitulo_hito (B-3). presagio gana clave y estado (previsto, plantado o cobrado; B-16).
@@ -136,7 +136,7 @@ Pruebas: V-21, con hito ausente y hito duplicado, más un caso de control. Y una
 Informe de la base: ${JSON.stringify(base)}
 ${REGLAS}
 ${CONTRATOS}
-Lee docs/architecture.md §6.3 entero y specs/spec1.md RF-50 a RF-59b.
+Lee docs/architecture.md §6.3 entero y specs/spec-backend-1.md RF-50 a RF-59b.
 Hazlo:
 1. estimador: tiktoken o200k_base × 1,35, con TIKTOKEN_CACHE_DIR apuntando a backend/capitulo/bpe y sin red (RF-52a a 52c).
 2. recuperacion_estructurada: los bloques salen de biblia.py y de consultas. Determinismo byte a byte: ORDER BY, JSON con claves ordenadas, NFC y saltos \\n.
@@ -153,7 +153,7 @@ Pruebas: V-3a (una propiedad, misma entrada → mismos bytes), V-5 (propiedad co
 Informe de la base: ${JSON.stringify(base)}
 ${REGLAS}
 ${CONTRATOS}
-Lee specs/spec1.md §4.6.3 y docs/architecture.md §4 y §4.3.
+Lee specs/spec-backend-1.md §4.6.3 y docs/architecture.md §4 y §4.3.
 Hazlo:
 1. segmentacion (B-14), con la definición de párrafo de decisiones.
 2. Los verificadores, todos con la misma firma, que devuelven un Informe y nunca corrigen (RN-6):
@@ -179,7 +179,7 @@ Pruebas: V-15 por regla (R-5): cada regla con un caso que la dispara y otro de c
 Informe de la base: ${JSON.stringify(base)}
 ${REGLAS}
 ${CONTRATOS}
-Lee docs/architecture.md §7 y §8 y specs/spec1.md RF-100 a RF-106. Mira cómo se hizo backend/mcp/entrada.py con FastMCP 4.0.5 y cómo se monta en backend/app.py, con los lifespans combinados, y haz lo mismo.
+Lee docs/architecture.md §7 y §8 y specs/spec-backend-1.md RF-100 a RF-106. Mira cómo se hizo backend/mcp/entrada.py con FastMCP 4.0.5 y cómo se monta en backend/app.py, con los lifespans combinados, y haz lo mismo.
 Hazlo:
 1. /mcp/lectura/: las herramientas tipadas de RF-103 más las de §4.1.6, que delegan en biblia.py y en consultas. Nunca SQL libre (RF-100).
 2. /mcp/escritura/: las herramientas de RF-104 (hechos nuevos; estado de personajes y objetos; cerrar presagios; resumen de capítulo y de acto con los topes de B-17; hecho_uso; dia_fin y localizacion_fin):
@@ -208,7 +208,7 @@ const revision = await agent(`Revisa el bloque 2 del backend recién construido 
 ${REGLAS}
 NO edites ficheros. PRIMERO ejecuta la batería completa (uv run --frozen pytest -q -p no:cacheprovider), mypy y ruff, y apunta el resultado en suite_completa: son piezas de cinco agentes y puede haber roturas de integración entre ellas. Después revisa tres cosas:
 - la integración: que se cumplen los contratos entre piezas y que el cerebro agrega los manejadores y llama a preparar_prompt y a materializar_contexto;
-- la conformidad con specs/decisiones-backend.md y con los RF de los pasos 4 a 8 (RF-30 a 43, 50 a 59b, 60 a 62, 65, 70 a 79, 80 a 89 y 100 a 106);
+- la conformidad con specs/spec-backend-2.md y con los RF de los pasos 4 a 8 (RF-30 a 43, 50 a 59b, 60 a 62, 65, 70 a 79, 80 a 89 y 100 a 106);
 - la robustez: idempotencia, sellos, RF-106, determinismo byte a byte y el tope de tokens.
 Solo problemas comprobados, con fichero, línea y evidencia. Como mucho 15, los más graves primero.`, { label: 'b2:revision', phase: 'Revisión', schema: FINDINGS })
 
@@ -221,8 +221,8 @@ Primero deja en verde la batería completa y las cuatro comprobaciones: arregla 
 
 phase('Documentos')
 const documentos = await agent(`Pasada ÚNICA y BREVE de documentación (AGENTS.md, regla 3) por los bloques 1 y 2 del backend en ${REPO}. Eres el único agente editando.
-Aplica la lista de specs/decisiones-backend.md §4.4 y lo que pidan los cambios_de_documento_necesarios de estos informes: ${JSON.stringify({ todos, correccion })}
-Documentos que tocar: docs/architecture.md (§2, §3, §3.1 con las aristas de Q6, §3.2, §6, §7 con la pila del frontend y sin cosmic-ray, y §8), specs/spec1.md (RF-05a, RF-14, RF-07a y RF-63 según Q5, RF-64b, RF-74 y 75 según R-2, V-15, V-17, D-7, §1.2, §5.1 y §6), docs/validators.md (V-15 y las filas del frontend de plan-frontend §8), docs/definitions.md (§6 y §9: B-18 y B-19), specs/plan-backend-v1.md (pasos 2 a 8 hechos, E-6) y specs/plan-entrega.md (§1, E-5 rechazada, E-6 decidida y briefs en JSON).
+Aplica la lista de specs/spec-backend-2.md §4.4 y lo que pidan los cambios_de_documento_necesarios de estos informes: ${JSON.stringify({ todos, correccion })}
+Documentos que tocar: docs/architecture.md (§2, §3, §3.1 con las aristas de Q6, §3.2, §6, §7 con la pila del frontend y sin cosmic-ray, y §8), specs/spec-backend-1.md (RF-05a, RF-14, RF-07a y RF-63 según Q5, RF-64b, RF-74 y 75 según R-2, V-15, V-17, D-7, §1.2, §5.1 y §6), docs/validators.md (V-15 y las filas del frontend de plan-frontend §8), docs/definitions.md (§6 y §9: B-18 y B-19), specs/plan-backend-v1.md (pasos 2 a 8 hechos, E-6) y specs/plan-entrega.md (§1, E-5 rechazada, E-6 decidida y briefs en JSON).
 Cambia solo lo que el código ya hace: los docs siguen al código. Mermaid válido, con el estilo existente. Sé breve: nada de reescribir secciones enteras. Añade una entrada al día en docs/iteraciones.md. Al final, uv run --frozen pytest backend/tests (V-10 lee architecture §7). No hagas commit.`, { label: 'b2:documentos', phase: 'Documentos', schema: DOCS })
 
 return { base, piezas: informes, revision, correccion, documentos }

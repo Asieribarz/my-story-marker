@@ -2,7 +2,7 @@
 
 Uso, desde la raíz del repositorio:  uv run python -m evals.comprobar
 
-Todos los datos de evals/ son ficticios. Por cada brief de evals/briefs/:
+Todos los datos de evals/ son ficticios. Por cada brief, `evals/eN-<nombre>/input/brief.json`:
 1. La cabecera lo declara ficticio, y `entrada` da un cuerpo válido de POST /brief. El texto
    libre no se lee, porque es no confiable: solo se mira que su fichero exista y no esté vacío.
 2. `respuestas.personalizacion` encaja en el modelo de definitions.md §9 y `depurar` no le
@@ -30,7 +30,7 @@ from backend.intake.datos_excluidos import depurar
 from backend.intake.router import Brief
 
 RAIZ = Path(__file__).resolve().parents[1]
-BRIEFS = RAIZ / "evals" / "briefs"
+EVALS = RAIZ / "evals"
 CLAVES_DEL_COMPRADOR = (
     "destinatario",
     "segundo_destinatario",
@@ -116,10 +116,10 @@ def main() -> int:
     if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")
     fallidos = 0
-    for ruta in sorted(BRIEFS.glob("*.json")):
+    for ruta in sorted(EVALS.glob("e*/input/brief.json")):
         errores = comprobar(ruta)
         fallidos += bool(errores)
-        print(f"{'FALLA' if errores else 'ok'}  {ruta.name}")
+        print(f"{'FALLA' if errores else 'ok'}  {ruta.parents[1].name}")
         for error in errores:
             print(f"      · {error}")
     return 1 if fallidos else 0

@@ -6,7 +6,7 @@
     "aviso": "Brief de evaluación con datos ficticios: ninguna persona, fecha, lugar ni anécdota corresponde a alguien real. No se sustituye por datos reales.",
     "version_ontologia": "1.0.0",
     "fecha_referencia": "2026-09-23",
-    "contexto_referencia": "evals/contextos/e3-incoherencia-temporal.json",
+    "contexto_referencia": "evals/e3-temporal-inconsistency/input/reference-context.json",
     "uso": "Solo `entrada` va al backend, con `.claude/harness/msm.py brief`: `respuestas` va por `--respuestas` (solo ese objeto, nunca este fichero entero) y el fichero de `texto_libre_fichero`, si lo hay, por `--texto-libre`. Juntos forman el cuerpo de POST /proyectos/{id}/brief (modelo `Brief` de backend/intake/router.py). `evaluacion` es el oráculo: no se entrega a ningún agente."
   },
   "entrada": {

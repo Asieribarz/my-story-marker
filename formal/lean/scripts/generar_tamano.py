@@ -1,6 +1,6 @@
 """Genera una novela coherente de tamaño dado para la prueba de tamaño de `decide`.
 
-specs/decisiones-backend.md §4.2: «con muchos eventos, `decide` puede agotar la recursión».
+specs/spec-backend-2.md §4.2: «con muchos eventos, `decide` puede agotar la recursión».
 La novela generada no infringe ninguna invariante, que es el caso más caro: `decide` tiene
 que recorrer todos los pares sin encontrar nada. Tiene la forma del fichero que escribe el
 backend (specs/plan-formal.md §3.1), con eventos que rozan las reglas: dos eventos en cada

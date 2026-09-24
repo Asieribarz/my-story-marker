@@ -3,7 +3,7 @@
 Cada llamada abre el proyecto que la identifica, ejecuta la operación y deja una fila en
 `llamada_mcp` —acierte o falle— con la herramienta (`<superficie>.<nombre>`), los
 argumentos sin texto libre y el resultado reducido a `ok` y la clase del error. El agente
-no viaja en MCP: se infiere de la orden vigente y se marca como inferido (decisiones-backend
+no viaja en MCP: se infiere de la orden vigente y se marca como inferido (spec-backend-2
 §3, punto 10).
 
 Los errores esperados (una referencia que la biblia no conoce, un capítulo sin verificar, un

@@ -1,18 +1,9 @@
-import { useSyncExternalStore } from 'react'
-
+import { useHash } from '../shared/useHash.js'
 import { escribirRuta, leerRuta } from './ruta.js'
-
-/** @param {() => void} avisar */
-function suscribir(avisar) {
-  window.addEventListener('hashchange', avisar)
-  return () => window.removeEventListener('hashchange', avisar)
-}
-
-const hashActual = () => window.location.hash
 
 /** La ruta de la dirección actual; se vuelve a leer en cada cambio de «#». */
 export function useRuta() {
-  return leerRuta(useSyncExternalStore(suscribir, hashActual))
+  return leerRuta(useHash())
 }
 
 /**

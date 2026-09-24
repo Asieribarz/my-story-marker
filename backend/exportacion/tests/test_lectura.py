@@ -1,4 +1,4 @@
-"""TC-7, decisiones-backend §4.3: el conversor Markdown → HTML de lista blanca, la
+"""TC-7, spec-backend-2 §4.3: el conversor Markdown → HTML de lista blanca, la
 titulación (RF-90) y el documento de lectura (RF-97). Datos ficticios."""
 
 import pytest

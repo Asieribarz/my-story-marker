@@ -9,7 +9,8 @@ Reglas, en orden:
    es la sesión principal, y tampoco.
 2. `mcp__entrada__*`: solo el Extractor y el Intérprete (RF-14, RF-120).
 3. Escribir con las herramientas de fichero bajo la raíz de proyectos: nunca.
-4. Leer `brief/`, `cambios/` o un `texto_libre*.txt`: nunca (E-3).
+4. Leer `brief/`, `cambios/` o un `texto_libre*.txt`: nunca (E-3). `brief/` y `cambios/`
+   cuentan en cualquier nivel bajo la raíz, que es `<raíz>/<grupo>/<proyecto>/`.
 5. El Escritor solo lee dentro de `prompts/` de un proyecto (P-3).
 6. Bash y PowerShell: las rutas de 3 y 4 por coincidencia de texto. Es una heurística; los
    agentes de la novela no tienen esas herramientas.
@@ -80,11 +81,18 @@ def _dentro(ruta: Path, raiz: Path) -> PurePath | None:
     return None
 
 
+def _partes_del_proyecto(relativa: PurePath | None) -> tuple[str, ...]:
+    """La ruta relativa a la raíz sin el grupo: `(<identificador>, <carpeta>, …)`. Una ruta
+    sin grupo delante, de antes de los grupos, se toma tal cual."""
+    partes = relativa.parts if relativa is not None else ()
+    return partes[1:] if partes and partes[0] in comun.GRUPOS else partes
+
+
 def _proyecto_de(relativa: PurePath | None) -> str | None:
-    if relativa is None or not relativa.parts or relativa.parts[0] == ".":
+    partes = _partes_del_proyecto(relativa)
+    if not partes:
         return None
-    candidato = relativa.parts[0]
-    return candidato if re.fullmatch(r"[0-9a-f]{32}", candidato) else None
+    return partes[0] if re.fullmatch(r"[0-9a-f]{32}", partes[0]) else None
 
 
 def _deniega(regla: str, motivo: str, proyecto: str | None = None) -> Decision:
@@ -137,11 +145,14 @@ def _fichero(entrada: dict[str, Any], herramienta: str, agente: str | None) -> D
             "Extractor por /mcp/entrada.",
             proyecto,
         )
-    partes = relativa.parts if relativa is not None else ()
-    if len(partes) >= 2 and partes[1] in PROTEGIDAS:
+    partes = _partes_del_proyecto(relativa)
+    # Cualquier nivel bajo la raíz, no solo el de la carpeta del proyecto: si la disposición
+    # vuelve a cambiar, la regla no se queda mirando el nivel equivocado.
+    protegida = next((p for p in (relativa.parts if relativa else ()) if p in PROTEGIDAS), None)
+    if protegida is not None:
         return _deniega(
             "sin_lectura_de_no_confiable",
-            f"`{partes[1]}/` guarda texto no confiable del comprador o del lector; solo lo "
+            f"`{protegida}/` guarda texto no confiable del comprador o del lector; solo lo "
             "leen el Extractor y el Intérprete por /mcp/entrada (RF-14, RF-120).",
             proyecto,
         )

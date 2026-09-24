@@ -2,38 +2,23 @@
 /**
  * El único módulo cliente de la API de lectura (specs/plan-frontend.md F-3, §5.1).
  *
- * Nada más en la web sabe de dónde salen los datos. Hoy responden los ficheros de
- * fixture/, con la misma forma que export/vN/lectura.json; para usar la API real del
- * backend basta con poner FUENTE = 'api'. La rama 'api' sigue spec1.md §5.1 y el modelo
- * de error de TC-11, y no se ha probado contra el backend porque la ruta aún no existe.
+ * Nada más en la lectura sabe de dónde salen los datos: responden los ficheros de
+ * fixture/, con la misma forma que export/vN/lectura.json, o la API real del backend
+ * (FUENTE = 'api', la de uso), con el cliente común de shared/api.js.
  */
+
+import { BASE, ErrorApi, pedir } from '../shared/api.js'
+
+export { ErrorApi }
 
 /** @typedef {import('./contrato.js').Lectura} Lectura */
 /** @typedef {import('./contrato.js').Versiones} Versiones */
 /** @typedef {import('./contrato.js').CapituloLectura} CapituloLectura */
 
-const FUENTE = /** @type {'fixture' | 'api'} */ ('fixture')
-
-/** Vite reenvía /api al backend en desarrollo (vite.config.js). */
-const BASE = '/api'
+const FUENTE = /** @type {'fixture' | 'api'} */ ('api')
 
 /** El proyecto de los datos ficticios de fixture/. */
 const PROYECTO_DEL_FIXTURE = '0123456789abcdef0123456789abcdef'
-
-export class ErrorApi extends Error {
-  /**
-   * @param {string} detalle lo que se enseña al lector
-   * @param {{ codigo?: string, requisito?: string | null, estado?: number }} [datos]
-   */
-  constructor(detalle, datos = {}) {
-    super(detalle)
-    this.name = 'ErrorApi'
-    this.detalle = detalle
-    this.codigo = datos.codigo ?? null
-    this.requisito = datos.requisito ?? null
-    this.estado = datos.estado ?? null
-  }
-}
 
 const ficheros = /** @type {Record<string, () => Promise<any>>} */ (
   import.meta.glob('./fixture/**/*.json', { import: 'default' })
@@ -57,26 +42,8 @@ async function desdeFixture(proyecto, fichero) {
  * @param {string} ruta sin barra inicial
  * @param {AbortSignal} [senal]
  */
-async function desdeApi(ruta, senal) {
-  let respuesta
-  try {
-    respuesta = await fetch(`${BASE}/${ruta}`, { signal: senal, headers: { Accept: 'application/json' } })
-  } catch (error) {
-    if (senal?.aborted) throw error
-    throw new ErrorApi('No se ha podido conectar con el servidor. Comprueba que está arrancado.', {
-      codigo: 'sin_conexion',
-    })
-  }
-  if (!respuesta.ok) {
-    const cuerpo = await respuesta.json().catch(() => null)
-    // TC-11: {codigo, requisito, detalle}, suelto o dentro del «detail» de FastAPI.
-    const error = cuerpo?.detalle ? cuerpo : cuerpo?.detail
-    throw new ErrorApi(
-      typeof error?.detalle === 'string' ? error.detalle : `El servidor respondió con el estado ${respuesta.status}.`,
-      { codigo: error?.codigo, requisito: error?.requisito, estado: respuesta.status },
-    )
-  }
-  return respuesta.json()
+function desdeApi(ruta, senal) {
+  return pedir(ruta, { senal })
 }
 
 /** El proyecto que se abre sin nada en la dirección: solo existe con el fixture. */

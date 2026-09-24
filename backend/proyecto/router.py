@@ -1,6 +1,6 @@
-"""Rutas transversales del proyecto (spec1.md §5.1): crearlo, su estado, la siguiente orden,
-el registro de resultados, el bloqueo, las paradas (RF-05, RF-36), reintentar, la auditoría
-de la policy (§4.1.9) y borrarlo.
+"""Rutas transversales del proyecto (spec-backend-1.md §5.1): crearlo, listarlos, su estado, sus
+métricas (`panel.py`), la siguiente orden, el registro de resultados, el bloqueo, las
+paradas (RF-05, RF-36), reintentar, la auditoría de la policy (§4.1.9) y borrarlo.
 
 Son la superficie de `persistencia.py` y `bloqueo.py`, sin lógica propia: cada ruta abre el
 proyecto de la petición, llama al núcleo con el `ahora` del reloj y traduce lo que devuelve.
@@ -14,9 +14,10 @@ Todas leen el cuerpo en JSON estricto (`RutaJsonEstricto`) salvo `resultado`: lo
 el agente fuera de JSON estricto es un intento fallido de forma, y lo decide el núcleo.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, BackgroundTasks
 from fastapi.routing import APIRoute
 
+from backend.observabilidad.exportar import programar as enviar_a_langfuse
 from backend.proyecto.abierto import instante
 from backend.proyecto.bloqueo import renovar_bloqueo, soltar_bloqueo, tomar_bloqueo
 from backend.proyecto.dependencias import (
@@ -43,6 +44,7 @@ from backend.proyecto.modelos import (
     Siguiente,
     siguiente_de,
 )
+from backend.proyecto.panel import Metricas, Proyectos, leer_metricas, listar_proyectos
 from backend.proyecto.persistencia import (
     auditar_policy,
     borrar_proyecto,
@@ -73,9 +75,26 @@ def crear(ahora: Ahora, raiz: Raiz, cuerpo: NuevoProyecto | None = None) -> Esta
         ahora,
         parada_plan=pedido.parada_plan,
         parada_final=pedido.parada_final,
+        etiqueta=pedido.etiqueta,
+        grupo=pedido.grupo,
         raiz_proyectos=raiz,
     ) as proyecto:
         return EstadoRespuesta.model_validate(leer_estado(proyecto, ahora))
+
+
+@router.get("")
+def listar(raiz: Raiz) -> Proyectos:
+    """El panel (U1): los proyectos de la raíz con su estado, su etiqueta y, si está
+    publicada, el título de la última versión. Solo lectura, sin el token del bloqueo."""
+    return listar_proyectos(raiz)
+
+
+@router.get("/{id}/metricas")
+def metricas(proyecto: ProyectoAbierto, ahora: Ahora) -> Metricas:
+    """El panel (U1): tiempo por fase, intentos y reintentos, tokens y tiempo de agente por
+    agente y por capítulo, hallazgos por verificador, la última nota del juez y los cambios
+    del lector. Solo lectura."""
+    return leer_metricas(proyecto, ahora)
 
 
 @router.get("/{id}/estado")
@@ -99,7 +118,11 @@ def siguiente(proyecto: ProyectoAbierto, token: Token, ahora: Ahora) -> Siguient
 
 
 def resultado(
-    proyecto: ProyectoAbierto, token: Token, ahora: Ahora, cuerpo: ResultadoOrden
+    proyecto: ProyectoAbierto,
+    token: Token,
+    ahora: Ahora,
+    cuerpo: ResultadoOrden,
+    tareas: BackgroundTasks,
 ) -> RegistroRespuesta:
     """RF-03, RF-06, RF-08a, RF-77a, §4.1.7: registra la salida cruda de la orden del sello.
 
@@ -112,6 +135,8 @@ def resultado(
     registro = registrar_resultado(
         proyecto, cuerpo.orden, cuerpo.salida_cruda, token, ahora, metadatos
     )
+    # E-1: después de responder, y sin claves de Langfuse no hace nada.
+    tareas.add_task(enviar_a_langfuse, proyecto.disposicion)
     return RegistroRespuesta.model_validate(registro)
 
 

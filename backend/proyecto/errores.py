@@ -1,6 +1,6 @@
 """Errores de `proyecto/`: uno por caso, cada uno con su código y el requisito que hace cumplir.
 
-La API los traduce a su modelo de error (spec1.md §5.1): código, requisito infringido y
+La API los traduce a su modelo de error (spec-backend-1.md §5.1): código, requisito infringido y
 detalle accionable (el mensaje). Una transición inválida no es un error de validación de
 entrada, y por eso tiene su propia clase en vez de un `ValueError` genérico.
 
@@ -203,7 +203,7 @@ class CambioInexistente(ErrorProyecto, LookupError):
 
 class EntradaInvalida(ErrorProyecto, ValueError):
     """La petición no cumple el esquema de su ruta. Es un error de entrada, no del grafo:
-    se distingue de `TransicionInvalida` (spec1.md §5.1). La API da el mismo código a los
+    se distingue de `TransicionInvalida` (spec-backend-1.md §5.1). La API da el mismo código a los
     errores de validación de FastAPI."""
 
     codigo = CodigoError.VALIDACION

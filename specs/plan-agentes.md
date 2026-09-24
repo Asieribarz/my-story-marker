@@ -43,9 +43,9 @@ Tomadas con `grilling` el 2026-09-23, con la recomendación de la sesión en tod
 | **A-2** | **Hook de policy que decide en local** y nunca depende del backend. Reglas en §5.3. Audita solo las decisiones que tocan un proyecto o una herramienta de biblia o de entrada | Si el backend está caído, lo denegado sigue denegado. Auditar cada `Read` del repo sería ruido y una petición por llamada |
 | **A-3** | **Lista `tools` cerrada en cada agente.** Las herramientas MCP se nombran por servidor (`mcp__lectura`), no una a una. Ningún agente de la novela tiene Bash, Write, Edit, Agent, WebFetch ni los conectores de claude.ai | Sin lista, un subagente hereda los conectores de la cuenta (S-4). Una lista de exclusión dejaría entrar por defecto todo lo que se instale después. Nombrar el servidor entero funciona (S-3) y no obliga a esperar los nombres de herramienta del backend |
 | **A-4** | **Cabecera de orden en el prompt.** La primera línea del prompt de cada subagente es `orden: <sello>`, con el sello de la orden tal cual (AJ-4, §4.2). El hook la lee de la primera entrada del transcript: del sello solo toma el proyecto, y la orden la busca por el sello en el estado local. Si la cabecera no está, no hace nada, y así no toca a los subagentes de las sesiones de desarrollo | Es el lado de la sesión de B-7 §4.1.2. El sello sale del prompt que envió el harness, no de lo que devuelve el modelo |
-| **A-5** | **El hook registra toda salida; la skill solo lee el acuse.** El hook `SubagentStop` registra en el backend la salida de cada subagente de la novela y deja en `.claude/estado/` el acuse, la salida y el uso. `msm.py acuse` enseña lo registrado; ningún camino de la skill envía a `/resultado`. El campo `registro` de la orden no se usa | P-2 está cerrada (decisiones-backend.md §4.1.5): una sola vía de registro para todo. El modelo nunca copia una salida larga a un comando |
+| **A-5** | **El hook registra toda salida; la skill solo lee el acuse.** El hook `SubagentStop` registra en el backend la salida de cada subagente de la novela y deja en `.claude/estado/` el acuse, la salida y el uso. `msm.py acuse` enseña lo registrado; ningún camino de la skill envía a `/resultado`. El campo `registro` de la orden no se usa | P-2 está cerrada (spec-backend-2.md §4.1.5): una sola vía de registro para todo. El modelo nunca copia una salida larga a un comando |
 
-[decisiones-backend.md](decisiones-backend.md) §0 deja Langfuse pendiente de la persona, y recortable si el enunciado no lo exige. Si se recorta, se cae el envío del backend (E-1 a y c), pero no el lado de esta sesión: el uso se sigue anotando en local (b) y el plugin sigue desactivado (d), porque enviaría texto de la novela con o sin integración propia.
+[spec-backend-2.md](spec-backend-2.md) §0 deja Langfuse pendiente de la persona, y recortable si el enunciado no lo exige. Si se recorta, se cae el envío del backend (E-1 a y c), pero no el lado de esta sesión: el uso se sigue anotando en local (b) y el plugin sigue desactivado (d), porque enviaría texto de la novela con o sin integración propia.
 
 ---
 
@@ -63,7 +63,7 @@ Sonda del 2026-09-23 con Claude Code 2.1.274, un servidor FastMCP 4.0.5 por HTTP
 | **S-6** | El transcript del subagente es JSONL; cada respuesta aparece en varias líneas con el mismo `message.id`, y la última trae el `usage` final (`input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`) y `message.model`. **El formato no está documentado** | El lector de uso va detrás de una función pequeña (`transcript.py`) con prueba sobre un fichero sintético |
 | **S-7** | Los subagentes se lanzan **en segundo plano por defecto**, y **pueden lanzar subagentes**. En la versión probada la herramienta Agent no ofrece `run_in_background`: siempre vuelven en segundo plano, y el orquestador recibe primero la entrega (`SubagentHandback`) y después la notificación de fin; el hook `SubagentStop` corre al final | La skill espera a la notificación de fin, no a la entrega, y `msm acuse` espera al hook hasta 180 s. Ningún agente de la novela tiene `Agent` (A-3) |
 | **S-8** | El plugin de usuario `langfuse-observability` está activo, tiene claves y **envía el contenido de las sesiones** de este repo a Langfuse Cloud | E-1 d) |
-| **S-9** | `--permission-prompts none` existe (desde 2.1.259) | TC-10 de [decisiones-backend.md](decisiones-backend.md) vale tal cual. El worker necesita en `settings.json` los permisos de lo que usa (§5.4) |
+| **S-9** | `--permission-prompts none` existe (desde 2.1.259) | TC-10 de [spec-backend-2.md](spec-backend-2.md) vale tal cual. El worker necesita en `settings.json` los permisos de lo que usa (§5.4) |
 | **S-10** | `uv run --no-sync python` tarda unos 120 ms en arrancar | Coste aceptado por llamada a herramienta en las sesiones del repo |
 | **S-11** | El subagente puede dejar su entrega en `last_assistant_message`, en la llamada a `SubagentHandback` o en un texto anterior a ella, y cerrar con un resumen; también añade notas propias o avisos que le piden instrucciones externas | El hook elige la salida por la cabecera `orden:` entre todo lo que escribió (`subagente.elegir_salida`), y los agentes de Markdown cierran con `<!-- fin del capítulo -->`, tras la que el backend corta |
 | **S-12** | Las definiciones de `.claude/agents/` se leen al abrir la sesión: editarlas no cambia a los subagentes que lance esa misma sesión | Un cambio en una definición se prueba en una sesión nueva. Lo que el agente tiene que saber a mitad de un proyecto va en el informe del backend, que sí llega en el prompt del reintento |
@@ -76,7 +76,7 @@ Sonda del 2026-09-23 con Claude Code 2.1.274, un servidor FastMCP 4.0.5 por HTTP
 
 | Ruta | Cuerpo | Respuesta |
 |---|---|---|
-| `POST /proyectos` | `{parada_plan?, parada_final?}` | Estado, con `identificador` |
+| `POST /proyectos` | `{parada_plan?, parada_final?, etiqueta?, grupo?}`; `grupo` es `novelas` (por defecto) o `evals` | Estado, con `identificador` |
 | `GET /proyectos/{id}/estado` | — | Estado, orden vigente y bloqueo sin token |
 | `POST /proyectos/{id}/bloqueo` | `{tipo: sesion\|worker}` para tomarlo; cabecera `X-Bloqueo` para renovarlo | `{token, tipo, caduca}`, 30 minutos |
 | `DELETE /proyectos/{id}/bloqueo` | cabecera `X-Bloqueo` | 204 |
@@ -90,13 +90,13 @@ Nombres de agente: los de `backend/shared/tipos.py` (`Agente`), que son los nomb
 
 ### 4.2 Contratos respondidos por la sesión de backend
 
-Los estaban PENDIENTES; los respondió la sesión de backend el 2026-09-23 y están en [decisiones-backend.md](decisiones-backend.md) §4.1 y §2.1. Casi todos llegan con su **bloque 2**: hasta entonces el harness sigue con el contrato que hay en código, y el cambio es una constante.
+Los estaban PENDIENTES; los respondió la sesión de backend el 2026-09-23 y están en [spec-backend-2.md](spec-backend-2.md) §4.1 y §2.1. Casi todos llegan con su **bloque 2**: hasta entonces el harness sigue con el contrato que hay en código, y el cambio es una constante.
 
 | # | Qué | Respuesta | Estado en el harness |
 |---|---|---|---|
 | **P-1**, **P-4** | Formato de salida y forma de `/resultado` | Cuerpo final `{orden, salida_cruda, metadatos?}`: la salida va **sin tocar** y el backend extrae el sello, el Markdown o el bloque JSON (en el Markdown, lo que venga tras la línea `<!-- fin del capítulo -->` se descarta: son notas del modelo, no prosa) y la valida. `orden` es el **sello** completo, sacado del prompt que envió el harness, no de la salida. Repetir el sello en la primera línea de la salida pasa a ser opcional | Preparado detrás de `comun.CONTRATO_RESULTADO` (o `MSM_CONTRATO_RESULTADO=salida_cruda`). Hasta el bloque 2, `{orden: <id>, resultado}` con la salida estructurada en `comun.py`. Los prompts siguen pidiendo repetir el sello, como recomendación |
-| ~~P-2~~ | Si el hook registra todas las salidas | **Todas.** Manda decisiones-backend.md §4.1.5 sobre architecture.md §8 mientras el código no la aplique | A-5. El hook registra aunque la orden diga `registro: skill` |
-| **P-3** | Cómo recibe el Escritor su prompt | `entrada.ruta_prompt`, ruta **absoluta**, siempre dentro de `proyectos/<id>/prompts/`. Llega con el paso 6 | La definición declara `Read` (S-3), el prompt lee `entrada.ruta_prompt` y la policy limita su `Read` a `prompts/` |
+| ~~P-2~~ | Si el hook registra todas las salidas | **Todas.** Manda spec-backend-2.md §4.1.5 sobre architecture.md §8 mientras el código no la aplique | A-5. El hook registra aunque la orden diga `registro: skill` |
+| **P-3** | Cómo recibe el Escritor su prompt | `entrada.ruta_prompt`, ruta **absoluta**, siempre dentro de `proyectos/<grupo>/<id>/prompts/`. Llega con el paso 6 | La definición declara `Read` (S-3), el prompt lee `entrada.ruta_prompt` y la policy limita su `Read` a `prompts/` |
 | **AJ-4** | El sello de la orden | Opaco, `<proyecto>:<orden>:<generación del bloqueo>`, en un campo `sello` de `/siguiente`. Solo se lee el primer segmento. Un resultado con un sello viejo se rechaza. Las herramientas de `/mcp/escritura` reciben el sello como argumento | La cabecera es `orden: <sello>`. La orden se localiza por el sello en el estado local; sin campo `sello`, se usa `<proyecto>:<id>`. El Bibliotecario pasa el sello en cada escritura |
 | **P-5** | Ruta de auditoría de la policy | `POST /proyectos/{id}/auditoria` con `{decision, herramienta, agente, motivo}`, sin texto libre. Bloque 2 | Implementada: la policy la llama cuando conoce el proyecto (por la ruta o por un argumento `proyecto`), con 2 s de espera. Si no, o si falla, `.claude/estado/auditoria.jsonl` |
 | **P-6** | Tokens de cada subagente | En `metadatos`: `modelo`, `tokens_entrada`, `tokens_salida`, `tokens_cache_creacion`, `tokens_cache_lectura`, `duracion_ms`, `version_prompt`, todos opcionales. Bloque 2 | `comun.metadatos` los arma; van en el cuerpo final. Mientras, `.claude/estado/uso.jsonl` |
@@ -108,7 +108,7 @@ Los estaban PENDIENTES; los respondió la sesión de backend el 2026-09-23 y est
 |---|---|---|
 | **P-8** | Cómo se añade un dato obligatorio que falta cuando el proyecto ya salió de `intake` (RF-12 quedó fuera) | `/entrevista` pregunta antes de enviar todo lo obligatorio de [definitions.md](../docs/definitions.md) §9. Si el validador encuentra un hueco después, la skill lo enseña y el proyecto sigue el camino de reintentos y `detenida` que ya decide el backend |
 
-Los briefs de evaluación (`evals/briefs/eN-….json`) llevan en `evaluacion` el oráculo de lo que debe saltar. Se envían con `msm.py brief --desde-brief`, que manda solo `entrada.respuestas` y el texto de `entrada.texto_libre_fichero`; `--respuestas` rechaza un JSON con `evaluacion` o `cabecera`.
+Los briefs de evaluación (`evals/eN-<nombre>/input/brief.json`) llevan en `evaluacion` el oráculo de lo que debe saltar. Se envían con `msm.py brief --desde-brief`, que manda solo `entrada.respuestas` y el texto de `entrada.texto_libre_fichero`; `--respuestas` rechaza un JSON con `evaluacion` o `cabecera`.
 
 ---
 
@@ -131,9 +131,9 @@ El cuerpo de cada fichero es el prompt versionado; su SHA-256 es la versión de 
 | `exportador.md` | haiku | `mcp__lectura` | — | H5 |
 | `interprete-cambios.md` | haiku | `mcp__entrada` | `entrada` | H6 |
 
-Son **12 agentes** desde el recorte R-1 de [decisiones-backend.md](decisiones-backend.md) §0: el `planificador` produce en una sola salida lo que hacían el Arquitecto, Personajes, Mundo y Estilo (plan estructural, personajes, mundo y guía de estilo), y el Escaletista no cambia.
+Son **12 agentes** desde el recorte R-1 de [spec-backend-2.md](spec-backend-2.md) §0: el `planificador` produce en una sola salida lo que hacían el Arquitecto, Personajes, Mundo y Estilo (plan estructural, personajes, mundo y guía de estilo), y el Escaletista no cambia.
 
-Cada prompt tiene las mismas secciones: qué es y qué no hace, qué recibe (la cabecera de orden y la `entrada` de la orden), de dónde saca lo demás (su superficie MCP), cómo trabaja y **formato de salida**. Las formas de salida siguen [decisiones-backend.md](decisiones-backend.md) §1 (B-3, B-4 como partes del planificador, B-5, B-15, B-16, B-17) y §2 (TC-5), y se ajustan cuando llegue el modelo Pydantic de cada agente (RF-77a). Los recortes R-2 y R-3 también entran en los prompts: la continuidad sobre el texto la vigila el juez de capítulo, y las repeticiones, el Editor de estilo.
+Cada prompt tiene las mismas secciones: qué es y qué no hace, qué recibe (la cabecera de orden y la `entrada` de la orden), de dónde saca lo demás (su superficie MCP), cómo trabaja y **formato de salida**. Las formas de salida siguen [spec-backend-2.md](spec-backend-2.md) §1 (B-3, B-4 como partes del planificador, B-5, B-15, B-16, B-17) y §2 (TC-5), y se ajustan cuando llegue el modelo Pydantic de cada agente (RF-77a). Los recortes R-2 y R-3 también entran en los prompts: la continuidad sobre el texto la vigila el juez de capítulo, y las repeticiones, el Editor de estilo.
 
 Mientras `/mcp/lectura` no exista, los agentes que solo la declaran **no arrancan** (S-3). Es correcto: sin ella no tienen de dónde leer su entrada.
 
@@ -155,7 +155,7 @@ Mientras `/mcp/lectura` no exista, los agentes que solo la declaran **no arranca
 1. `mcp__escritura__*`: solo con `agent_type == bibliotecario`. Sin `agent_type` (sesión principal) o con otro, se deniega (RF-102, V-13).
 2. `mcp__entrada__*`: solo `extractor-hechos` e `interprete-cambios`. Duplica al frontmatter; cuesta poco.
 3. Herramientas de fichero que escriben (`Edit`, `Write`, `MultiEdit`, `NotebookEdit`): se deniega todo lo que caiga bajo la raíz de proyectos (`MSM_PROYECTOS`, por defecto `proyectos/`). A los datos se entra por la API o el MCP.
-4. Herramientas de fichero que leen (`Read`, `Grep`): se deniega `brief/` y `cambios/` de cualquier proyecto y todo fichero `texto_libre*.txt`, esté donde esté (E-3). `Glob` solo lista nombres y pasa.
+4. Herramientas de fichero que leen (`Read`, `Grep`): se deniega `brief/` y `cambios/` de cualquier proyecto, en cualquier nivel bajo la raíz (la carpeta del proyecto es `<raíz>/<grupo>/<id>/`), y todo fichero `texto_libre*.txt`, esté donde esté (E-3). `Glob` solo lista nombres y pasa.
 5. El Escritor solo lee dentro de `prompts/` de un proyecto (P-3).
 6. `Bash` y `PowerShell`: las mismas rutas por coincidencia de texto, salvo `msm.py brief`, que es el camino previsto del texto libre. Es una heurística, no una barrera: ningún agente de la novela tiene esas herramientas.
 
@@ -232,7 +232,7 @@ No forman parte de las cuatro comprobaciones del backend, que miran solo `backen
 `uv run pytest .claude/tests`: 78 pasan y 1 se salta. La que se salta compara los agentes con el enum `Agente` del backend y espera a que este aplique R-1.
 
 Comprobado con `claude -p` real:
-- **La policy funciona en el repo:** la sesión principal intenta leer `evals/briefs/texto_libre-e2.txt`, se le deniega con el motivo de la regla y la denegación queda en la auditoría.
+- **La policy funciona en el repo:** la sesión principal intenta leer `evals/e2-injection/input/texto_libre.txt`, se le deniega con el motivo de la regla y la denegación queda en la auditoría.
 - **El plugin de Langfuse ya no se ejecuta** en las sesiones nuevas del repo. Las que ya estaban abiertas lo conservan hasta que se reinician.
 - **Playwright MCP conecta** con `npx` también en Windows.
 
@@ -268,6 +268,6 @@ Esta sesión no escribe en `docs/` ni en `AGENTS.md`. Lo que cambia por este pla
 | [architecture.md](../docs/architecture.md) §2 y §8 | E-3: el «Panel» de la entrevista pasa a ser la skill `/entrevista`; el frontend se queda sin `entrevista/`. El árbol de `.claude/` gana `harness/`, `tests/`, `estado/` y las skills `entrevista` e `inspeccionar-lectura` |
 | [architecture.md](../docs/architecture.md) §8, hooks y skill | El hook de `SubagentStop` registra **todas** las salidas, no solo los borradores (P-2), y captura el uso para Langfuse (E-1 b). La skill ya no registra: lee el acuse. El `settings.json` desactiva el plugin de Langfuse del usuario |
 | [architecture.md](../docs/architecture.md) §3 y §8, [plan-entrega.md](plan-entrega.md) §4 | R-1: 12 agentes; `planificador` en lugar de Arquitecto, Personajes, Mundo y Estilo |
-| [architecture.md](../docs/architecture.md) §7 y §10, [spec1.md](spec1.md) §10, AGENTS.md | D-3 / E-1: Langfuse Cloud con solo metadatos, enviado por el backend. La dependencia la añade quien la introduzca |
+| [architecture.md](../docs/architecture.md) §7 y §10, [spec-backend-1.md](spec-backend-1.md) §10, AGENTS.md | D-3 / E-1: Langfuse Cloud con solo metadatos, enviado por el backend. La dependencia la añade quien la introduzca |
 | AGENTS.md, «Comprobaciones» | Las pruebas de `.claude/tests/` existen y no entran en las cuatro del backend |
 | [plan-entrega.md](plan-entrega.md) §4 | `/entrevista` ya no es condicional: E-3 está aceptada |

@@ -92,8 +92,15 @@ from backend.proyecto.orden import (
 from backend.proyecto.sello import fila_de_sello, sellar
 from backend.proyecto.transiciones import ORIGENES_DE_WORKER_FALLIDO, arista
 from backend.shared.db import conectar, crear_base, transaccion
-from backend.shared.rutas import DisposicionProyecto, nuevo_identificador
-from backend.shared.tipos import Agente, DesenlaceOrden, EstadoCapitulo, EstadoProyecto, Gate
+from backend.shared.rutas import DisposicionProyecto, GrupoProyecto, nuevo_identificador
+from backend.shared.tipos import (
+    Agente,
+    DesenlaceOrden,
+    EstadoCapitulo,
+    EstadoProyecto,
+    EstadoTrabajo,
+    Gate,
+)
 
 Emision = OrdenEmitida | EsperarHumano | Publicada | Detenida | ErrorConCausa
 
@@ -127,23 +134,28 @@ def crear_proyecto(
     *,
     parada_plan: bool = False,
     parada_final: bool = False,
+    etiqueta: str | None = None,
+    grupo: GrupoProyecto = GrupoProyecto.NOVELAS,
     raiz_proyectos: Path | None = None,
 ) -> Proyecto:
     """RF-01: directorio, base y fila en `intake`, con los 10 capítulos en `pendiente`.
 
-    Las paradas se eligen al crear y están inactivas por defecto (RF-05).
+    Las paradas se eligen al crear y están inactivas por defecto (RF-05). La etiqueta es el
+    nombre legible del panel; no entra en ninguna ruta. El grupo es la carpeta de la raíz en
+    que queda el proyecto, y no cambia.
     """
-    disposicion = DisposicionProyecto.de(nuevo_identificador(), raiz_proyectos)
+    disposicion = DisposicionProyecto.nueva(nuevo_identificador(), grupo, raiz_proyectos)
     disposicion.crear_directorios()
     conexion: sqlite3.Connection | None = None
     try:
         conexion = crear_base(disposicion.base)
         with transaccion(conexion):
             conexion.execute(
-                "INSERT INTO proyecto (id, identificador, version_ontologia, parada_plan, "
-                "parada_final, creado) VALUES (1, ?, ?, ?, ?, ?)",
+                "INSERT INTO proyecto (id, identificador, etiqueta, version_ontologia, "
+                "parada_plan, parada_final, creado) VALUES (1, ?, ?, ?, ?, ?, ?)",
                 (
                     disposicion.identificador,
+                    etiqueta,
                     VERSION_ONTOLOGIA,
                     int(parada_plan),
                     int(parada_final),
@@ -218,6 +230,18 @@ class CapituloLeido:
 
 
 @dataclass(frozen=True)
+class TrabajoVisible:
+    """El último trabajo de la cola del worker: una generación (sin cambio) o una
+    regeneración, su estado y, si falló, la causa (R-4)."""
+
+    id: int
+    generacion: bool
+    estado: EstadoTrabajo
+    causa: str | None
+    creado: str
+
+
+@dataclass(frozen=True)
 class EstadoLeido:
     """RF-02: el estado para la reanudación y el panel. El bloqueo, sin su token; la orden
     vigente, sin sus identificadores de un solo uso (RF-14): solo los recibe quien la pide con
@@ -234,6 +258,7 @@ class EstadoLeido:
     orden_vigente: OrdenEmitida | None
     bloqueo: BloqueoVisible | None
     creado: str
+    trabajo: TrabajoVisible | None = None
 
 
 def leer_estado(proyecto: Proyecto, ahora: datetime) -> EstadoLeido:
@@ -244,7 +269,18 @@ def leer_estado(proyecto: Proyecto, ahora: datetime) -> EstadoLeido:
         ).fetchall()
         vigente = orden_vigente(conexion)
         bloqueo = bloqueo_vigente(conexion, ahora)
+        ultimo = conexion.execute("SELECT * FROM trabajo ORDER BY id DESC LIMIT 1").fetchone()
     desde = fila["detenida_desde"]
+    trabajo = None
+    if ultimo is not None:
+        detalle = json.loads(ultimo["detalle"]) if ultimo["detalle"] is not None else {}
+        trabajo = TrabajoVisible(
+            id=int(ultimo["id"]),
+            generacion=ultimo["cambio"] is None,
+            estado=EstadoTrabajo(ultimo["estado"]),
+            causa=detalle.get("causa"),
+            creado=ultimo["creado"],
+        )
     return EstadoLeido(
         identificador=fila["identificador"],
         estado=EstadoProyecto(fila["estado"]),
@@ -260,6 +296,7 @@ def leer_estado(proyecto: Proyecto, ahora: datetime) -> EstadoLeido:
         orden_vigente=sin_identificadores(vigente) if vigente is not None else None,
         bloqueo=bloqueo,
         creado=fila["creado"],
+        trabajo=trabajo,
     )
 
 

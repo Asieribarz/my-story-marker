@@ -13,7 +13,7 @@
 
 Configuración de Claude Code que convierte el backend en una novela. Detalle y contratos en `specs/plan-agentes.md`.
 
-- **Lanzar una novela:** con el backend arrancado (`uv run uvicorn backend.app:app`, en `http://127.0.0.1:8000`), `/entrevista` crea el proyecto y deja el contexto validado; `/entrevista evals/briefs/eN-….json` hace lo mismo con un brief de evaluación. `/generar <proyecto>` sigue o reanuda. El worker del backend lanza `/regenerar <proyecto> <trabajo>` con `claude -p`, nunca con `--bare`.
+- **Lanzar una novela:** con el backend arrancado (`uv run uvicorn backend.app:app`, en `http://127.0.0.1:8000`), `/entrevista` crea el proyecto y deja el contexto validado; `/entrevista evals/eN-<nombre>/input/brief.json` hace lo mismo con un brief de evaluación. `/generar <proyecto>` sigue o reanuda; el botón «Generar» del seguimiento web hace lo mismo encolando un trabajo. El worker del backend lanza `/regenerar <proyecto> <trabajo>` con `claude -p`, nunca con `--bare`, tanto para generar como para regenerar.
 - **La sesión ejecuta y el backend decide.** El bucle es la skill `orquestar-novela`: pedir la orden, lanzar el subagente con el prompt que trae, leer el acuse. Todo pasa por `.claude/harness/msm.py`. Lo que el orquestador no hace está en esa skill y en `docs/architecture.md` §3.3.
 - **La carpeta tiene que ser de confianza.** Sin el diálogo de confianza aceptado, Claude Code no conecta los servidores MCP del frontmatter, y el Extractor, el Intérprete y el Bibliotecario no arrancan. En un clon nuevo, abre Claude Code una vez en el repo antes de generar.
 - **Hooks** (`.claude/settings.json`):

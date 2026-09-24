@@ -2,11 +2,12 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import './shared/estilos.css'
+import './shared/interfaz.css'
 
-import Lectura from './lectura/Lectura.jsx'
+import App from './App.jsx'
 
 createRoot(document.getElementById('raiz')).render(
   <StrictMode>
-    <Lectura />
+    <App />
   </StrictMode>,
 )

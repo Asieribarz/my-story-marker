@@ -16,7 +16,7 @@ Lleva el proyecto `$ARGUMENTS` tan lejos como deje el backend, y deja a la perso
 
 ## Pasos
 
-1. Sin proyecto en los argumentos, pídelo; para uno nuevo, la entrada es `/entrevista`.
+1. Sin proyecto en los argumentos, enseña `MSM proyectos`, con la etiqueta o el título, el estado y los 6 primeros caracteres de cada uno, y pregunta cuál. Para uno nuevo, la entrada es `/entrevista`. `<proyecto>` puede ser el identificador entero o un prefijo único de al menos 4 caracteres: MSM lo resuelve. Si el prefijo es ambiguo, enseña los `candidatos` del error y pregunta. Desde aquí usa el `proyecto` entero que devuelve `MSM estado`.
 2. `MSM estado <proyecto>`. Con código 5, pide a la persona que arranque el backend (`uv run uvicorn backend.app:app`) y para. Enseña el estado en una línea.
 3. Ejecuta la skill `orquestar-novela` con `<proyecto> tipo=sesion`.
 4. Cuando termine, explica la parada y lo que puede hacer la persona:

@@ -1,4 +1,4 @@
-"""El modelo de error de la API (spec1.md §5.1, TC-11): `{codigo, requisito, detalle}`.
+"""El modelo de error de la API (spec-backend-1.md §5.1, TC-11): `{codigo, requisito, detalle}`.
 
 Traduce al mismo cuerpo las excepciones del núcleo (`ErrorProyecto`) y las de FastAPI, con
 el estado HTTP de cada código de `CodigoError`. Tres cosas que un 422 genérico confundiría

@@ -1,4 +1,4 @@
-"""Paso 1: la disposición del directorio de proyecto (spec1.md §5.3, V-24)."""
+"""Paso 1: la disposición del directorio de proyecto (spec-backend-1.md §5.3, V-24)."""
 
 import re
 from pathlib import Path
@@ -10,7 +10,9 @@ from hypothesis import strategies as st
 from backend.shared.rutas import (
     VARIABLE_RAIZ,
     DisposicionProyecto,
+    GrupoProyecto,
     IdentificadorInvalido,
+    identificadores_en,
     nuevo_identificador,
     raiz_de_proyectos,
 )
@@ -18,7 +20,34 @@ from backend.shared.rutas import (
 
 def test_un_identificador_nuevo_es_valido(tmp_path: Path) -> None:
     disposicion = DisposicionProyecto.de(nuevo_identificador(), tmp_path)
-    assert disposicion.raiz.parent == tmp_path
+    assert disposicion.raiz.parent == tmp_path / "novelas"
+    assert disposicion.raiz_proyectos == tmp_path
+
+
+@pytest.mark.parametrize("grupo", list(GrupoProyecto))
+def test_un_proyecto_se_encuentra_en_su_grupo(tmp_path: Path, grupo: GrupoProyecto) -> None:
+    identificador = nuevo_identificador()
+    creada = DisposicionProyecto.nueva(identificador, grupo, tmp_path)
+    assert creada.raiz == tmp_path / grupo.value / identificador
+    creada.crear_directorios()
+    creada.base.write_bytes(b"")
+    abierta = DisposicionProyecto.de(identificador, tmp_path)
+    assert (abierta.raiz, abierta.grupo) == (creada.raiz, grupo)
+    assert identificadores_en(tmp_path) == [identificador]
+
+
+def test_la_lista_no_mira_fuera_de_los_grupos(tmp_path: Path) -> None:
+    """Un proyecto suelto en la raíz, con el formato de antes de los grupos, no se lista."""
+    suelto = DisposicionProyecto.nueva(nuevo_identificador(), GrupoProyecto.NOVELAS, tmp_path)
+    fuera = tmp_path / suelto.identificador
+    fuera.mkdir()
+    (fuera / "proyecto.sqlite").write_bytes(b"")
+    assert identificadores_en(tmp_path) == []
+
+
+def test_nueva_rechaza_un_identificador_no_opaco(tmp_path: Path) -> None:
+    with pytest.raises(IdentificadorInvalido):
+        DisposicionProyecto.nueva("../otro", GrupoProyecto.EVALS, tmp_path)
 
 
 @given(st.text())
@@ -75,4 +104,4 @@ def test_crear_directorios(tmp_path: Path) -> None:
 def test_la_raiz_se_configura_por_entorno(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv(VARIABLE_RAIZ, str(tmp_path))
     assert raiz_de_proyectos() == tmp_path
-    assert DisposicionProyecto.de("0" * 32).raiz == tmp_path / ("0" * 32)
+    assert DisposicionProyecto.de("0" * 32).raiz == tmp_path / "novelas" / ("0" * 32)
