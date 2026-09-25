@@ -1,4 +1,14 @@
-runs/
-.run_id
+.venv/
 __pycache__/
-*.pyc
+*.py[cod]
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.hypothesis/
+# Bases sueltas: datos, no código. Los proyectos generados sí entran, con su base
+# (sus datos de persona son ficticios, AGENTS.md).
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+!proyectos/*/*/*.sqlite
+.env

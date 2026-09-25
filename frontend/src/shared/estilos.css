@@ -1,0 +1,109 @@
+/*
+ * Tokens y base del documento. La paleta sale del logo (public/logo.png): el naranja es el
+ * acento —pestaña activa, botones, la cinta de «cambiado», las barras de las métricas— y el
+ * marino, la tinta y la cubierta. El naranja puro no llega al contraste AA sobre blanco, así
+ * que el texto de enlace usa `--naranja-texto`. La novela se lee en serif del sistema; la
+ * interfaz, en la sans del sistema. Sin fuentes externas.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --naranja: #ff7a33;
+  --naranja-texto: #b94a12;
+  --naranja-suave: #fff1e8;
+  --marino: #22333f;
+
+  --papel: #fdfbf8;
+  --superficie: #ffffff;
+  --tinta: #22333f;
+  --tinta-suave: #5b6772;
+  --filete: #e6e1da;
+  --enlace: var(--naranja-texto);
+  --tela: var(--marino);
+  --oro: var(--naranja);
+  --cinta: var(--naranja);
+
+  /* Sitka trae tamaños ópticos en Windows; Iowan Old Style y Charter, en macOS. */
+  --serif: 'Sitka Text', 'Iowan Old Style', Charter, 'Palatino Linotype', Georgia, serif;
+  --serif-titulo: 'Sitka Banner', 'Sitka Display', 'Iowan Old Style', Charter, 'Palatino Linotype', Georgia, serif;
+  --serif-pequena: 'Sitka Small', 'Iowan Old Style', Charter, 'Palatino Linotype', Georgia, serif;
+  --sans: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+
+  /* Unos 65 caracteres por línea. */
+  --medida: 34em;
+  --margen: 1rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --naranja-texto: #ff9a5e;
+    --naranja-suave: #3a2418;
+
+    --papel: #141b21;
+    --superficie: #1b242c;
+    --tinta: #e8e4de;
+    --tinta-suave: #a3adb5;
+    --filete: #2a3540;
+    --tela: #22333f;
+    --oro: #ff8a47;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--papel);
+  color: var(--tinta);
+  font-family: var(--serif);
+  font-size: 1.1875rem;
+  line-height: 1.6;
+  font-kerning: normal;
+  font-variant-numeric: oldstyle-nums proportional-nums;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: var(--enlace);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--naranja);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+button,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+.solo-lectores {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

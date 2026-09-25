@@ -1,0 +1,76 @@
+/* Métricas: cifras destacadas y tablas con una barra de una sola serie, en naranja. */
+
+.panel-cabeza {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.cifras {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.75rem;
+}
+
+.cifra {
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--filete);
+  border-radius: 10px;
+  background: var(--superficie);
+}
+
+.cifra p {
+  margin: 0;
+}
+
+.cifra-titulo {
+  color: var(--tinta-suave);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.cifra-valor {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.cifras-pequenas .cifra-valor {
+  font-size: 1.35rem;
+}
+
+.cifra-nota {
+  color: var(--tinta-suave);
+  font-size: 0.8rem;
+}
+
+.nota {
+  margin: 0.75rem 0 0;
+  color: var(--tinta-suave);
+  font-size: 0.9rem;
+}
+
+.celda-barra {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 9rem;
+}
+
+.barra-dato {
+  display: block;
+  flex: 1 1 auto;
+  max-width: 10rem;
+  height: 0.7rem;
+  border-radius: 0 4px 4px 0;
+  background: linear-gradient(90deg, var(--naranja) calc(var(--fraccion) * 100%), var(--naranja-suave) 0);
+}
+
+.barra-etiqueta {
+  flex: none;
+  color: var(--tinta-suave);
+  font-size: 0.85rem;
+}

@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "lectura": {
+      "type": "http",
+      "url": "http://127.0.0.1:8000/mcp/lectura/"
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest", "--browser", "msedge"]
+    },
+    "langfuse": {
+      "type": "http",
+      "url": "${LANGFUSE_BASE_URL:-https://cloud.langfuse.com}/api/public/mcp",
+      "headers": {
+        "Authorization": "Basic ${LANGFUSE_MCP_AUTH:-sin-configurar}"
+      }
+    }
+  }
+}

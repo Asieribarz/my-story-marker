@@ -1,0 +1,286 @@
+{
+ "localizaciones": [
+  {
+   "id": 1,
+   "localizacion": "biblioteca_municipal"
+  },
+  {
+   "id": 2,
+   "localizacion": "claro_de_luna"
+  },
+  {
+   "id": 3,
+   "localizacion": "comarca"
+  },
+  {
+   "id": 4,
+   "localizacion": "mirador_sierra"
+  },
+  {
+   "id": 5,
+   "localizacion": "plaza_pueblo"
+  },
+  {
+   "id": 6,
+   "localizacion": "pueblo"
+  },
+  {
+   "id": 7,
+   "localizacion": "sendero_niebla"
+  },
+  {
+   "id": 8,
+   "localizacion": "sierra"
+  }
+ ],
+ "personajes": [
+  {
+   "id": 1,
+   "personaje": "brumal"
+  },
+  {
+   "id": 2,
+   "personaje": "daniel"
+  },
+  {
+   "id": 3,
+   "personaje": "mostaza"
+  },
+  {
+   "id": 4,
+   "personaje": "nerea"
+  }
+ ],
+ "eventos": [
+  {
+   "id": 1,
+   "evento": 1,
+   "capitulo": null
+  },
+  {
+   "id": 2,
+   "evento": 2,
+   "capitulo": 1
+  },
+  {
+   "id": 3,
+   "evento": 3,
+   "capitulo": 1
+  },
+  {
+   "id": 4,
+   "evento": 4,
+   "capitulo": 2
+  },
+  {
+   "id": 5,
+   "evento": 5,
+   "capitulo": 2
+  },
+  {
+   "id": 6,
+   "evento": 6,
+   "capitulo": 2
+  },
+  {
+   "id": 7,
+   "evento": 7,
+   "capitulo": 2
+  },
+  {
+   "id": 8,
+   "evento": 8,
+   "capitulo": 2
+  },
+  {
+   "id": 9,
+   "evento": 9,
+   "capitulo": 2
+  },
+  {
+   "id": 10,
+   "evento": 10,
+   "capitulo": 3
+  },
+  {
+   "id": 11,
+   "evento": 11,
+   "capitulo": 3
+  },
+  {
+   "id": 12,
+   "evento": 12,
+   "capitulo": 3
+  },
+  {
+   "id": 13,
+   "evento": 13,
+   "capitulo": 3
+  },
+  {
+   "id": 14,
+   "evento": 14,
+   "capitulo": 3
+  },
+  {
+   "id": 15,
+   "evento": 15,
+   "capitulo": 4
+  },
+  {
+   "id": 16,
+   "evento": 16,
+   "capitulo": 4
+  },
+  {
+   "id": 17,
+   "evento": 17,
+   "capitulo": 4
+  },
+  {
+   "id": 18,
+   "evento": 18,
+   "capitulo": 4
+  },
+  {
+   "id": 19,
+   "evento": 19,
+   "capitulo": 5
+  },
+  {
+   "id": 20,
+   "evento": 20,
+   "capitulo": 5
+  },
+  {
+   "id": 21,
+   "evento": 21,
+   "capitulo": 5
+  },
+  {
+   "id": 22,
+   "evento": 22,
+   "capitulo": 5
+  },
+  {
+   "id": 23,
+   "evento": 23,
+   "capitulo": 5
+  },
+  {
+   "id": 24,
+   "evento": 24,
+   "capitulo": 6
+  },
+  {
+   "id": 25,
+   "evento": 25,
+   "capitulo": 6
+  },
+  {
+   "id": 26,
+   "evento": 26,
+   "capitulo": 6
+  },
+  {
+   "id": 27,
+   "evento": 27,
+   "capitulo": 6
+  },
+  {
+   "id": 28,
+   "evento": 28,
+   "capitulo": 6
+  },
+  {
+   "id": 29,
+   "evento": 29,
+   "capitulo": 7
+  },
+  {
+   "id": 30,
+   "evento": 30,
+   "capitulo": 7
+  },
+  {
+   "id": 31,
+   "evento": 31,
+   "capitulo": 7
+  },
+  {
+   "id": 32,
+   "evento": 32,
+   "capitulo": 7
+  },
+  {
+   "id": 33,
+   "evento": 33,
+   "capitulo": 7
+  },
+  {
+   "id": 34,
+   "evento": 34,
+   "capitulo": 7
+  },
+  {
+   "id": 35,
+   "evento": 35,
+   "capitulo": 8
+  },
+  {
+   "id": 36,
+   "evento": 36,
+   "capitulo": 8
+  },
+  {
+   "id": 37,
+   "evento": 37,
+   "capitulo": 8
+  },
+  {
+   "id": 38,
+   "evento": 38,
+   "capitulo": 8
+  },
+  {
+   "id": 39,
+   "evento": 39,
+   "capitulo": 8
+  },
+  {
+   "id": 40,
+   "evento": 40,
+   "capitulo": 9
+  },
+  {
+   "id": 41,
+   "evento": 41,
+   "capitulo": 9
+  },
+  {
+   "id": 42,
+   "evento": 42,
+   "capitulo": 9
+  },
+  {
+   "id": 43,
+   "evento": 43,
+   "capitulo": 9
+  },
+  {
+   "id": 44,
+   "evento": 44,
+   "capitulo": 10
+  },
+  {
+   "id": 45,
+   "evento": 45,
+   "capitulo": 10
+  },
+  {
+   "id": 46,
+   "evento": 46,
+   "capitulo": 10
+  }
+ ]
+}

@@ -1,0 +1,12 @@
+# Proyecto Lake de la cronología formal (architecture.md §4.2, RF-111, RF-112).
+# Sin Mathlib: las invariantes son sobre listas finitas y basta la librería estándar.
+name = "cronologia"
+defaultTargets = ["Cronologia"]
+
+# El módulo que importa el fichero que genera el backend para cada novela.
+[[lean_lib]]
+name = "Cronologia"
+
+# Casos que infringen cada invariante y casos de control: `lake build Pruebas`.
+[[lean_lib]]
+name = "Pruebas"

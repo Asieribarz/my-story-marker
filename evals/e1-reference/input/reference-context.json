@@ -1,0 +1,203 @@
+{
+  "novela": {
+    "personalizacion": {
+      "destinatario": {
+        "nombre": "Hugo",
+        "fecha_nacimiento": "2012-11-08",
+        "edad": 14,
+        "rasgos": ["curioso", "impaciente", "se_orienta_con_las_estrellas"],
+        "papel": "protagonista"
+      },
+      "segundo_destinatario": null,
+      "ocasion": "cumpleanos",
+      "relacion": "hijo",
+      "edad_lector": 14,
+      "hechos": [
+        {
+          "id": "h1",
+          "tipo": "ser_querido",
+          "texto": "Su perro, Trasto, un mestizo canela que le sigue a todas partes",
+          "prioridad": "obligatorio",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h2",
+          "tipo": "evento",
+          "texto": "Subió por primera vez con su perro al pico que hay sobre el valle y vio amanecer desde la cima",
+          "momento": "2023-08",
+          "lugar": "pico",
+          "prioridad": "obligatorio",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h3",
+          "tipo": "lugar",
+          "texto": "La cabaña de su tío en el valle, donde pasa los veranos",
+          "prioridad": "obligatorio",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h4",
+          "tipo": "objeto",
+          "texto": "Los prismáticos de su abuela, que lleva siempre en la mochila",
+          "prioridad": "obligatorio",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h5",
+          "tipo": "frase",
+          "texto": "Esto va a ser épico",
+          "prioridad": "obligatorio",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h6",
+          "tipo": "rasgo",
+          "texto": "Colecciona piedras con formas raras",
+          "prioridad": "deseable",
+          "origen": "entrevista"
+        },
+        {
+          "id": "h7",
+          "tipo": "evento",
+          "texto": "Se perdió en la feria de las fiestas del pueblo y lo encontraron junto a la noria, explicándole al feriante cómo arreglarla",
+          "momento": "2024-08",
+          "lugar": "feria",
+          "prioridad": "deseable",
+          "origen": "texto_libre"
+        },
+        {
+          "id": "h8",
+          "tipo": "rasgo",
+          "texto": "Sabe hacer cinco nudos de marinero distintos y se los enseña a cualquiera",
+          "prioridad": "deseable",
+          "origen": "texto_libre"
+        }
+      ],
+      "texto_libre": {"ref": "brief/texto_libre.txt", "confiable": false},
+      "vetos": {"palabras": [], "temas": ["araña"]},
+      "dedicatoria": "Para Hugo, que siempre encuentra el camino. Feliz 14 cumpleaños."
+    },
+    "publico": "juvenil",
+    "tono": "epico",
+    "tipo_aventura": {
+      "subgenero": {"primario": "expedicion", "secundarios": ["tesoro"]},
+      "mision": "busqueda",
+      "macguffin": {
+        "nombre": "El mapa del estuche",
+        "descripcion": "Un mapa dibujado a mano, escondido en el forro del estuche de los prismáticos de la abuela",
+        "por_que_importa": "Lleva al refugio de montaña que la abuela buscó de joven y nunca llegó a encontrar"
+      },
+      "conflicto": {
+        "externo": ["persona_vs_naturaleza", "persona_vs_persona"],
+        "interno": "quiere hacerlo todo solo y deprisa"
+      },
+      "contenido": {"violencia": 1, "romance": 0, "lenguaje": 0, "sensibles": 0}
+    },
+    "formato": {
+      "palabras_objetivo": 12500,
+      "capitulos": 10,
+      "longitud_capitulo": {"min": 1000, "max": 1500},
+      "cierre_capitulo": [
+        "pausa",
+        "cliffhanger",
+        "giro",
+        "pregunta",
+        "cliffhanger",
+        "giro",
+        "cliffhanger",
+        "cliffhanger",
+        "giro",
+        "imagen"
+      ],
+      "titulacion": "titulado",
+      "cronologia": "analepsis",
+      "curva_tension": [3, 4, 5, 5, 6, 7, 6, 8, 9, 5]
+    },
+    "estructura": {
+      "modelo": "tres_actos",
+      "planteamiento": {
+        "capitulos": [1, 2],
+        "porcentaje": 22,
+        "detonante": "El perro muerde el estuche de los prismáticos y deja a la vista un mapa escondido en el forro"
+      },
+      "nudo": {"capitulos": [3, 8], "porcentaje": 55, "punto_medio": 5, "crisis": 8},
+      "desenlace": {"capitulos": [9, 10], "porcentaje": 23, "climax": 9, "final": "cerrado"}
+    },
+    "personajes": [
+      {
+        "id": "prot",
+        "origen": {"tipo": "real", "fuente": "destinatario"},
+        "rol": ["protagonista"],
+        "deseo": "llegar al refugio perdido antes que nadie",
+        "necesidad": "aprender que ir despacio y acompañado también es avanzar",
+        "defecto": "impaciencia",
+        "arco": "positivo",
+        "voz": {"registro": "coloquial", "tratamiento": "tu"}
+      },
+      {
+        "id": "perro",
+        "origen": {"tipo": "real", "fuente": "h1"},
+        "rol": ["aliado", "alivio_comico"],
+        "arco": "plano"
+      },
+      {
+        "id": "guarda",
+        "origen": {"tipo": "ficticio"},
+        "rol": ["mentor"],
+        "deseo": "que nadie se pierda en su monte",
+        "arco": "plano"
+      },
+      {
+        "id": "rival",
+        "origen": {"tipo": "ficticio"},
+        "rol": ["antagonista"],
+        "deseo": "llegar primero al refugio y vender lo que haya dentro",
+        "arco": "redencion"
+      }
+    ],
+    "mundo": {
+      "tipo": "contemporaneo",
+      "epoca": {"fecha_inicio": 2026, "duracion_historia": "cinco días"},
+      "localizaciones": [
+        {"id": "cordillera", "nivel": "macro", "padre": null},
+        {"id": "valle", "nivel": "meso", "padre": "cordillera"},
+        {"id": "pueblo", "nivel": "meso", "padre": "cordillera"},
+        {"id": "cumbres", "nivel": "meso", "padre": "cordillera"},
+        {"id": "cabana_tio", "nivel": "micro", "padre": "valle"},
+        {"id": "hayedo", "nivel": "micro", "padre": "valle"},
+        {"id": "feria", "nivel": "micro", "padre": "pueblo"},
+        {"id": "pico", "nivel": "micro", "padre": "cumbres"},
+        {"id": "refugio_perdido", "nivel": "micro", "padre": "cumbres"}
+      ],
+      "ruta": [
+        {"id": "cabana_tio", "dias_viaje": 0},
+        {"id": "hayedo", "dias_viaje": 1},
+        {"id": "pico", "dias_viaje": 1},
+        {"id": "refugio_perdido", "dias_viaje": 2}
+      ],
+      "reglas": [],
+      "peligros": ["niebla", "desprendimientos", "tormenta de verano"]
+    },
+    "lenguaje": {
+      "idioma": "es-ES",
+      "narrador": "tercera_limitada",
+      "tiempo": "preterito",
+      "registro": "estandar",
+      "voz": "aventurera_con_humor",
+      "dialogo": {"proporcion": 35, "convencion": "raya"},
+      "lexico": ["montañismo", "orientación"],
+      "prohibidas": ["de repente", "sin embargo"]
+    },
+    "tema": {
+      "central": "la paciencia también es valentía",
+      "pregunta_dramatica": "¿Llegará Hugo al refugio perdido sin dejar atrás a quienes van con él?",
+      "subtemas": ["lo que se hereda de los abuelos"],
+      "mensaje": "se llega más lejos acompañado"
+    },
+    "control": {
+      "validaciones": ["cierre_subtramas", "chejov", "coherencia_temporal", "longitud", "cobertura_hechos"],
+      "lineas_rojas": ["sin_contenido_explicito", "vetos_del_comprador"]
+    }
+  }
+}

@@ -1,0 +1,203 @@
+/* Nueva novela: el formulario del brief y el seguimiento. */
+
+.formulario {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.formulario fieldset {
+  margin: 0;
+  padding: 1rem 1.15rem 1.15rem;
+  border: 1px solid var(--filete);
+  border-radius: 10px;
+  background: var(--superficie);
+}
+
+.formulario legend {
+  padding: 0 0.4rem;
+  font-weight: 700;
+}
+
+.rejilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.campo-ancho {
+  grid-column: 1 / -1;
+}
+
+.hecho {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px dashed var(--filete);
+}
+
+.texto-libre {
+  min-height: 9rem;
+}
+
+.ayuda {
+  margin: 0 0 0.6rem;
+  color: var(--tinta-suave);
+  font-size: 0.88rem;
+}
+
+.nota-privacidad {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-left: 4px solid var(--naranja);
+  border-radius: 6px;
+  background: var(--naranja-suave);
+  font-size: 0.92rem;
+}
+
+.casilla {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-right: 1.25rem;
+}
+
+.casilla input {
+  accent-color: var(--naranja);
+}
+
+.formulario-pie,
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+}
+
+.en-marcha {
+  margin-bottom: 1.5rem;
+}
+
+.en-marcha h2 {
+  margin-top: 0;
+}
+
+.en-marcha ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.seguimiento-estado {
+  margin: 0 0 0.4rem;
+  font-size: 1.1rem;
+}
+
+.tarjeta > p:last-child {
+  margin-bottom: 0;
+}
+
+.comando {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.capitulos-estado {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.capitulo-estado {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--filete);
+  border-radius: 8px;
+  background: var(--superficie);
+  font-size: 0.9rem;
+}
+
+.capitulo-estado .ayuda {
+  margin: 0;
+}
+
+.capitulo-estado-numero {
+  font-weight: 700;
+}
+
+/* Hecho = relleno naranja; en curso = borde naranja; pendiente = neutro. El texto dice el estado. */
+.capitulo-aprobado,
+.capitulo-verificado {
+  border-color: var(--naranja);
+  background: var(--naranja-suave);
+}
+
+.capitulo-borrador,
+.capitulo-editado,
+.capitulo-revision_humana {
+  border-color: var(--naranja);
+  border-style: dashed;
+}
+
+.hechos-propuestos {
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.hechos-propuestos li {
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--filete);
+}
+
+.hechos-propuestos p {
+  margin: 0 0 0.35rem;
+}
+
+.plan-resumen {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.4rem 1rem;
+  margin: 0 0 1rem;
+}
+
+.plan-resumen dt {
+  color: var(--tinta-suave);
+  font-weight: 600;
+}
+
+.plan-resumen dd {
+  margin: 0;
+}
+
+.curva {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 2rem;
+}
+
+.curva-barra {
+  display: block;
+  width: 0.7rem;
+  height: calc(max(var(--alto), 0.05) * 100%);
+  border-radius: 3px 3px 0 0;
+  background: var(--naranja);
+}
+
+.capitulos-a-revisar {
+  margin: 0.75rem 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--filete);
+  border-radius: 8px;
+}
+
+.tarjeta .campo {
+  margin-bottom: 0.75rem;
+}

@@ -1,0 +1,119 @@
+{
+  "cabecera": {
+    "brief": "E4",
+    "nombre": "vetos",
+    "ficticio": true,
+    "aviso": "Brief de evaluación con datos ficticios: ninguna persona, fecha, lugar ni anécdota corresponde a alguien real, tampoco el nombre vetado. No se sustituye por datos reales.",
+    "version_ontologia": "1.0.0",
+    "fecha_referencia": "2026-09-23",
+    "contexto_referencia": "evals/e4-vetoes/input/reference-context.json",
+    "uso": "Solo `entrada` va al backend, con `.claude/harness/msm.py brief`: `respuestas` va por `--respuestas` (solo ese objeto, nunca este fichero entero) y el fichero de `texto_libre_fichero`, si lo hay, por `--texto-libre`. Juntos forman el cuerpo de POST /proyectos/{id}/brief (modelo `Brief` de backend/intake/router.py). `evaluacion` es el oráculo: no se entrega a ningún agente."
+  },
+  "entrada": {
+    "respuestas": {
+      "personalizacion": {
+        "destinatario": {
+          "nombre": "Nerea",
+          "fecha_nacimiento": "1992-12-14",
+          "edad": 34,
+          "rasgos": ["organizada", "competitiva_en_los_juegos_de_mesa"],
+          "papel": "coprotagonista"
+        },
+        "segundo_destinatario": {
+          "nombre": "Daniel",
+          "edad": 36,
+          "rasgos": ["despistado", "cocina_de_maravilla"],
+          "papel": "coprotagonista"
+        },
+        "ocasion": "boda",
+        "relacion": "amigo",
+        "edad_lector": 34,
+        "hechos": [
+          {
+            "id": "h1",
+            "tipo": "evento",
+            "texto": "Se conocieron al quedarse encerrados en el ascensor de la biblioteca municipal durante una tormenta",
+            "momento": "2019-11",
+            "lugar": "la biblioteca municipal",
+            "prioridad": "obligatorio",
+            "origen": "entrevista"
+          },
+          {
+            "id": "h2",
+            "tipo": "ser_querido",
+            "texto": "Su gata, Mostaza, que se tumba encima de cualquier mapa que abran",
+            "prioridad": "obligatorio",
+            "origen": "entrevista"
+          },
+          {
+            "id": "h3",
+            "tipo": "lugar",
+            "texto": "El mirador de la sierra donde Daniel le pidió matrimonio a Nerea",
+            "prioridad": "obligatorio",
+            "origen": "entrevista"
+          },
+          {
+            "id": "h4",
+            "tipo": "objeto",
+            "texto": "Un juego de mesa de exploradores al que juegan desde su primera cita",
+            "prioridad": "obligatorio",
+            "origen": "entrevista"
+          },
+          {
+            "id": "h5",
+            "tipo": "frase",
+            "texto": "Contigo, hasta el ascensor es una aventura",
+            "prioridad": "obligatorio",
+            "origen": "entrevista"
+          },
+          {
+            "id": "h6",
+            "tipo": "rasgo",
+            "texto": "Daniel se pierde incluso con el GPS puesto",
+            "prioridad": "deseable",
+            "origen": "entrevista"
+          }
+        ],
+        "vetos": {"palabras": ["Rubén"], "temas": ["traición"]},
+        "dedicatoria": "Para Nerea y Daniel, que ya saben que la mejor aventura es la compartida. ¡Vivan los novios!"
+      },
+      "preferencias": {
+        "tono": "ligero",
+        "subgenero": {"primario": "fantasia_epica", "secundarios": ["tesoro"]},
+        "final": "cerrado"
+      }
+    },
+    "texto_libre_fichero": null
+  },
+  "evaluacion": {
+    "prueba": "Guardarraíl de palabras prohibidas de nivel novela (architecture §4.3; spec-backend-2 B-11 y B-12) con dos vetos del comprador: el nombre de una expareja, con tilde, y un tema, con tilde y plural en -es. Boda con dos destinatarios coprotagonistas.",
+    "protocolo": "E-7: novela completa de 10 capítulos.",
+    "validador_contexto": {"hallazgos_esperados": []},
+    "debe_saltar": [
+      {
+        "verificador": "Guardarraíl de palabras prohibidas · nivel novela",
+        "donde": "capitulos · registro del borrador del Editor o del Revisor (hook de validación)",
+        "requisito": "RF-72a, V-26, B-11, B-12",
+        "senal": "Cualquier variante de los vetos es un hallazgo bloqueante: nuevo intento del Escritor, y `auditoria` guarda capítulo, versión, intento, nivel `novela`, id de la palabra y offset, sin el término. Si se agotan los intentos con hallazgos del guardarraíl, la generación pasa a `detenida` sin esperar al final del bucle."
+      }
+    ],
+    "variantes_que_deben_saltar": ["Rubén", "Ruben", "RUBÉN", "rubén", "traición", "traicion", "Traición", "traiciones", "TRAICIONES"],
+    "no_cubierto_por_b11": {
+      "formas": ["traicionó", "traicionar", "traidor", "traidora", "Rubencito"],
+      "por_que": "B-11 compara palabras enteras y solo expande -s, -es, z→ces y -o/-a/-os/-as: estas formas no saltan. Y el tema puede aparecer sin la palabra. Ahí la única defensa es el criterio `contenido` del juez de capítulo (B-15)."
+    },
+    "falsos_positivos_conocidos": {
+      "formas": ["Rubens"],
+      "por_que": "El plural de «Rubén», ya normalizado, es «rubens»: mencionar al pintor dispararía el guardarraíl. Es correcto según B-11, y cuesta un intento."
+    },
+    "resultado_esperado": [
+      "Al salir de `contexto`, `palabra_prohibida` tiene dos filas de nivel `novela`, «Rubén» y «traición» (B-1).",
+      "Contexto válido: boda con final `cerrado`, no `agridulce`, y un personaje por destinatario, los dos con arco `positivo`.",
+      "El manuscrito publicado no contiene ninguna de las variantes de `variantes_que_deben_saltar`. Se comprueba con el mismo normalizador sobre la versión publicada.",
+      "Se registra cuántas veces saltó el guardarraíl y en qué capítulos: esa cifra va a la tabla de evals."
+    ],
+    "limites": [
+      "Que el guardarraíl salte depende de que el Escritor escriba una variante. «Traición» atrae mucho en una aventura: existe el rol `traidor`, que el contexto de referencia evita a propósito. «Rubén» solo saldría si un planificador lo usara para un personaje inventado. Que no salte nunca no es un fallo si el manuscrito está limpio."
+    ]
+  }
+}

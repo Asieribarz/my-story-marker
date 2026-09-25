@@ -1,0 +1,284 @@
+/*
+ * La interfaz común a las tres ventanas: cabecera con el logo y las pestañas, selector de
+ * proyecto, botones, formularios, tablas y tarjetas. En sans; la novela sigue en serif.
+ */
+
+/* Cabecera */
+
+.cabecera {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1.5rem;
+  padding: 0.6rem var(--margen);
+  border-bottom: 3px solid var(--naranja);
+  background: var(--superficie);
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  font-variant-numeric: lining-nums;
+  line-height: 1.3;
+}
+
+.cabecera-logo {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  border-radius: 6px;
+}
+
+.cabecera-logo img {
+  display: block;
+  height: 1.9rem;
+  width: auto;
+}
+
+/* El texto del logo es marino: en oscuro va sobre una pastilla clara para que se lea. */
+@media (prefers-color-scheme: dark) {
+  .cabecera-logo {
+    padding: 0.25rem 0.5rem;
+    background: #fdfbf8;
+  }
+}
+
+.pestanas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pestanas a {
+  display: block;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  color: var(--tinta);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.pestanas a:hover {
+  background: var(--naranja-suave);
+}
+
+.pestanas a[aria-current='page'] {
+  background: var(--naranja);
+  color: #1b1b1b;
+}
+
+.selector-proyecto {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+  color: var(--tinta-suave);
+}
+
+.selector-proyecto select {
+  max-width: min(22rem, 60vw);
+}
+
+/* Controles */
+
+.campo {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.campo > span {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.campo input,
+.campo select,
+.campo textarea {
+  width: 100%;
+  min-width: 0;
+}
+
+.campo input,
+.campo select,
+.campo textarea,
+.selector-proyecto select,
+.control {
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--filete);
+  border-radius: 6px;
+  background: var(--superficie);
+  color: var(--tinta);
+  font-family: var(--sans);
+  font-size: 0.95rem;
+}
+
+.campo textarea {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+.campo input:focus-visible,
+.campo select:focus-visible,
+.campo textarea:focus-visible,
+.selector-proyecto select:focus-visible {
+  outline: 2px solid var(--naranja);
+  outline-offset: 1px;
+}
+
+.boton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 1rem;
+  border: 1px solid var(--tinta-suave);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--tinta);
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.boton:hover {
+  border-color: var(--naranja);
+}
+
+.boton-primario {
+  border-color: var(--naranja);
+  background: var(--naranja);
+  color: #1b1b1b;
+}
+
+.boton-primario:hover {
+  background: #ff8f52;
+}
+
+.boton:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.boton-texto {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--enlace);
+  font-family: var(--sans);
+  font-size: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.error-accion {
+  margin: 0.6rem 0 0;
+  color: #c0392b;
+  font-family: var(--sans);
+  font-size: 0.9rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .error-accion {
+    color: #ff8b7b;
+  }
+}
+
+/* Páginas de panel: métricas, nueva novela y seguimiento */
+
+.panel {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 2rem var(--margen) 4rem;
+  font-family: var(--sans);
+  font-size: 1rem;
+  font-variant-numeric: lining-nums;
+  line-height: 1.5;
+}
+
+.panel h1 {
+  margin: 0 0 0.35rem;
+  font-size: 1.7rem;
+  line-height: 1.2;
+}
+
+.panel h2 {
+  margin: 2.25rem 0 0.75rem;
+  font-size: 1.15rem;
+}
+
+.panel-sub {
+  margin: 0 0 1.5rem;
+  color: var(--tinta-suave);
+}
+
+.tarjeta {
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--filete);
+  border-radius: 10px;
+  background: var(--superficie);
+}
+
+.tarjeta + .tarjeta {
+  margin-top: 1rem;
+}
+
+.tarjeta-aviso {
+  border-color: var(--naranja);
+  background: var(--naranja-suave);
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabla-envoltorio {
+  overflow-x: auto;
+  border: 1px solid var(--filete);
+  border-radius: 10px;
+  background: var(--superficie);
+}
+
+.tabla th,
+.tabla td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--filete);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.tabla tr:last-child td {
+  border-bottom: 0;
+}
+
+.tabla th {
+  color: var(--tinta-suave);
+  font-weight: 600;
+}
+
+.tabla .num {
+  text-align: right;
+}
+
+.chip {
+  display: inline-block;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background: var(--naranja-suave);
+  color: var(--tinta);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.codigo {
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  background: var(--naranja-suave);
+  font-family: Consolas, 'SFMono-Regular', Menlo, monospace;
+  font-size: 0.9em;
+}

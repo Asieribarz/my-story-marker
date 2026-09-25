@@ -1,0 +1,112 @@
+/* La edición de la historia: el botón sobre la selección y el panel del cambio. */
+
+.cambio-flotante,
+.cambio-panel {
+  position: fixed;
+  right: max(var(--margen), env(safe-area-inset-right));
+  bottom: max(var(--margen), env(safe-area-inset-bottom));
+  z-index: 20;
+  font-family: var(--sans);
+}
+
+.cambio-flotante .boton {
+  box-shadow: 0 0.5rem 1.2rem -0.4rem rgb(0 0 0 / 0.35);
+}
+
+.cambio-pista {
+  max-width: calc(var(--medida) + 2 * var(--margen));
+  margin: -1.5rem auto 3rem;
+  padding: 0 var(--margen);
+  color: var(--tinta-suave);
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.cambio-panel {
+  width: min(26rem, calc(100vw - 2 * var(--margen)));
+  max-height: calc(100vh - 6rem);
+  overflow-y: auto;
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--filete);
+  border-top: 4px solid var(--naranja);
+  border-radius: 10px;
+  background: var(--superficie);
+  box-shadow: 0 1rem 2.5rem -1rem rgb(0 0 0 / 0.45);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.cambio-panel h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+}
+
+.cambio-panel p {
+  margin: 0 0 0.75rem;
+}
+
+.cambio-cita {
+  margin: 0 0 0.9rem;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid var(--naranja);
+  background: var(--naranja-suave);
+  font-family: var(--serif);
+  font-style: italic;
+  white-space: pre-wrap;
+}
+
+.cambio-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+}
+
+.cambio-espera::before {
+  content: '';
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  margin-right: 0.5rem;
+  border-radius: 50%;
+  background: var(--naranja);
+  animation: latido 1.2s ease-in-out infinite;
+}
+
+@keyframes latido {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cambio-espera::before {
+    animation: none;
+  }
+}
+
+.cambio-propuesta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.35rem 0.8rem;
+  margin: 0;
+}
+
+.cambio-propuesta dt {
+  color: var(--tinta-suave);
+  font-weight: 600;
+}
+
+.cambio-propuesta dd {
+  margin: 0;
+}
+
+.cambio-antes {
+  text-decoration: line-through;
+  text-decoration-color: var(--tinta-suave);
+}
+
+.cambio-nuevo {
+  font-weight: 600;
+}

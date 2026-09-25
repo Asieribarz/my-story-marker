@@ -1,0 +1,3 @@
+.lake/
+# Los ficheros de la prueba de tamaño se generan con scripts/generar_tamano.py.
+tamano/

@@ -1,0 +1,210 @@
+{
+  "_aviso": "Datos ficticios, inventados para desarrollar el frontend. No corresponden a ninguna persona real (AGENTS.md).",
+  "version": 1,
+  "anterior": null,
+  "cambiados": [],
+  "portada": {
+    "titulo": "El faro de las mareas quietas",
+    "dedicatoria": "Para Irune, en su décimo cumpleaños: que nunca se te pare el reloj de las ganas de descubrir. Con cariño, tía Nieves."
+  },
+  "capitulos": [
+    {
+      "numero": 1,
+      "titulo": "Un reloj que no marca la hora",
+      "html": "<p data-p=\"1\">El autobús dejó a Irune en Puerto Salitre con la mochila, el cuaderno de mareas y a Chispa, que bajó la primera y le ladró al mar como a un viejo conocido. La tía Nieves las esperaba en la puerta de su casa azul, con las manos manchadas de aceite de relojero.</p><p data-p=\"2\">—Mañana cumples diez años —dijo, dándole un abrazo que olía a limón y a hierro—, así que hoy te dejo entrar en el taller.</p><p data-p=\"3\">El taller era una habitación estrecha llena de relojes. Ninguno funcionaba. Algunos tenían las agujas dobladas; otros, ni siquiera esfera. Pero sobre la mesa, bajo un paño, había uno distinto: en lugar de números tenía dibujadas olas, lunas y una isla diminuta.</p><blockquote><p data-p=\"4\"><em>Cuando el mar se pare, el faro hablará.</em></p></blockquote><p data-p=\"5\">Eso decía la inscripción de la tapa. Irune la leyó dos veces. Chispa, que no sabía leer, olfateó el reloj y estornudó.</p><p data-p=\"6\">—Era del farero Anselmo —explicó la tía—. Lo trajo a arreglar hace veinte años y nunca volvió a buscarlo.</p>"
+    },
+    {
+      "numero": 2,
+      "titulo": "La barca de la mañana",
+      "html": "<p data-p=\"1\">A la mañana siguiente, el muelle de los pescadores estaba cubierto de niebla. Irune llevaba el reloj envuelto en una bufanda, y a Chispa atada a una cuerda que no servía de nada, porque tiraba siempre hacia las gaviotas.</p><p data-p=\"2\">Un hombre alto, con gorra de capitán y la barba del color del alquitrán, se les acercó. —Bonito paquete —dijo, mirando la bufanda—. ¿Qué llevas ahí, pequeña?</p><p data-p=\"3\">—Nada que sea suyo —contestó Irune, y se sorprendió de lo firme que le había salido la voz.</p><p data-p=\"4\">El hombre sonrió sin ganas y se presentó como el capitán Brea, patrón del <em>Lenguado Feliz</em>. Entonces una barca de remos asomó entre la niebla. La llevaba un viejo de pelo blanco que, al ver el reloj asomando por la bufanda, dejó de remar.</p><p data-p=\"5\">—Lo estaba esperando —dijo el farero Anselmo—. Subid. Las dos.</p>"
+    },
+    {
+      "numero": 3,
+      "titulo": "El faro viejo",
+      "html": "<p data-p=\"1\">El faro de la isla del Reloj llevaba años apagado, pero por dentro olía a café y a papel. Anselmo encendió una estufa, sirvió leche caliente y dejó que Chispa se tumbara junto al fuego como si fuera la dueña.</p><p data-p=\"2\">—Una vez al año, la marea se detiene alrededor de la isla —contó—. Solo unos minutos. Ese reloj sabe cuándo. Yo ya no tengo vista para leerlo, pero tú llevas un cuaderno de mareas en el bolsillo.</p><p data-p=\"3\">Irune se puso colorada. No sabía que se le notaba tanto.</p><p data-p=\"4\">Antes de que anocheciera, Anselmo abrió un arcón y sacó una linterna de latón con el cristal rojo. —Era la luz de emergencia del faro —dijo—. Si alguna vez te pierdes ahí abajo, enciéndela. Su luz roja se ve desde cualquier parte de la isla.</p><p data-p=\"5\">Irune la sostuvo con las dos manos. Pesaba más de lo que parecía, y al encenderla tiñó de rojo las paredes redondas del faro, como si el edificio entero se hubiera puesto a respirar.</p>"
+    },
+    {
+      "numero": 4,
+      "titulo": "Lo que dicen las mareas",
+      "html": "<p data-p=\"1\">Pasaron la tarde en lo alto del faro, con el reloj abierto sobre la mesa y el cuaderno de Irune al lado. Chispa se había quedado dormida abajo, y sus ronquidos subían por la escalera de caracol.</p><p data-p=\"2\">Las olas dibujadas en la esfera no eran adorno: cada una correspondía a una marea. Irune fue comparándolas con sus apuntes, marea por marea, hasta que encontró la que no encajaba.</p><p data-p=\"3\">—Pasado mañana —dijo—. Al amanecer. Aquí hay una ola que no tiene sombra.</p><p data-p=\"4\">Anselmo se quitó las gafas y la miró un buen rato. —Yo tardé cuarenta años en ver eso —dijo al fin—. Y tú, una tarde.</p><p data-p=\"5\">Irune quiso explicarle que no era para tanto, que solo había que tener paciencia, pero se calló. Por la ventana, en el horizonte, las luces de un pesquero daban vueltas alrededor de la isla.</p>"
+    },
+    {
+      "numero": 5,
+      "titulo": "La cueva de los engranajes",
+      "html": "<p data-p=\"1\">Fue Chispa quien encontró la entrada: una grieta entre las rocas, en la cara norte de la isla, por donde salía un aire tibio que olía a óxido.</p><p data-p=\"2\">Irune se asomó. Dentro se oía un tictac enorme y lento, como el corazón de un gigante dormido. Entró agachada, con Chispa pegada a las piernas, y cuando sus ojos se acostumbraron a la penumbra se quedó sin respiración.</p><p data-p=\"3\">La cueva entera era un reloj. Ruedas dentadas del tamaño de una puerta giraban muy despacio, unidas por cadenas cubiertas de algas. En el centro, sobre una roca plana, había un hueco redondo del tamaño exacto del reloj de la tía Nieves.</p><p data-p=\"4\">—Todavía no —se dijo en voz alta, porque Chispa ya movía la cola como si supiera algo—. Primero hay que contárselo a Anselmo.</p><hr><p data-p=\"5\">Al salir, vio unas huellas de bota en la arena mojada. No eran suyas, y las botas del farero eran mucho más pequeñas.</p>"
+    },
+    {
+      "numero": 6,
+      "titulo": "Niebla en el muelle",
+      "html": "<p data-p=\"1\">La tía Nieves había cruzado a la isla en la lancha del correo para traerle un bizcocho de cumpleaños, y a la vuelta Irune la acompañó hasta el muelle. La niebla había vuelto, tan espesa que las farolas parecían lunas pequeñas.</p><p data-p=\"2\">Detrás de unas cajas de pescado, dos voces hablaban bajo. Una era la del capitán Brea.</p><p data-p=\"3\">—Pasado mañana, al amanecer, el mar se para —decía—. Si el reloj está en su sitio, la cueva se abre del todo. Y lo que haya dentro será del primero que llegue.</p><p data-p=\"4\">Irune apretó la mano de su tía. Sintió que tenía que resolverlo sola: si lo contaba, alguien le quitaría el reloj, o la aventura, o las dos cosas.</p><p data-p=\"5\">—Estás temblando —dijo la tía Nieves.</p><p data-p=\"6\">—Es la niebla —mintió Irune. Era la primera vez que le mentía.</p>"
+    },
+    {
+      "numero": 7,
+      "titulo": "Una luz en la cueva",
+      "html": "<p data-p=\"1\">Esa noche no pudo dormir. Se levantó sin hacer ruido, cogió el reloj, la linterna y a Chispa, y bajó a la cueva sola.</p><p data-p=\"2\">Encendió la linterna al entrar. La luz roja trepó por los engranajes y los hizo brillar como brasas.</p><p data-p=\"3\">Pero no estaba sola. Al fondo, entre dos ruedas, el capitán Brea la miraba con los brazos cruzados.</p><p data-p=\"4\">—Sabía que vendrías —dijo—. Dame el reloj y vuelve a la cama. Esto no es cosa de niñas.</p><p data-p=\"5\">Chispa gruñó por primera vez en su vida. Irune levantó la linterna y el rojo de la luz le dio al capitán en la cara; parpadeó y retrocedió un paso. Fue suficiente. Irune dio media vuelta y corrió hacia la salida, con el reloj apretado contra el pecho.</p>"
+    },
+    {
+      "numero": 8,
+      "titulo": "La noche sin viento",
+      "html": "<p data-p=\"1\">Llegó al faro sin aliento. Anselmo estaba despierto, sentado junto a la estufa, como si la hubiera estado esperando.</p><p data-p=\"2\">—Has ido sola —dijo. No era una pregunta.</p><p data-p=\"3\">Irune quiso defenderse, decir que podía hacerlo, que no necesitaba a nadie. Pero se le llenaron los ojos de lágrimas y lo único que le salió fue la verdad: que tenía miedo, que el capitán era más grande, que no sabía qué hacer.</p><p data-p=\"4\">—Eso —dijo Anselmo, echándole una manta por los hombros— es lo más valiente que te he oído decir. Pedir ayuda no es rendirse, Irune. Es lo que hacen los faros para no apagarse nunca.</p><p data-p=\"5\">Fuera no soplaba ni una brizna de viento. El mar se estaba quedando quieto.</p>"
+    },
+    {
+      "numero": 9,
+      "titulo": "Cuando el mar se para",
+      "html": "<p data-p=\"1\">Bajaron juntos a la cueva antes del amanecer: Anselmo con su bastón, Chispa delante, e Irune con el reloj en una mano y la linterna en la otra.</p><p data-p=\"2\">El capitán Brea ya estaba allí, junto al hueco de la roca. Pero no parecía un pirata. Parecía un hombre cansado.</p><p data-p=\"3\">—Mi padre también buscó esto —dijo sin mirarlos—. Se pasó la vida en el mar esperando un tesoro. Yo solo quería terminar lo que él empezó.</p><p data-p=\"4\">El agua dejó de moverse. El tictac de la cueva se detuvo. En el silencio más grande que Irune había oído nunca, colocó el reloj en su hueco.</p><p data-p=\"5\">No se abrió ningún cofre. Se encendió el faro. Arriba, sobre sus cabezas, la luz que llevaba veinte años apagada empezó a girar, y su resplandor entró por las grietas de la cueva y barrió el mar quieto de un extremo a otro.</p><p data-p=\"6\">El capitán Brea se echó a reír, y luego a llorar, y luego las dos cosas a la vez. —Era esto —dijo—. El tesoro era que volviera a funcionar.</p>"
+    },
+    {
+      "numero": 10,
+      "titulo": "La hora de Irune",
+      "html": "<p data-p=\"1\">Celebraron el cumpleaños en la casa azul, con el bizcocho de la tía Nieves, un poco aplastado por el viaje, y diez velas que Chispa intentó apagar a lametazos.</p><p data-p=\"2\">Anselmo le regaló el cuaderno de mareas del faro, con cuarenta años de apuntes y muchas páginas en blanco al final. —Para que sigas tú —le dijo.</p><p data-p=\"3\">Esa noche, desde la ventana, Irune vio girar la luz del faro al otro lado de la bahía. Contó los segundos entre destello y destello, y los apuntó en su cuaderno nuevo.</p><p data-p=\"4\">Luego escribió debajo, con su mejor letra: <em>Cuando no sepas qué hacer, pregunta.</em> Y se quedó dormida con el cuaderno abierto sobre el pecho.</p>"
+    }
+  ],
+  "personajes": [
+    {
+      "id": "prot",
+      "nombre": "Irune",
+      "rol": [
+        "protagonista"
+      ],
+      "descripcion": "Cumple diez años en Puerto Salitre y lleva siempre un cuaderno de mareas en el bolsillo.",
+      "capitulos": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ]
+    },
+    {
+      "id": "chispa",
+      "nombre": "Chispa",
+      "rol": [
+        "aliado"
+      ],
+      "descripcion": "Perra de aguas. Le ladra al mar como a un viejo conocido.",
+      "capitulos": [
+        1,
+        2,
+        3,
+        5,
+        7,
+        8,
+        9,
+        10
+      ]
+    },
+    {
+      "id": "anselmo",
+      "nombre": "Anselmo",
+      "rol": [
+        "mentor"
+      ],
+      "descripcion": "El farero de la isla del Reloj. Lleva cuarenta años apuntando mareas.",
+      "capitulos": [
+        2,
+        3,
+        4,
+        8,
+        9,
+        10
+      ]
+    },
+    {
+      "id": "nieves",
+      "nombre": "La tía Nieves",
+      "rol": [
+        "secundario"
+      ],
+      "descripcion": "Relojera. Tiene un taller lleno de relojes que no funcionan.",
+      "capitulos": [
+        1,
+        6,
+        10
+      ]
+    },
+    {
+      "id": "brea",
+      "nombre": "El capitán Brea",
+      "rol": [
+        "antagonista"
+      ],
+      "descripcion": "Patrón del Lenguado Feliz, un pesquero que da vueltas alrededor de la isla.",
+      "capitulos": [
+        2,
+        6,
+        7,
+        9
+      ]
+    }
+  ],
+  "lugares": [
+    {
+      "id": "costa",
+      "nombre": "La Costa de las Brumas",
+      "padre": null,
+      "descripcion": "Acantilados, niebla y un mar que casi nunca está quieto.",
+      "capitulos": []
+    },
+    {
+      "id": "puerto",
+      "nombre": "Puerto Salitre",
+      "padre": "costa",
+      "descripcion": "El pueblo de pescadores donde vive la tía Nieves.",
+      "capitulos": []
+    },
+    {
+      "id": "casa_nieves",
+      "nombre": "La casa azul",
+      "padre": "puerto",
+      "descripcion": "Casa y taller de relojería de la tía Nieves.",
+      "capitulos": [
+        1,
+        10
+      ]
+    },
+    {
+      "id": "muelle",
+      "nombre": "El muelle de los pescadores",
+      "padre": "puerto",
+      "descripcion": "Cajas de pescado, gaviotas y niebla casi todas las mañanas.",
+      "capitulos": [
+        2,
+        6
+      ]
+    },
+    {
+      "id": "isla",
+      "nombre": "La isla del Reloj",
+      "padre": "costa",
+      "descripcion": "Una isla pequeña frente a la bahía, con un faro apagado.",
+      "capitulos": []
+    },
+    {
+      "id": "faro",
+      "nombre": "El faro viejo",
+      "padre": "isla",
+      "descripcion": "Apagado desde hace veinte años. Por dentro huele a café y a papel.",
+      "capitulos": [
+        3,
+        4,
+        8
+      ]
+    },
+    {
+      "id": "cueva",
+      "nombre": "La cueva de los engranajes",
+      "padre": "isla",
+      "descripcion": "Una grieta en la cara norte de la isla que esconde un reloj enorme.",
+      "capitulos": [
+        5,
+        7,
+        9
+      ]
+    }
+  ]
+}

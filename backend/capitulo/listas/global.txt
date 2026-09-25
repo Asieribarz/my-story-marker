@@ -1,0 +1,107 @@
+# Lista global del guardarraíl (RF-72a, B-12), v1. Español de España.
+# Insultos, términos ofensivos y discriminatorios y tacos fuertes, para todos los públicos.
+# Una entrada por línea, en su forma base: el normalizador de B-11 añade género, número,
+# tildes y mayúsculas. Pendiente de revisión por la persona (B-12). No bloquea.
+gilipollas
+gilipuertas
+imbécil
+subnormal
+retrasado mental
+mongolo
+anormal de mierda
+capullo
+cabrón
+cabronazo
+hijo de puta
+hijoputa
+hijaputa
+hijo de perra
+malparido
+mamón
+mamonazo
+soplapollas
+chupapollas
+lameculos
+tonto del culo
+tonto de los cojones
+comemierda
+pedazo de mierda
+mierdecilla
+mequetrefe de mierda
+desgraciado de mierda
+cerdo asqueroso
+puta
+puto
+putón
+putero
+furcia
+ramera
+zorra de mierda
+guarra
+maricón
+maricona
+mariconazo
+marica
+mariposón
+bujarra
+bollera
+tortillera
+travelo
+negrata
+negro de mierda
+sudaca
+panchito
+moraco
+moro de mierda
+gitano de mierda
+gabacho de mierda
+judío de mierda
+chino de mierda
+tullido de mierda
+polla
+pollas
+cojones
+cojonudo
+coño
+joder
+jodido
+jodienda
+follar
+follador
+follada
+me cago en
+cágate
+me la suda
+me la pela
+chúpamela
+cómeme la polla
+vete a la mierda
+vete a tomar por culo
+que te follen
+que te den por culo
+tomar por culo
+por el culo
+hostia puta
+me cago en dios
+me cago en tu madre
+tu puta madre
+la puta madre
+paja mental
+pajillero
+pajero
+pajote
+zorrón
+calientapollas
+cabrona
+mierda seca
+maldito bastardo
+escoria humana
+basura humana
+cabronada
+putada
+gilipollez
+hijo de la gran puta
+joputa
+caraculo
+pichacorta
+cagón de mierda

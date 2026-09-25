@@ -1,0 +1,49 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run --project * --no-sync --quiet python *msm.py*)",
+      "Agent",
+      "Skill",
+      "mcp__lectura",
+      "mcp__escritura",
+      "mcp__entrada",
+      "Bash(python -c \"import fastmcp,inspect,os;print\\(os.path.dirname\\(fastmcp.__file__\\)\\)\")",
+      "PowerShell(foreach \\($t in 'lean','lake','elan','java','claude','node','npx'\\) { $c = Get-Command $t -ErrorAction SilentlyContinue; if \\($c\\) { \"$t -> $\\($c.Source\\)\" } else { \"$t -> NO\" } })",
+      "Read(//c/Users/student/.claude/projects/c--Users-student-Documents-GitHub-my-story-marker/853bdf54-b436-4b3b-8cfb-55d4a007b3fa/subagents/workflows/wf_73f24aab-8bd/**)",
+      "Bash([ -f \"$D/journal.jsonl\" ])",
+      "Read(//c/Users/student/AppData/Local/Temp/claude/c--Users-student-Documents-GitHub-my-story-marker/853bdf54-b436-4b3b-8cfb-55d4a007b3fa/scratchpad/**)",
+      "Bash(\"C:/Users/student/Documents/GitHub/my-story-marker/.venv/Scripts/python.exe\" -X utf8 correr_mutantes.py)",
+      "Bash(awk '{print $5, $6, $7}')",
+      "Bash(xargs wc -l)"
+    ]
+  },
+  "enabledPlugins": {
+    "langfuse-observability@langfuse-observability": false
+  },
+  "enabledMcpjsonServers": ["lectura", "playwright"],
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Grep|Glob|Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --project \"$CLAUDE_PROJECT_DIR\" --no-sync --quiet python \"$CLAUDE_PROJECT_DIR/.claude/harness/politica.py\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --project \"$CLAUDE_PROJECT_DIR\" --no-sync --quiet python \"$CLAUDE_PROJECT_DIR/.claude/harness/subagente.py\"",
+            "timeout": 180
+          }
+        ]
+      }
+    ]
+  }
+}

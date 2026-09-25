@@ -1,0 +1,18 @@
+{
+  "_aviso": "Datos ficticios, inventados para desarrollar el frontend. No corresponden a ninguna persona real (AGENTS.md).",
+  "versiones": [
+    {
+      "version": 1,
+      "publicada": "2026-09-20",
+      "cambiados": []
+    },
+    {
+      "version": 2,
+      "publicada": "2026-09-22",
+      "cambiados": [
+        3,
+        7
+      ]
+    }
+  ]
+}
